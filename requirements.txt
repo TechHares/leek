@@ -1,0 +1,16 @@
+cachetools==4.2.2
+pandas==2.0.3
+python_okx==0.2.3
+
+
+mock~=4.0.3
+websocket-client~=1.7.0
+pyyaml~=6.0.1
+requests~=2.31.0
+tables~=3.8.0
+django-multiselectfield~=0.1.12
+django-simpleui~=2023.12.12
+django-import-export~=3.3.6
+numpy~=1.24.3
+django~=4.2.8
+psutil~=5.9.0

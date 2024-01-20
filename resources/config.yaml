@@ -1,0 +1,8 @@
+leek:
+  data_dir: data
+  kline_dir: kline
+  download_dir: download
+  alert_type: console
+  alert_token: xxx
+  allowed_domains:
+    - "*"

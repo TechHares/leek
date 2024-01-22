@@ -4,6 +4,7 @@
 # @Author  : shenglin.li
 # @File    : config.py
 # @Software: PyCharm
+import re
 from pathlib import Path
 
 import yaml
@@ -13,12 +14,12 @@ import yaml
 """
 __BASE_DIR = Path(__file__).resolve().parent.parent
 __RESOURCES_DIR = __BASE_DIR.parent / 'resources'
-with open(__RESOURCES_DIR / "config.yaml", "r") as f:
+with open(__RESOURCES_DIR / "config.yaml", "r", encoding="utf-8") as f:
     cfg = yaml.safe_load(f)["leek"]
 
 
 def __build_path(path):
-    if path.startswith("~") or path.startswith("/"):
+    if re.match(r'^([a-zA-Z]:)|([!/])', path):
         return Path(path).expanduser().resolve().absolute().__str__()
     return Path(f'{__RESOURCES_DIR}/{path}').expanduser().resolve().absolute().__str__()
 

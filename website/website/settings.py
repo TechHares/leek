@@ -87,7 +87,7 @@ DATABASES = {
         'NAME': DB2,
     }
 }
-for db in ["1h", "4h", "1m", "3m", "5m", "15m", "30m", "1d"]:
+for db in ["1h", "4h", "15m", "30m", "1d"]:
     DATABASES[db] = {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': f"{KLINE_DIR}/{db}.db",

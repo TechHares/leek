@@ -268,7 +268,7 @@ class KlineAdmin(ImportExportModelAdmin):
     list_per_page = 10
 
     def get_queryset(self, request):
-        return super().get_queryset(request).using(request.GET.get("interval", "1m"))
+        return super().get_queryset(request).using(request.GET.get("interval", "1d").lower())
 
 
 admin.site.register(TradeConfig, TradeConfigAdmin)

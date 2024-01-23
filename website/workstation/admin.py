@@ -276,6 +276,6 @@ admin.site.register(DataSourceConfig, DataSourceConfigAdmin)
 admin.site.register(StrategyConfig, StrategyConfigAdmin)
 admin.site.register(TradeLog, TradeLogAdmin)
 admin.site.register(Kline, KlineAdmin)
-admin.site.site_header = '韭 量'
-admin.site.site_title = ' 韭 量'
-admin.site.index_title = ' 韭 量'
+admin.site.site_header = '量 韭 '
+admin.site.site_title = ' 量 韭 '
+admin.site.index_title = ' 量 韭 '

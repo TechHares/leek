@@ -135,7 +135,7 @@ class BaseStrategy(metaclass=ABCMeta):
     def handle(self, market_data: Dict) -> Order:
         """
         处理市场数据
-        :param market_data: 字典类型 key参见 market_data.md
+        :param market_data: 字典类型 key参见 1-2.custom-data-source.md
         :return: 返回交易指令 无变化None
         """
         if market_data["symbol"] in self.position_map and market_data["finish"] == 1:

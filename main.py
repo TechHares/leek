@@ -1,16 +1,16 @@
-# This is a sample Python script.
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+# @Time    : 2024/01/21 21:12
+# @Author  : shenglin.li
+# @File    : app.py
+# @Software: PyCharm
+import os
+import sys
+from pathlib import Path
 
-# Press ⌃R to execute it or replace it with your code.
-# Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
-
-
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press ⌘F8 to toggle the breakpoint.
-
-
-# Press the green button in the gutter to run the script.
+from django.core.management import execute_from_command_line
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'website.settings')
 if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    sys.path.append(f'{Path(__file__).resolve().parent}/website')
+    execute_from_command_line(['manage.py', 'runserver', '--noreload'])
+    # execute_from_command_line(['manage.py', 'runserver'])

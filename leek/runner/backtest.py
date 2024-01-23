@@ -9,7 +9,7 @@ from queue import Queue
 
 from leek.common import EventBus
 from leek.common.utils import decimal_to_str, decimal_quantize
-from leek.runner.base import BaseWorkflow
+from leek.runner.runner import BaseWorkflow
 from leek.runner.evaluation import Evaluation
 from leek.trade.trade import PositionSide
 

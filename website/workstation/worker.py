@@ -14,7 +14,7 @@ import django
 from django.utils import timezone
 
 from leek.common import logger
-from leek.runner.base import BaseWorkflow
+from leek.runner.runner import BaseWorkflow
 from leek.runner.simple import SimpleWorkflow
 
 

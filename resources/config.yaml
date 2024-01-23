@@ -1,8 +1,8 @@
 leek:
-  data_dir: data
-  kline_dir: ~/kline
-  download_dir: download
-  alert_type: console
-  alert_token: xxx
-  allowed_domains:
+  data_dir: data           # 数据存储目录
+  kline_dir: kline         # k线数据目录
+  download_dir: download   # 下载数据目录
+  alert_type: console      # 通知方式
+  alert_token: xxx         # 通知token
+  allowed_domains:         # web允许访问的域名
     - "*"

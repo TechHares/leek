@@ -12,7 +12,7 @@ import yaml
 
 from leek.common.event import EventBus
 from leek.common.log import logger
-from leek.runner.base import BaseWorkflow
+from leek.runner.runner import BaseWorkflow
 from leek.runner.notify import send_to_dingding, send_to_console
 
 CONFIG_PATH = Path(__file__).parent.parent.parent.resolve() / 'resources/config.yaml'

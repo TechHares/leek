@@ -4,9 +4,11 @@
 # @Author  : shenglin.li
 # @File    : __init__.py.py
 # @Software: PyCharm
-__all__ = ["OkxTrader"]
+__all__ = ["OkxTrader", "Order", "Trader"]
 
 from leek.trade.trade_okx import OkxTrader
+from leek.trade.trade import Order
+from leek.trade.trade import Trader
 
 if __name__ == '__main__':
     pass

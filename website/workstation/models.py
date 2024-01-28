@@ -6,7 +6,8 @@ from django.db import models
 from multiselectfield import MultiSelectField
 
 # Create your models here.
-from leek.common import logger
+from leek.common import logger, config
+from clickhouse_backend import models as ck_models
 
 
 class TradeConfig(models.Model):
@@ -119,6 +120,10 @@ class DataSourceConfig(models.Model):
         return dict([(attr, getattr(self, attr)) for attr in [f.name for f in self._meta.fields]])
 
 
+def time_now():
+    return datetime.datetime.now()
+
+
 class StrategyConfig(models.Model):
     id = models.AutoField(u'id', primary_key=True)
     name = models.CharField(u'策略名称', max_length=200, unique=True)
@@ -126,15 +131,15 @@ class StrategyConfig(models.Model):
 
     STRATEGY_TYPE_CHOICE = (
         ("leek.strategy.strategy_grid|SingleGridStrategy", u"单向单标的网格"),
-        ("leek.strategy.strategy_grid|BacktestDataSource", u'均值回归'),
+        ("leek.strategy.strategy_mean_reverting|MeanRevertingStrategy", u'均值回归'),
     )
     strategy_cls = models.CharField(u'策略', null=False, max_length=200, choices=STRATEGY_TYPE_CHOICE, default="")
     # =====================================单向单标的网格================================================
     singlegridstrategy_symbol = models.CharField(u'标的物', max_length=200, default="", blank=True)
-    singlegridstrategy_min_price = models.DecimalField(u'网格下界', max_digits=36, decimal_places=2, default="0")
-    singlegridstrategy_max_price = models.DecimalField(u'网格上界', max_digits=36, decimal_places=2, default="0")
+    singlegridstrategy_min_price = models.DecimalField(u'网格下界', max_digits=36, decimal_places=6, default="0")
+    singlegridstrategy_max_price = models.DecimalField(u'网格上界', max_digits=36, decimal_places=6, default="0")
     singlegridstrategy_grid = models.IntegerField(u'网格个数', default="10")
-    singlegridstrategy_risk_rate = models.DecimalField(u'风控系数', max_digits=36, decimal_places=2, default="0.1")
+    singlegridstrategy_risk_rate = models.DecimalField(u'风控系数', max_digits=36, decimal_places=6, default="0.1")
     DIRECTION_CHOICE = (
         (1, u"多"),
         (2, u"空"),
@@ -142,6 +147,28 @@ class StrategyConfig(models.Model):
     singlegridstrategy_direction = models.IntegerField(u'方向', default=1, choices=DIRECTION_CHOICE)
     singlegridstrategy_rolling_over = models.IntegerField(u'滚动操作', default=0, choices=((1, u"是"), (2, u"否")))
     # =====================================单向单标的网格================================================
+    # =====================================均值回归================================================
+    meanrevertingstrategy_symbols = models.CharField(u'标的物', max_length=1000, default="", blank=True)
+    meanrevertingstrategy_direction = models.IntegerField(u'方向', default=4, choices=(
+        (1, u"多"),
+        (2, u"空"),
+        (4, u"多|空"),
+    ))
+    meanrevertingstrategy_mean_type = models.CharField(u'均值计算方式', max_length=10, default="SMA", blank=True,
+                                                       choices=(
+                                                           ("SMA", u"SMA"),
+                                                           ("EMA", u"EMA"),
+                                                       ))
+    meanrevertingstrategy_lookback_intervals = models.IntegerField(u'均线计算周期', default="10")
+    meanrevertingstrategy_threshold = models.DecimalField(u'阈值', max_digits=36, decimal_places=6, default="0.02")
+    meanrevertingstrategy_take_profit_rate = models.DecimalField(u'止盈比例', max_digits=36, decimal_places=6, default=0.2)
+    meanrevertingstrategy_fallback_percentage = models.DecimalField(u'回落止盈比例', max_digits=36, decimal_places=6,
+                                                                    default=0.05)
+    meanrevertingstrategy_max_single_position = models.DecimalField(u'单个标的最大仓位占比', max_digits=36, decimal_places=6,
+                                                                    default=0.2)
+    meanrevertingstrategy_stop_loss_rate = models.DecimalField(u'止损比例', max_digits=36, decimal_places=6, default=0.005)
+    # =====================================均值回归================================================
+
     data_source = models.ForeignKey(DataSourceConfig, on_delete=models.PROTECT, verbose_name=u'数据源')
     trade = models.ForeignKey(TradeConfig, on_delete=models.PROTECT, verbose_name=u'交易器')
     STATUS_CHOICE = (
@@ -151,7 +178,7 @@ class StrategyConfig(models.Model):
     )
     status = models.IntegerField(u'状态', default=1, choices=STATUS_CHOICE)
     process_id = models.IntegerField(u'进程ID', default=0, null=True)
-    end_time = models.DateTimeField(u'结束时间', default=datetime.datetime.now(), null=True)
+    end_time = models.DateTimeField(u'结束时间', default=time_now, null=True)
     run_data = models.JSONField(u'运行数据', default=None, blank=True, null=True)
     created_time = models.DateTimeField(u'创建时间', auto_now_add=True)
 
@@ -180,28 +207,63 @@ class StrategyConfig(models.Model):
         super().save()
 
 
-class Kline(models.Model):
-    id = models.AutoField(u'id', primary_key=True)
-    # interval = models.CharField(u'周期', max_length=5, default="", null=False)
-    timestamp = models.BigIntegerField(u'时间戳', default=0, null=False)
-    symbol = models.CharField(u'标的', max_length=20, default="", null=False)
-    open = models.DecimalField(u'开盘价', max_digits=36, decimal_places=2, default=0, null=False)
-    high = models.DecimalField(u'最高价', max_digits=36, decimal_places=2, default=0, null=False)
-    low = models.DecimalField(u'最低价', max_digits=36, decimal_places=2, default=0, null=False)
-    close = models.DecimalField(u'收盘价', max_digits=36, decimal_places=2, default=0, null=False)
-    volume = models.DecimalField(u'成交量', max_digits=36, decimal_places=2, default=0, null=False)
-    amount = models.DecimalField(u'成交额', max_digits=36, decimal_places=2, default=0, null=False)
+if config.KLINE_DB_TYPE == 'CLICKHOUSE':
+    class Kline(ck_models.ClickhouseModel):
+        interval = ck_models.StringField(u'周期', max_length=5, default="", null=False)
+        timestamp = ck_models.UInt64Field(u'时间戳', default=0, null=False)
+        symbol = ck_models.StringField(u'标的', max_length=20, default="", null=False)
+        open = ck_models.DecimalField(u'开盘价', max_digits=36, decimal_places=2, default=0, null=False)
+        high = ck_models.DecimalField(u'最高价', max_digits=36, decimal_places=2, default=0, null=False)
+        low = ck_models.DecimalField(u'最低价', max_digits=36, decimal_places=2, default=0, null=False)
+        close = ck_models.DecimalField(u'收盘价', max_digits=36, decimal_places=2, default=0, null=False)
+        volume = ck_models.DecimalField(u'成交量', max_digits=36, decimal_places=2, default=0, null=False)
+        amount = ck_models.DecimalField(u'成交额', max_digits=36, decimal_places=2, default=0, null=False)
 
-    class Meta:
-        verbose_name = "回测K线数据"
-        verbose_name_plural = "回测K线数据"
-        unique_together = ("timestamp", "symbol")
+        class Meta:
+            db_tablespace = "data"
+            verbose_name = "回测K线数据"
+            verbose_name_plural = "回测K线数据"
+            unique_together = ('interval', "timestamp", "symbol")
+            ordering = ["-timestamp"]
+            engine = ck_models.ReplacingMergeTree(
+                primary_key=("interval", "timestamp", "symbol"),
+                order_by=("interval", "timestamp", "symbol"),
+                partition_by="interval",
+                index_granularity=4096,
+                index_granularity_bytes=1 << 20,
+                enable_mixed_granularity_parts=1,
+            )
 
-    def __str__(self):
-        return "%s" % self.id
+        def __str__(self):
+            return "%s-%s-%s" % (self.interval, self.symbol, self.symbol)
 
-    def to_dict(self):
-        return dict([(attr, getattr(self, attr)) for attr in [f.name for f in self._meta.fields]])
+        def to_dict(self):
+            return dict([(attr, getattr(self, attr)) for attr in [f.name for f in self._meta.fields]])
+else:
+    class Kline(models.Model):
+        id = models.AutoField(u'id', primary_key=True)
+        interval = models.CharField(u'周期', max_length=5, default="", null=False)
+        timestamp = models.BigIntegerField(u'时间戳', default=0, null=False)
+        symbol = models.CharField(u'标的', max_length=20, default="", null=False)
+        open = models.DecimalField(u'开盘价', max_digits=36, decimal_places=2, default=0, null=False)
+        high = models.DecimalField(u'最高价', max_digits=36, decimal_places=2, default=0, null=False)
+        low = models.DecimalField(u'最低价', max_digits=36, decimal_places=2, default=0, null=False)
+        close = models.DecimalField(u'收盘价', max_digits=36, decimal_places=2, default=0, null=False)
+        volume = models.DecimalField(u'成交量', max_digits=36, decimal_places=2, default=0, null=False)
+        amount = models.DecimalField(u'成交额', max_digits=36, decimal_places=2, default=0, null=False)
+
+        class Meta:
+            verbose_name = "回测K线数据"
+            verbose_name_plural = "回测K线数据"
+            unique_together = ('interval', "timestamp", "symbol")
+            ordering = ["-timestamp"]
+            db_tablespace = "data"
+
+        def __str__(self):
+            return "%s" % self.id
+
+        def to_dict(self):
+            return dict([(attr, getattr(self, attr)) for attr in [f.name for f in self._meta.fields]])
 
 
 class TradeLog(models.Model):
@@ -225,6 +287,7 @@ class TradeLog(models.Model):
     class Meta:
         verbose_name = "交易记录"
         verbose_name_plural = "交易记录"
+        db_tablespace = "data"
 
     def __str__(self):
         return self.order_id
@@ -241,6 +304,7 @@ class ProfitLog(models.Model):
     class Meta:
         verbose_name = "价值统计"
         verbose_name_plural = "价值统计"
+        db_tablespace = "data"
 
     def __str__(self):
         return "%s-%s" % (self.strategy_id, self.timestamp)

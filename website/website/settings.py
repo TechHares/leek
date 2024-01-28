@@ -71,30 +71,34 @@ WSGI_APPLICATION = 'website.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 resolve = Path(config.DATA_DIR).resolve()
-DB1 = resolve / 'biz.db'
-DB2 = resolve / 'trade.db'
+DB1 = resolve / 'strategy.db'
 Path(config.DOWNLOAD_DIR).resolve().mkdir(parents=True, exist_ok=True)
 resolve.mkdir(parents=True, exist_ok=True)
-KLINE_DIR = Path(config.KLINE_DIR).resolve()
-KLINE_DIR.mkdir(parents=True, exist_ok=True)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': DB1,
-    },
-    'trade': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': DB2,
     }
 }
-for db in ["1h", "4h", "15m", "30m", "1d"]:
-    DATABASES[db] = {
+if config.KLINE_DB_TYPE == "SQLITE":
+    DATABASES["data"] = {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': f"{KLINE_DIR}/{db}.db",
+        'NAME': config.KLINE_DB_PATH,
     }
+if config.KLINE_DB_TYPE == "CLICKHOUSE":
+    INSTALLED_APPS.append("clickhouse_backend")
+    DATABASES["data"] = {
+        "ENGINE": "clickhouse_backend.backend",
+        "NAME": config.KLINE_DB_DATABASE,
+        "HOST": config.KLINE_DB_HOST,
+        "USER": config.KLINE_DB_USER,
+        "PORT": config.KLINE_DB_PORT,
+    }
+    if config.KLINE_DB_PASSWORD and config.KLINE_DB_PASSWORD != "":
+        DATABASES["data"]["PASSWORD"] = config.KLINE_DB_PASSWORD
+
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -133,6 +137,8 @@ STATICFILES_DIRS = [
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+DATABASE_ROUTERS = ["website.dbrouters.LeekRouter"]
 
 SIMPLEUI_HOME_INFO = False
 SIMPLEUI_ANALYSIS = False

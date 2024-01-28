@@ -106,7 +106,10 @@ class Evaluation(object):
         """
         # 计算每日资产净值的日度收益率
         daily_returns = np.diff(self.value_arr) / self.value_arr[:-1]
-        return (np.mean(daily_returns) - risk_free_rate) / np.std(daily_returns)
+        std = np.std(daily_returns)
+        if std == 0:
+            return 0
+        return (np.mean(daily_returns) - risk_free_rate) / std
 
     def calculate_average_daily_return(self):
         """
@@ -133,7 +136,10 @@ class Evaluation(object):
         daily_returns = np.diff(self.value_arr) / self.value_arr[:-1] - risk_free_rate
         # 提取负收益
         negative_returns = daily_returns[daily_returns < 0]
-        return (self.calculate_average_daily_return() - risk_free_rate) / np.std(negative_returns)
+        std = np.std(negative_returns)
+        if std == 0:
+            return 0
+        return (self.calculate_average_daily_return() - risk_free_rate) / std
 
     def calculate_downside_risk(self, risk_free_rate=0.03/365):
         """
@@ -185,7 +191,7 @@ class Evaluation(object):
         mean_excess_returns = np.mean(excess_returns)
         std_excess_returns = np.std(excess_returns)
         # 计算信息比率
-        return mean_excess_returns / std_excess_returns
+        return mean_excess_returns / std_excess_returns if std_excess_returns != 0 else 0
 
     def calculate_beta(self):
         """
@@ -193,6 +199,8 @@ class Evaluation(object):
         """
         # 计算每日资产（或投资组合）和市场的收益率
         asset_returns = np.diff(self.value_arr) / self.value_arr[:-1]
+        if len(asset_returns) < 2:
+            return 0
         market_returns = np.diff(self.benchmark_arr) / self.benchmark_arr[:-1]
         # 计算资产与市场的协方差矩阵
         covariance_matrix = np.cov(asset_returns, market_returns)
@@ -229,6 +237,8 @@ class Evaluation(object):
         total_sum_of_squares = np.sum((asset_returns - np.mean(asset_returns)) ** 2)
 
         # 计算R平方
+        if total_sum_of_squares == 0:
+            return 0
         return 1 - (residual_sum_of_squares / total_sum_of_squares)
 
     def calculate_treynor_ratio(self, risk_free_rate=0.03/365):
@@ -240,7 +250,10 @@ class Evaluation(object):
         # 计算超额收益
         excess_returns = asset_returns - risk_free_rate
         # 计算Treynor比率
-        return np.mean(excess_returns) / self.calculate_beta()
+        beta = self.calculate_beta()
+        if beta == 0:
+            return 0
+        return np.mean(excess_returns) / beta
 
     def calculate_calmar_ratio(self, day_in_year=360):
         """

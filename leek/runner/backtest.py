@@ -9,8 +9,9 @@ from queue import Queue
 
 from leek.common import EventBus
 from leek.common.utils import decimal_to_str, decimal_quantize
-from leek.runner.runner import BaseWorkflow
+from leek.runner.runner import BaseWorkflow, _has_override
 from leek.runner.evaluation import Evaluation
+from leek.strategy import BaseStrategy
 from leek.trade.trade import PositionSide
 
 
@@ -65,28 +66,30 @@ class BacktestWorkflow(BaseWorkflow):
         if self.data_source.count:
             self.idx = max(self.idx, int(self.data_source.count / 2000))
         # 采集数据, 同步UI
+        if data.symbol == self.base_line:
+            self.base_line_current_price = data.close
+            if self.base_line_init_price is None:
+                self.base_line_init_price = data.close
         self.count += 1
         if self.count % self.idx != 0:
             return
 
-        if data['symbol'] == self.base_line:
-            self.base_line_current_price = data['close']
-            if self.base_line_init_price is None:
-                self.base_line_init_price = data['close']
-        if self.last_report_time == data["timestamp"]:
+        if self.last_report_time == data.timestamp:
             return
-        self.last_report_time = data["timestamp"]
+        self.last_report_time = data.timestamp
         if self.base_line_init_price:
             base_rate = (self.base_line_current_price - self.base_line_init_price) / self.base_line_init_price
         else:
             base_rate = 0
 
         amount = self.strategy.available_amount + self.strategy.position_value  # 当前总估值
-        profit_rate = (amount - self.strategy.total_amount) / self.strategy.total_amount
+        profit_rate = (amount - self.strategy.total_amount - self.strategy.fee) / self.strategy.total_amount
+        profit_rate_execution_fee = (amount - self.strategy.total_amount) / self.strategy.total_amount
         p_data = {
-            'timestamp': data["timestamp"],
+            'timestamp': data.timestamp,
             'amount': amount,
             'profit_rate': profit_rate,
+            'profit_rate_execution_fee': profit_rate_execution_fee,
             'benchmark': base_rate,
             'fee': self.strategy.fee,
             'benchmark_price': self.base_line_current_price
@@ -98,33 +101,34 @@ class BacktestWorkflow(BaseWorkflow):
         })
 
     def trader_to_strategy(self, data):
-        super().trader_to_strategy(data)
+        position = None
+        if data:
+            position = BaseStrategy.handle_position(self.strategy, data)
+            if _has_override(type(self.strategy), BaseStrategy, "handle_position"):
+                self.strategy.handle_position(data)
+
         if data:  # 处理交易结果
-            self.queue.put({
-                "type": "trade",
-                "data": json.dumps({
-                    "timestamp": data.order_time,
-                    "symbol": data.symbol,
-                    "side": data.side.value,
-                    "amount": data.amount,
-                    "price": data.price,
-                    "avg_price": decimal_quantize(self.strategy.position_map[data.symbol].avg_price),
-                    "quantity": self.strategy.position_map[data.symbol].quantity,
-                }, default=decimal_to_str)
-            })
+            # self.queue.put({
+            #     "type": "trade",
+            #     "data": json.dumps({
+            #         "timestamp": data.order_time,
+            #         "symbol": data.symbol,
+            #         "side": data.side.value,
+            #         "amount": data.amount,
+            #         "price": data.price,
+            #         "avg_price": decimal_quantize(position.avg_price) if position else 0,
+            #         "quantity": position.quantity if position else 0,
+            #     }, default=decimal_to_str)
+            # })
             if data.side == PositionSide.LONG:
                 self.long_single += 1
             else:
                 self.short_single += 1
+            if position:
+                if position.direction != data.side:
+                    self.trade_count += 1
 
-            if self.strategy.position_map[data.symbol].direction != data.side:
-                self.trade_count += 1
-
-                if self.strategy.position_map[data.symbol].avg_price < data.transaction_price \
-                        and data.side == PositionSide.SHORT:
-                    self.win_count += 1
-                if self.strategy.position_map[data.symbol].avg_price > data.transaction_price \
-                        and data.side == PositionSide.LONG:
+                if position.win:
                     self.win_count += 1
 
     def report(self):
@@ -142,8 +146,9 @@ class BacktestWorkflow(BaseWorkflow):
                     statistics[k] = "%.4f" % statistics[k]
             statistics["trade_signal"] = "%s/%s" % (self.long_single, self.short_single)  # 交易信号(多/空)
             statistics["winning_percentage"] = (self.win_count / self.trade_count) if self.trade_count > 0 else 0  # 胜率
-            statistics["average_trade_pl"] = "%.4f" % ((self.strategy.position_value + self.strategy.available_amount -
-                                                        self.strategy.total_amount) / self.trade_count)  # 平均交易获利/损失
+            statistics["average_trade_pl"] = "%.4f" % (((self.strategy.position_value + self.strategy.available_amount -
+                                                        self.strategy.total_amount) / self.trade_count)
+                                                       if self.trade_count > 0 else 0)  # 平均交易获利/损失
             return {
                 "type": "statistics",
                 "data": json.dumps(statistics, default=decimal_to_str)

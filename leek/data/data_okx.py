@@ -8,7 +8,7 @@ import json
 import threading
 from decimal import Decimal
 
-from leek.common import logger
+from leek.common import logger, G
 from leek.data.data import WSDataSource
 
 
@@ -45,18 +45,17 @@ class OkxKlineDataSource(WSDataSource):
         symbol = msg["arg"]["instId"]
         if msg["data"]:
             for d in msg["data"]:
-                data = {
-                    "timestamp": int(d[0]),
-                    "interval": interval,
-                    "symbol": symbol,
-                    "open": Decimal(d[1]),
-                    "high": Decimal(d[2]),
-                    "low": Decimal(d[3]),
-                    "close": Decimal(d[4]),
-                    "volume": Decimal(d[5]),
-                    "amount": Decimal(d[7]),
-                    "finish": int(d[8])
-                }
+                data = G(symbol=symbol,
+                         interval=interval,
+                         timestamp=int(d[0]),
+                         open=Decimal(d[1]),
+                         high=Decimal(d[2]),
+                         low=Decimal(d[3]),
+                         close=Decimal(d[4]),
+                         volume=Decimal(d[5]),
+                         amount=Decimal(d[7]),
+                         finish=int(d[8])
+                         )
                 self._send_tick_data(data)
 
     def shutdown(self):

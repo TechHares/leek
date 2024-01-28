@@ -254,16 +254,16 @@
                 </el-row>
                 <el-divider></el-divider>
                 </div>
-                <el-table :data="tradeLog" style="width: 100%" max-height="300">
-                    <el-table-column prop="timestamp" label="时间" :formatter="date_formatter" align="center" width="180"></el-table-column>
-                    <el-table-column prop="symbol" label="标的" align="center"></el-table-column>
-                    <el-table-column prop="side" label="方向" :formatter="side_formatter" align="center"></el-table-column>
-                    <el-table-column prop="amount" label="金额" align="center"></el-table-column>
-                    <el-table-column prop="price" label="报价" align="center"></el-table-column>
-                    <el-table-column prop="quantity" label="持仓数量" align="center"></el-table-column>
-                    <el-table-column prop="avg_price" label="持仓均价" align="center"></el-table-column>
-                </el-table>
-                <el-divider></el-divider>
+<!--                <el-table :data="tradeLog" style="width: 100%" max-height="300">-->
+<!--                    <el-table-column prop="timestamp" label="时间" :formatter="date_formatter" align="center" width="180"></el-table-column>-->
+<!--                    <el-table-column prop="symbol" label="标的" align="center"></el-table-column>-->
+<!--                    <el-table-column prop="side" label="方向" :formatter="side_formatter" align="center"></el-table-column>-->
+<!--                    <el-table-column prop="amount" label="金额" align="center"></el-table-column>-->
+<!--                    <el-table-column prop="price" label="报价" align="center"></el-table-column>-->
+<!--                    <el-table-column prop="quantity" label="持仓数量" align="center"></el-table-column>-->
+<!--                    <el-table-column prop="avg_price" label="持仓均价" align="center"></el-table-column>-->
+<!--                </el-table>-->
+<!--                <el-divider></el-divider>-->
             </div>
         </el-col>
     </el-row>
@@ -329,7 +329,7 @@
                 volume_limit: 4
             },
             chartData: {
-                columns: ['timestamp', 'profit_rate', 'benchmark', 'benchmark_price'],
+                columns: ['timestamp', 'profit_rate', 'benchmark', 'benchmark_price', 'profit_rate_execution_fee'],
                 rows: [
                 ]
 
@@ -349,9 +349,6 @@
                 },
                 colors: ['#FF0000', '#6495ED', '#778899', '#548B54', '#6495ED'],
                 yAxisType: [function (val) {
-                    if (val < 0) {
-                        val = val * -1
-                    }
                     return Math.floor(val * 100) + "%"
                 }],
                 min: [function (val) {
@@ -363,6 +360,7 @@
                 scale: [false, true],
                 labelMap: {
                     profit_rate: '策略收益',
+                    profit_rate_execution_fee: '扣除手续费策略收益',
                     benchmark: '基准增长率',
                     benchmark_price: '基准价格',
                     timestamp: '时间'
@@ -439,6 +437,9 @@
 
                 source.addEventListener("trade", function (data) {
                     _this.tradeLog.unshift(JSON.parse(data.data))
+                    if (_this.tradeLog.length > 50) {
+                        _this.tradeLog.pop()
+                    }
                 })
 
                 source.addEventListener("statistics", function (data) {

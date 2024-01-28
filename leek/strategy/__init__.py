@@ -4,7 +4,9 @@
 # @Author  : shenglin.li
 # @File    : __init__.py.py
 # @Software: PyCharm
-__all__ = ["BaseStrategy"]
+__all__ = ["BaseStrategy", "MeanRevertingStrategy", "SingleGridStrategy"]
 from leek.strategy.strategy import BaseStrategy
+from leek.strategy.strategy_mean_reverting import MeanRevertingStrategy
+from leek.strategy.strategy_grid import SingleGridStrategy
 if __name__ == '__main__':
     pass

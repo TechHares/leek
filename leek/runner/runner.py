@@ -25,10 +25,22 @@ def _init_model(ins_cfg):
     return cls(**parameter_map)
 
 
+def _has_override(subclass, baseclass, method_name):
+    # 获取父类的方法
+    base_method = getattr(baseclass, method_name, None)
+
+    # 获取子类的方法
+    sub_method = getattr(subclass, method_name, None)
+
+    # 如果子类有该方法且源代码不同于父类的源代码，则认为覆写了
+    return sub_method is not None and inspect.getsource(sub_method) != inspect.getsource(base_method)
+
+
 class BaseWorkflow(object):
     """
     流定义基类
     """
+
     def __init__(self, job_id):
         self.data_source: DataSource = None
         self.trader: Trader = None
@@ -39,7 +51,10 @@ class BaseWorkflow(object):
         self.run_state = True
 
     def start(self):
-        signal.signal(signal.SIGTERM, lambda signal, frame: self.shutdown())
+        try:
+            signal.signal(signal.SIGTERM, lambda signal, frame: self.shutdown())
+        except Exception:
+            pass
         self.data_source.start()
 
     def _clean_config(self, cls, cfg):
@@ -103,7 +118,8 @@ class BaseWorkflow(object):
     def trader_to_strategy(self, data):
         if data:
             BaseStrategy.handle_position(self.strategy, data)
-            self.strategy.handle_position(data)
+            if _has_override(type(self.strategy), BaseStrategy, "handle_position"):
+                self.strategy.handle_position(data)
 
     def shutdown(self):
         logger.info(f"{self.strategy.job_id} 收到停止信号！")

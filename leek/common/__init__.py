@@ -4,11 +4,26 @@
 # @Author  : shenglin.li
 # @File    : __init__.py.py
 # @Software: PyCharm
-__all__ = ["EventBus", "logger", "get_logger"]
-from leek.common.log import logger, get_logger
-from leek.common.event import EventBus
 """
 公共工具包
 """
+
+from leek.common.log import logger, get_logger
+from leek.common.event import EventBus
+from leek.common import config
+
+
+class G(object):
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    def __str__(self):
+        kwargs = {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
+        return str(kwargs)
+
+
+__all__ = ["EventBus", "logger", "get_logger", "config", "G"]
+
 if __name__ == '__main__':
     pass

@@ -22,27 +22,27 @@ class BacktestTrader(Trader):
         :param limit_order_execution_rate: 限价单成交率， 1 - 100, 仅针对限价单有效, 成交额=报单额*random(limit_order_execution_rate% ~ 1)
         :param volume_limit: 成交量小数保留位数
         """
-        self.slippage = slippage
-        if slippage > 1:
+        self.slippage = Decimal(slippage)
+        if self.slippage > 1:
             self.slippage = Decimal(1)
-        if slippage < 0:
+        if self.slippage < 0:
             self.slippage = Decimal(0)
 
-        self.fee_type = fee_type
-        if fee_type not in [0, 1, 2, 3]:
+        self.fee_type = int(fee_type)
+        if self.fee_type not in [0, 1, 2, 3]:
             self.fee_type = 0
         self.fee = Decimal(fee)
 
-        self.limit_order_execution_rate = limit_order_execution_rate
-        if limit_order_execution_rate < 1:
+        self.limit_order_execution_rate = Decimal(limit_order_execution_rate)
+        if self.limit_order_execution_rate < 1:
             self.limit_order_execution_rate = 1
-        if limit_order_execution_rate > 100:
+        if self.limit_order_execution_rate > 100:
             self.limit_order_execution_rate = 100
 
-        self.volume_limit = volume_limit
+        self.volume_limit = int(volume_limit)
 
     def order(self, order: Order) -> Order:
-        price_n = abs(order.price.as_tuple().exponent)
+        price_n = abs(order.price.as_tuple().exponent) if order.price is not None else 6
         amount_n = abs(order.amount.as_tuple().exponent)
 
         #  1. 计算成交价
@@ -52,7 +52,8 @@ class BacktestTrader(Trader):
             order.transaction_price = decimal_quantize(order.price * slippage, price_n)
 
         #  2. 计算成交量
-        order.sz = decimal_quantize(order.amount / order.transaction_price, self.volume_limit)
+        order.sz = order.sz if order.sz else decimal_quantize(order.amount / order.transaction_price, self.volume_limit)
+        order.cct = 1
         order.transaction_volume = order.sz
         if order.type == OrderType.LimitOrder:  # 限价单
             random_num = random.randint(self.limit_order_execution_rate, 100)  # 成交量波动
@@ -71,6 +72,7 @@ class BacktestTrader(Trader):
             order.fee = order.transaction_amount * self.fee
         elif self.fee_type == 3:
             order.fee = order.transaction_volume * self.fee
+        order.fee = - abs(order.fee)
         return order
 
 

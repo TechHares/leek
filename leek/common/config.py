@@ -24,13 +24,19 @@ def __build_path(path):
     return Path(f'{__RESOURCES_DIR}/{path}').expanduser().resolve().absolute().__str__()
 
 
-DATA_DIR = __build_path(cfg.get("data_dir", ""))
-KLINE_DIR = __build_path(cfg.get("kline_dir", ""))
+DATA_DIR = __build_path(cfg.get("biz_dir", ""))
 DOWNLOAD_DIR = __build_path(cfg.get("download_dir", ""))
 ALERT_TYPE = cfg.get("alert_type", "")
 ALERT_TOKEN = cfg.get("alert_token", "")
 ALLOWED_DOMAINS = cfg.get("allowed_domains", [])
+kline_db = cfg.get("data_db", {})
+KLINE_DB_TYPE = kline_db.get("type", "sqlite").upper()
+KLINE_DB_PATH = __build_path(kline_db.get("path", ""))
+KLINE_DB_HOST = kline_db.get("host", "localhost")
+KLINE_DB_PORT = int(kline_db.get("port", "9000"))
+KLINE_DB_USER = kline_db.get("user", "default")
+KLINE_DB_PASSWORD = kline_db.get("password", "")
+KLINE_DB_DATABASE = kline_db.get("database", "default")
 
 if __name__ == '__main__':
-    print(Path(KLINE_DIR).expanduser().resolve().absolute())
     print(DATA_DIR)

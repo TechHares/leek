@@ -9,7 +9,7 @@ from abc import abstractmethod, ABCMeta
 from decimal import Decimal
 from typing import Dict
 
-from leek.common import logger
+from leek.common import logger, G
 from leek.common.event import EventBus
 from leek.common.utils import decimal_quantize
 from leek.trade.trade import Order, PositionSide, OrderType as OT
@@ -30,21 +30,35 @@ class Position:
         self.value = Decimal("0")  # 价值
         self.fee = Decimal("0")  # 手续费消耗
 
+        self.sz = 0
+        self.win = False
+
     def update_price(self, price: Decimal):
         if self.direction == PositionSide.LONG:
             self.value = self.quantity * price
         else:
             self.value = self.quantity_amount + self.quantity * (self.avg_price - price)
 
+    def trade_result(self, order: Order):
+        return (self.direction != order.side) \
+               and (
+                       (self.direction == PositionSide.LONG and order.transaction_price > self.avg_price)
+                       or
+                       (self.direction == PositionSide.SHORT and order.transaction_price < self.avg_price)
+               )
+
     def update_filled_position(self, order: Order):
         self.fee += order.fee
         pre_value = self.avg_price * self.quantity
+        self.win = self.trade_result(order)
+
         if self.direction == order.side:
-            self.quantity += order.transaction_volume
+            self.sz += order.sz
             self.quantity_amount += order.transaction_amount
         else:
-            self.quantity -= order.transaction_volume
             self.quantity_amount -= order.transaction_amount
+            self.sz -= order.sz
+        self.quantity = self.sz * order.cct
         if self.quantity == 0:
             self.avg_price = Decimal("0")
             self.value = Decimal("0")
@@ -53,23 +67,25 @@ class Position:
                                               / self.quantity, 8)
         self.update_price(order.transaction_price)
 
-    def get_close_order(self, strategy_id, order_id, price: Decimal = None, slippage: Decimal = 0.0,
+    def get_close_order(self, strategy_id, order_id, price: Decimal = None,
+                        order_type=OT.MarketOrder,
+                        slippage: Decimal = 0.0,
                         slippage_tiers: int = 0,
                         time_in_force: int = 0):
         """
         获得平仓指令
         :param strategy_id: 策略
         :param order_id: 订单ID
+        :param order_type: 订单类型
         :param price: 价格，有价格使用限价单， 无价格使用市价单
         :param slippage: 滑点百分比（滑点最大档位 取小）
         :param slippage_tiers: 滑点最大档位 （滑点百分比 取小）
         :param time_in_force: 滑点触发时间
         :return: 交易指令
         """
-        order = Order(strategy_id, order_id, OT.LimitOrder, self.symbol, self.value,
+        order = Order(strategy_id, order_id, order_type, self.symbol, self.value,
                       price, PositionSide.switch_side(self.direction))
-        if not price:
-            order.type = OT.MarketOrder
+        order.sz = self.sz
         return order
 
     def to_dict(self) -> Dict:
@@ -132,15 +148,15 @@ class BaseStrategy(metaclass=ABCMeta):
         self.position_map: Dict[str, Position] = {}
 
     @abstractmethod
-    def handle(self, market_data: Dict) -> Order:
+    def handle(self, market_data: G) -> Order:
         """
         处理市场数据
         :param market_data: 字典类型 key参见 1-2.custom-data-source.md
         :return: 返回交易指令 无变化None
         """
-        if market_data["symbol"] in self.position_map and market_data["finish"] == 1:
-            price = market_data["close"]
-            self.position_map[market_data["symbol"]].update_price(price)
+        if market_data.symbol in self.position_map and market_data.finish == 1:
+            price = market_data.close
+            self.position_map[market_data.symbol].update_price(price)
             # 更新持仓价值
             self.position_value = sum([position.value for position in self.position_map.values()])
 
@@ -160,19 +176,23 @@ class BaseStrategy(metaclass=ABCMeta):
         更新持仓
         :param order: 订单指令结果
         """
-        logger.info(f"持仓更新: {order}")
+        # logger.info(f"持仓更新: {order}")
         if order.symbol not in self.position_map:
             self.position_map[order.symbol] = Position(order.symbol, order.side)
 
-        self.position_map[order.symbol].update_filled_position(order)
-        self.position_value = sum([position.value for position in self.position_map.values()])
+        position = self.position_map[order.symbol]
+        position.update_filled_position(order)
+        self.position_value = sum([p.value for p in self.position_map.values()])
         # 更新可用资金
-        if self.position_map[order.symbol].direction == order.side:
+        if position.direction == order.side:
             self.available_amount -= order.transaction_amount
         else:
             self.available_amount += order.transaction_amount
+        if position.quantity == 0:
+            del self.position_map[order.symbol]
         self.available_amount += order.fee
         self.fee += order.fee
+        return position
 
     def shutdown(self):
         pass
@@ -199,16 +219,18 @@ class BaseStrategy(metaclass=ABCMeta):
         if "position_map" in data:
             self.position_map = {k: Position.form_dict(v) for k, v in data["position_map"].items()}
 
+    def notify(self, msg):
+        self.bus.publish(EventBus.TOPIC_NOTIFY, msg)
+
 
 if __name__ == '__main__':
     position = Position("SDT", PositionSide.LONG)
     print(json.dumps(position.to_dict()))
 
-    form_dict = Position.form_dict({"symbol": "ETH-USDT-SWAP", "direction": 2, "quantity": "0.78", "quantity_amount": "695.78", "avg_price": "2676.08000000", "value": "696.2714000000", "fee": "-1.0436712"})
+    form_dict = Position.form_dict(
+        {"symbol": "ETH-USDT-SWAP", "direction": 2, "quantity": "0.78", "quantity_amount": "695.78",
+         "avg_price": "2676.08000000", "value": "696.2714000000", "fee": "-1.0436712"})
     # form_dict.update_price(Decimal("2679.11"))
     form_dict.update_price(Decimal("2671.76"))
     # 2.37
     print(form_dict.value + form_dict.fee - form_dict.quantity_amount)
-
-
-

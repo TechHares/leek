@@ -1,8 +1,15 @@
 leek:
-  data_dir: data           # 数据存储目录
-  kline_dir: kline         # k线数据目录
+  biz_dir: data            # 数据存储目录
   download_dir: download   # 下载数据目录
   alert_type: console      # 通知方式
   alert_token: xxx         # 通知token
   allowed_domains:         # web允许访问的域名
     - "*"
+  data_db:
+    type: clickhouse       # sqlite sqlite/clickhouse
+    path: data/data.db     # sqlite文件位置
+    database: default      # clickhouse数据库名
+    host: localhost        # clickhouse host
+    port: 9000             # clickhouse port
+    user: default          # clickhouse user
+    password:              # database password, default empty.

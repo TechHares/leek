@@ -62,19 +62,18 @@ class SingleGridStrategy(BaseStrategy):
         :param market_data: 市场数据
         :return: 交易指令
         """
-        if market_data["symbol"] != self.symbol:
+        if market_data.symbol != self.symbol:
             return
 
-        price = market_data["close"]
+        price = market_data.close
         if price > self.max_price * (1 + self.risk_rate) or price < self.min_price * (1 - self.risk_rate):
             if self.current_grid > 0:  # 有持仓
-                self.bus.publish(EventBus.TOPIC_NOTIFY,
-                                 f"SingleGridStrategy 价格{price}超出风控范围{self.min_price * (1 - self.risk_rate)}"
-                                 f"-{self.max_price * (1 + self.risk_rate)} 平仓")
+                self.notify(f"SingleGridStrategy 价格{price}超出风控范围{self.min_price * (1 - self.risk_rate)}"
+                            f"-{self.max_price * (1 + self.risk_rate)} 平仓")
                 o = self.position_map[self.symbol].get_close_order(self.job_id,
                                                                    f"C{self.job_id}{self._get_seq_id()}", price)
                 o.extend = 0
-                o.order_time = market_data["timestamp"]
+                o.order_time = market_data.timestamp
                 self.risk = True
                 return o
 
@@ -123,28 +122,27 @@ class SingleGridStrategy(BaseStrategy):
                                             * abs(self.current_grid - dt_gird), 2)
             order.amount = min(self.position_value, order.amount)
         order.extend = dt_gird
-        self.bus.publish(EventBus.TOPIC_NOTIFY,
-                         f"总投入{self.total_amount} 方向{self.direction} 已投入{self.total_amount}"
-                         f" 网格数{self.current_grid}/{self.grid} \n"
-                         f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}\n"
-                         f"操作方向{order.side} 最大可投= {self.available_amount}\n"
-                         f"金额:{order.amount}=math.floor({self.total_amount}/{self.grid}*abs({self.current_grid}-{dt_gird}))"
-                         )
+        self.notify(
+            f"总投入{self.total_amount} 方向{self.direction} 已投入{self.total_amount}"
+            f" 网格数{self.current_grid}/{self.grid} \n"
+            f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}\n"
+            f"操作方向{order.side} 最大可投= {self.available_amount}\n"
+            f"金额:{order.amount}=math.floor({self.total_amount}/{self.grid}*abs({self.current_grid}-{dt_gird}))"
+        )
         # si = "卖" if self.direction != order.side else "买"
-        # print(
-        #     f"网格数{self.current_grid} -> {dt_gird}, 资金: {self.available_amount} + {self.position_value} = {self.available_amount + self.position_value} , {si} {order.amount}")
-        order.order_time = market_data["timestamp"]
+        # print(f"网格数{self.current_grid} -> {dt_gird}, 资金: {self.available_amount} + {self.position_value} ="
+        #       f" {self.available_amount + self.position_value} , {si} {order.amount}")
+        order.order_time = market_data.timestamp
         return order
 
     def handle_position(self, order: Order):
         self.current_grid = order.extend
         # si = "卖" if self.direction != order.side else "买"
         # print(
-        #     f"网格购买成功 -> {order.extend}, 资金: {self.available_amount} + {self.position_value} = {self.available_amount + self.position_value} , {si} {order.amount}")
-        self.bus.publish(EventBus.TOPIC_NOTIFY,
-                         f"持仓更新: 总投入{self.total_amount} 方向{self.direction} 剩余{self.available_amount}"
-                         f" 网格数{self.current_grid}/{self.grid} 持仓数量：{self.position_map[self.symbol].quantity}"
-                         )
+        #     f"网格购买成功 -> {order.extend}, 资金: {self.available_amount} + {self.position_value} ="
+        #     f" {self.available_amount + self.position_value} , {si} {order.amount}")
+        self.notify(f"持仓更新: 总投入{self.total_amount} 方向{self.direction} 剩余{self.available_amount}"
+                    f" 网格数{self.current_grid}/{self.grid} 持仓数量：{self.position_map[self.symbol].quantity}")
 
     def to_dict(self):
         d = super().to_dict()

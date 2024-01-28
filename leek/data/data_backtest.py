@@ -4,16 +4,11 @@
 # @Author  : shenglin.li
 # @File    : data_backtest.py
 # @Software: PyCharm
-import os
+import sqlite3
 from decimal import Decimal
 
-import pandas as pd
-
-from leek.common import EventBus, logger
+from leek.common import EventBus, logger, config, G
 from leek.data.data import DataSource
-
-PROJECT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-H5_DATA = os.path.join(PROJECT_PATH, "resources/h5data")
 
 
 class BacktestDataSource(DataSource):
@@ -28,44 +23,62 @@ class BacktestDataSource(DataSource):
         self.count = None
 
     def _run(self):
-        filename = os.path.join(H5_DATA, f"{self.interval}.hdf5")
-        with pd.HDFStore(filename, "r") as h5:
-            df = pd.concat(map(h5.get, [symbol for symbol in self.symbols if "/" + symbol in h5.keys()]), axis=0)
-            df = df[(self.start_time <= df.timestamp) & (df.timestamp <= self.end_time)]
-            df.sort_values("timestamp", inplace=True)
-            self.count = df.shape[0]
+        db_file = f"{config.KLINE_DIR}/{self.interval}.db"
+
+        try:
+            conn = sqlite3.connect(db_file)
+            cursor = conn.cursor()
+            sql = f"select count(*) from workstation_kline" \
+                  f" where timestamp >= {self.start_time} and timestamp <= " \
+                  f"{self.end_time} and symbol in (%s) order by timestamp" % \
+                  (",".join(["'%s'" % symbol for symbol in self.symbols]))
+            cursor.execute(sql)
+            self.count = cursor.fetchone()[0]
             cur = 0
             last = 0
-            for index, row in df.iterrows():
-                cur += 1
-                process = int(cur * 1.0 / self.count * 90)
-                if process != last:
-                    last = process
-                    self.bus.publish("backtest_data_source_process", process)
+
+            sql = sql.replace("count(*)", "timestamp,symbol,open,high,low,close,volume,amount")
+            cursor.execute(sql)
+            while rows := cursor.fetchmany(200):
                 if not self.keep_running:
-                    logger.info("回测数据源已关闭")
                     break
-                self._send_tick_data({
-                    "symbol": row.loc["symbol"],
-                    "timestamp": row.loc["timestamp"],
-                    "open": Decimal(row.loc["open"]),
-                    "high": Decimal(row.loc["high"]),
-                    "low": Decimal(row.loc["low"]),
-                    "close": Decimal(row.loc["close"]),
-                    "volume": Decimal(row.loc["volume"]),
-                    "amount": Decimal(row.loc["amount"]),
-                    "finish": 1,
-                })
+                # 处理每批次的数据
+                for row in rows:
+                    cur += 1
+                    process = int(cur * 1.0 / self.count * 90)
+                    if process != last:
+                        last = process
+                        self.bus.publish("backtest_data_source_process", process)
+                    if not self.keep_running:
+                        logger.info("回测数据源已关闭")
+                        break
+                    self._send_tick_data(G(symbol=row[1],
+                                           timestamp=row[0],
+                                           open=Decimal(row[2]),
+                                           high=Decimal(row[3]),
+                                           low=Decimal(row[4]),
+                                           close=Decimal(row[5]),
+                                           volume=Decimal(row[6]),
+                                           amount=Decimal(row[7]),
+                                           finish=1
+                                           ))
+
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
         self.bus.publish("backtest_data_source_process", 95)
         self.bus.publish("backtest_data_source_done", "回测数据源已关闭")
 
-    def shutdown(self):
-        self.keep_running = False
+
+def shutdown(self):
+    self.keep_running = False
 
 
 if __name__ == '__main__':
-    source = BacktestDataSource("30m", ["BTCUSDT", "ETHUSDT"], "2023-10-01", "2023-11-01")
+    source = BacktestDataSource("30m", ["BTCUSDT", "ETHUSDT"], 1674544707299, 1706080707299)
     DataSource.__init__(source, EventBus())
     source.start()
     source.shutdown()

@@ -45,7 +45,7 @@ class WorkerWorkflow(SimpleWorkflow):
         strategy_config.just_save()
 
         value = self.strategy.position_value + self.strategy.available_amount + self.strategy.fee
-        ProfitLog.objects.using("trade").create(strategy_id=self.job_id, timestamp=int(time.time()),
+        ProfitLog.objects.create(strategy_id=self.job_id, timestamp=int(time.time()),
                                                 value=value,
                                                 profit=value - self.strategy.total_amount,
                                                 fee=self.strategy.fee)
@@ -54,7 +54,7 @@ class WorkerWorkflow(SimpleWorkflow):
         if data is None:
             return
         from .models import TradeLog
-        TradeLog.objects.using("trade").create(order_id=data.order_id, strategy_id=data.strategy_id,
+        TradeLog.objects.create(order_id=data.order_id, strategy_id=data.strategy_id,
                                                type=data.type.value,
                                                symbol=data.symbol, price=data.price, amount=data.amount,
                                                sz=data.sz, side=data.side.value,

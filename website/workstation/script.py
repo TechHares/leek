@@ -20,6 +20,7 @@ def read_csv(file_dir, file):
         rows = [Kline(
             timestamp=int(row['open_time']),
             symbol=symbol,
+            interval=interval,
             open=Decimal(row['open']),
             high=Decimal(row['high']),
             low=Decimal(row['low']),
@@ -31,6 +32,7 @@ def read_csv(file_dir, file):
         rows = [Kline(
             timestamp=int(row['open_time']),
             symbol=symbol,
+            interval=interval,
             open=Decimal(row['open']),
             high=Decimal(row['high']),
             low=Decimal(row['low']),
@@ -41,7 +43,7 @@ def read_csv(file_dir, file):
                                     fieldnames=["open_time", "open", "high", "low", "close", "volume", "close_time",
                                                 "quote_volume", "count", "taker_buy_volume", "taker_buy_quote_volume",
                                                 "ignore"])]
-    Kline.objects.using(interval).bulk_create(rows, ignore_conflicts=True)
+    Kline.objects.bulk_create(rows, ignore_conflicts=True)
 
 
 def deal_bian_download_csv():
@@ -98,9 +100,9 @@ def ods_2_dw():
 
 if __name__ == '__main__':
     __package__ = "workstation"
-    sys.path.append(f'{Path(__file__).resolve().parent.parent.parent}/website')
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "website.settings")
+    sys.path.append(f'{Path(__file__).resolve().parent.parent}')
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "website.website.settings")
     os.environ.setdefault("DISABLE_WORKER", "true")
     django.setup()
-    deal_bian_download_csv()
     # ods_2_dw()
+    deal_bian_download_csv()

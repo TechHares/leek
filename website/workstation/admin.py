@@ -244,9 +244,6 @@ class TradeLogAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
-    def get_queryset(self, request):
-        return super().get_queryset(request).using("trade")
-
 
 class KlineIntervalFilter(admin.SimpleListFilter):
     title = '周期'
@@ -266,10 +263,6 @@ class KlineAdmin(ImportExportModelAdmin):
     sortable_by = ('timestamp desc',)
     list_filter = (KlineIntervalFilter, 'symbol', 'timestamp',)
     list_per_page = 10
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).using(request.GET.get("interval", "1d").lower())
-
 
 admin.site.register(TradeConfig, TradeConfigAdmin)
 admin.site.register(DataSourceConfig, DataSourceConfigAdmin)

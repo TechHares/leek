@@ -4,6 +4,7 @@
 # @Author  : shenglin.li
 # @File    : event.py
 # @Software: PyCharm
+from leek.common.log import logger
 
 
 class EventBus:

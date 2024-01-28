@@ -19,7 +19,7 @@ class PositionSide(Enum):
     """
     LONG = 1  # 多头
     SHORT = 2  # 空头
-    FLAT = 4  # 平头
+    FLAT = 4  # 多/空头
 
     @staticmethod
     def switch_side(side):
@@ -57,6 +57,7 @@ class Order:
             self.order_time = int(time.time()*1000)
 
         self.sz = None  # 实际需交易数量，如amount与实际挂单之间有运算，传此值不转化直接使用
+        self.cct = None  # sz 对应面值
 
         self.transaction_volume = None  # 成交数量
         self.transaction_amount = None  # 成交金额

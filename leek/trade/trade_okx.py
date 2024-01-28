@@ -224,6 +224,7 @@ class OkxTrader(Trader):
         order.sz = Decimal(data["acc_fill_sz"])
         if order.side == PS.SHORT:
             order.sz *= -1
+        order.cct = Decimal(ct_val)
         self._trade_callback(order)
 
     def cancel_order(self, strategy, order_id, symbol: str):

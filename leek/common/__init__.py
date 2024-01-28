@@ -11,6 +11,7 @@
 from leek.common.log import logger, get_logger
 from leek.common.event import EventBus
 from leek.common import config
+from leek.common.utils import IdGenerator
 
 
 class G(object):
@@ -23,7 +24,7 @@ class G(object):
         return str(kwargs)
 
 
-__all__ = ["EventBus", "logger", "get_logger", "config", "G"]
+__all__ = ["EventBus", "logger", "get_logger", "config", "G", "IdGenerator"]
 
 if __name__ == '__main__':
     pass

@@ -22,53 +22,84 @@ class BacktestDataSource(DataSource):
         self.end_time = end_time
         self.count = None
 
-    def _run(self):
-        db_file = f"{config.KLINE_DIR}/{self.interval}.db"
+    def _ck_run(self):
+        from clickhouse_driver import Client
+        args = {
+            "host": config.KLINE_DB_HOST,
+            "port": config.KLINE_DB_PORT,
+            "database": config.KLINE_DB_DATABASE,
+            "user": config.KLINE_DB_USER,
+        }
+        if config.KLINE_DB_PASSWORD and config.KLINE_DB_PASSWORD != "":
+            args["password"] = config.KLINE_DB_PASSWORD
+        client = Client(**args)
+        sql = f"select count(*) from workstation_kline" \
+              f" where interval='{self.interval}' and timestamp >= {self.start_time} and timestamp <= " \
+              f"{self.end_time} and symbol in (%s)" % \
+              (",".join(["'%s'" % symbol for symbol in self.symbols]))
+        self.count = client.execute(query=sql)[0][0]
 
+        sql = sql.replace("count(*)", "timestamp,symbol,open,high,low,close,volume,amount")
+        sql += " order by timestamp"
+        cursor = client.execute_iter(sql)
+        return None, cursor
+
+    def _sqlite_run(self):
+        conn = sqlite3.connect(config.KLINE_DB_PATH)
+        cursor = conn.cursor()
+        sql = f"select count(*) from workstation_kline" \
+              f" where interval='{self.interval}' and timestamp >= {self.start_time} and timestamp <= " \
+              f"{self.end_time} and symbol in (%s) order by timestamp" % \
+              (",".join(["'%s'" % symbol for symbol in self.symbols]))
+        cursor.execute(sql)
+        self.count = cursor.fetchone()[0]
+
+        sql = sql.replace("count(*)", "timestamp,symbol,open,high,low,close,volume,amount")
+        cursor.execute(sql)
+
+        def generator():
+            while rows := cursor.fetchmany(200):
+                for row in rows:
+                    yield row
+            cursor.close()
+
+        return conn, generator()
+
+    def _run(self):
         try:
-            conn = sqlite3.connect(db_file)
-            cursor = conn.cursor()
-            sql = f"select count(*) from workstation_kline" \
-                  f" where timestamp >= {self.start_time} and timestamp <= " \
-                  f"{self.end_time} and symbol in (%s) order by timestamp" % \
-                  (",".join(["'%s'" % symbol for symbol in self.symbols]))
-            cursor.execute(sql)
-            self.count = cursor.fetchone()[0]
+            conn, cursor = None, None
+            if config.KLINE_DB_TYPE == "CLICKHOUSE":
+                conn, cursor = self._ck_run()
+            elif config.KLINE_DB_TYPE == "SQLITE":
+                conn, cursor = self._sqlite_run()
+
             cur = 0
             last = 0
-
-            sql = sql.replace("count(*)", "timestamp,symbol,open,high,low,close,volume,amount")
-            cursor.execute(sql)
-            while rows := cursor.fetchmany(200):
+            for row in cursor:
                 if not self.keep_running:
                     break
-                # 处理每批次的数据
-                for row in rows:
-                    cur += 1
-                    process = int(cur * 1.0 / self.count * 90)
-                    if process != last:
-                        last = process
-                        self.bus.publish("backtest_data_source_process", process)
-                    if not self.keep_running:
-                        logger.info("回测数据源已关闭")
-                        break
-                    self._send_tick_data(G(symbol=row[1],
-                                           timestamp=row[0],
-                                           open=Decimal(row[2]),
-                                           high=Decimal(row[3]),
-                                           low=Decimal(row[4]),
-                                           close=Decimal(row[5]),
-                                           volume=Decimal(row[6]),
-                                           amount=Decimal(row[7]),
-                                           finish=1
-                                           ))
+                cur += 1
+                process = int(cur * 1.0 / self.count * 90)
+                if process != last:
+                    last = process
+                    self.bus.publish("backtest_data_source_process", process)
+                if not self.keep_running:
+                    logger.info("回测数据源已关闭")
+                    break
+                self._send_tick_data(G(symbol=row[1],
+                                       timestamp=row[0],
+                                       open=Decimal(row[2]),
+                                       high=Decimal(row[3]),
+                                       low=Decimal(row[4]),
+                                       close=Decimal(row[5]),
+                                       volume=Decimal(row[6]),
+                                       amount=Decimal(row[7]),
+                                       finish=1
+                                       ))
 
         finally:
-            if cursor:
-                cursor.close()
             if conn:
                 conn.close()
-
         self.bus.publish("backtest_data_source_process", 95)
         self.bus.publish("backtest_data_source_done", "回测数据源已关闭")
 
@@ -80,5 +111,5 @@ def shutdown(self):
 if __name__ == '__main__':
     source = BacktestDataSource("30m", ["BTCUSDT", "ETHUSDT"], 1674544707299, 1706080707299)
     DataSource.__init__(source, EventBus())
-    source.start()
-    source.shutdown()
+    source._run()
+    # source.shutdown()

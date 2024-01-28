@@ -4,6 +4,7 @@
 # @Author  : shenglin.li
 # @File    : utils.py
 # @Software: PyCharm
+import time
 from decimal import *
 
 
@@ -35,5 +36,25 @@ def decimal_to_str(obj):
     raise TypeError
 
 
+class IdGenerator(object):
+    def __init__(self, worker=1):
+        self.worker = worker
+        self.ts = 0
+        self.idx = 0
+
+    def next(self):
+        ts = int(time.time())
+        if ts != self.ts:
+            self.ts = ts
+            self.idx = 0
+        else:
+            self.idx += 1
+        if self.idx > 999999:
+            return self.next()
+        return 1*(10**16) + self.ts * (10**6) + self.idx
+
+
 if __name__ == '__main__':
-    pass
+    generator = IdGenerator(1)
+    for i in range(10):
+        print(generator.next())

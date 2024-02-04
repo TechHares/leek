@@ -259,9 +259,14 @@ class Evaluation(object):
         """
         :return: Calmar比率
         """
-        return self.calculate_annualized_return(day_in_year) / self.calculate_max_drawdown()
+        try:
+            return self.calculate_annualized_return(day_in_year) / self.calculate_max_drawdown()
+        except Exception:
+            return 0
 
-    def calculate_statistics(self):
+    def summary_statistics(self):
+        if len(self.value_list) == 0:
+            return {}
         return {
                 "annualized_return": "%.2f%%" % (self.calculate_annualized_return() * 100),  # 年化收益率
                 "cumulative_return": "%.2f%%" % (self.calculate_cumulative_return() * 100),  # 累计收益率

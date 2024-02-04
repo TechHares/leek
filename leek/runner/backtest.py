@@ -8,9 +8,9 @@ import json
 from queue import Queue
 
 from leek.common import EventBus
-from leek.common.utils import decimal_to_str, decimal_quantize
+from leek.common.utils import decimal_to_str
 from leek.runner.runner import BaseWorkflow, _has_override
-from leek.runner.evaluation import Evaluation
+from leek.common.evaluation import Evaluation
 from leek.strategy import BaseStrategy
 from leek.trade.trade import PositionSide
 
@@ -49,7 +49,10 @@ class BacktestWorkflow(BaseWorkflow):
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA, self.data_source_to_strategy)
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA, self.sync_data_to_ui)
         self.bus.subscribe(EventBus.TOPIC_POSITION_DATA, self.trader_to_strategy)
+        self.bus.subscribe(EventBus.TOPIC_POSITION_DATA, self.trader_to_strategy)
+        # self.bus.subscribe(EventBus.TOPIC_NOTIFY, lambda msg: print(msg))
         self.bus.subscribe("ERROR", lambda e: self.shutdown)
+        self.bus.subscribe("position_update", self.position_update)
 
         self.bus.subscribe("backtest_data_source_done", lambda x: self.queue.put("data_source_done"))
         self.bus.subscribe("backtest_data_source_process", lambda process_num: self.queue.put({
@@ -61,6 +64,14 @@ class BacktestWorkflow(BaseWorkflow):
             "type": "process",
             "data": 4
         })
+
+    def position_update(self, position, order):
+        if position:
+            if position.direction != order.side:
+                self.trade_count += 1
+
+            if position.win:
+                self.win_count += 1
 
     def sync_data_to_ui(self, data):
         if self.data_source.count:
@@ -83,13 +94,13 @@ class BacktestWorkflow(BaseWorkflow):
             base_rate = 0
 
         amount = self.strategy.available_amount + self.strategy.position_value  # 当前总估值
-        profit_rate = (amount - self.strategy.total_amount - self.strategy.fee) / self.strategy.total_amount
-        profit_rate_execution_fee = (amount - self.strategy.total_amount) / self.strategy.total_amount
+        profit_rate = (amount - self.strategy.total_amount) / self.strategy.total_amount
+        # profit_rate_execution_fee = (amount - self.strategy.total_amount) / self.strategy.total_amount
         p_data = {
             'timestamp': data.timestamp,
             'amount': amount,
             'profit_rate': profit_rate,
-            'profit_rate_execution_fee': profit_rate_execution_fee,
+            # 'profit_rate_execution_fee': profit_rate_execution_fee,
             'benchmark': base_rate,
             'fee': self.strategy.fee,
             'benchmark_price': self.base_line_current_price
@@ -101,11 +112,7 @@ class BacktestWorkflow(BaseWorkflow):
         })
 
     def trader_to_strategy(self, data):
-        position = None
-        if data:
-            position = BaseStrategy.handle_position(self.strategy, data)
-            if _has_override(type(self.strategy), BaseStrategy, "handle_position"):
-                self.strategy.handle_position(data)
+        super(BacktestWorkflow, self).trader_to_strategy(data)
 
         if data:  # 处理交易结果
             # self.queue.put({
@@ -124,12 +131,6 @@ class BacktestWorkflow(BaseWorkflow):
                 self.long_single += 1
             else:
                 self.short_single += 1
-            if position:
-                if position.direction != data.side:
-                    self.trade_count += 1
-
-                if position.win:
-                    self.win_count += 1
 
     def report(self):
         rp = self.queue.get()
@@ -140,7 +141,7 @@ class BacktestWorkflow(BaseWorkflow):
             })
             self.queue.put("done")
             self.shutdown()
-            statistics = self.evaluation.calculate_statistics()
+            statistics = self.evaluation.summary_statistics()
             for k in statistics:
                 if not isinstance(statistics[k], str):
                     statistics[k] = "%.4f" % statistics[k]

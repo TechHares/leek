@@ -10,19 +10,34 @@ import signal
 from importlib import import_module
 
 from leek.common import EventBus, logger
+from leek.common.utils import get_all_base_classes, get_constructor_args
 from leek.data.data import DataSource, WSDataSource
 from leek.strategy import BaseStrategy
+from leek.strategy.strategy_common import PRE_STRATEGY_LIST, RISK_STRATEGY_LIST
 from leek.trade.trade import Trader
 
 
-def _init_model(ins_cfg):
-    module = import_module(ins_cfg["package"])
+def _invoke_init(instance, cls, cfg):
+    args = get_constructor_args(cls)
+    parameter_map = {k: v for k, v in cfg.items() if k in args}
+    init_method = getattr(cls, "__init__")
+    init_method(instance, **parameter_map)
 
+
+def _init_model(ins_cfg, excludes=[]):
+    module = import_module(ins_cfg["package"])
     cls = getattr(module, ins_cfg["class"])
     sig = inspect.signature(cls)
     params = sig.parameters
     parameter_map = {k: v for k, v in ins_cfg["config"].items() if k in list(params.keys())}
-    return cls(**parameter_map)
+    instance = cls(**parameter_map)
+    classes = get_all_base_classes(cls)
+    for c in classes:
+        ignore = [c == exclude for exclude in excludes]
+        if ignore.count(True):
+            continue
+        _invoke_init(instance, c, ins_cfg["config"])
+    return instance
 
 
 def _has_override(subclass, baseclass, method_name):
@@ -76,33 +91,26 @@ class BaseWorkflow(object):
         return rd
 
     def _init_trader(self, cfg_trader):
-        instance = _init_model(cfg_trader)
+        instance = _init_model(cfg_trader, excludes=[Trader])
         if isinstance(instance, Trader):
             Trader.__init__(instance, self.bus)
         self.trader = instance
 
     def _init_strategy(self, cfg_strategy):
-        instance = _init_model(cfg_strategy)
+        instance = _init_model(cfg_strategy, excludes=[BaseStrategy])
         if isinstance(instance, BaseStrategy):
-            available_amount = None
-            used_amount = None
-            if "available_amount" in cfg_strategy["config"]:
-                available_amount = cfg_strategy["config"]["available_amount"]
-            if "used_amount" in cfg_strategy["config"]:
-                used_amount = cfg_strategy["config"]["used_amount"]
             BaseStrategy.__init__(instance, self.job_id, self.bus,
-                                  decimal.Decimal(cfg_strategy["config"]["total_amount"]),
-                                  available_amount, used_amount)
+                                  decimal.Decimal(cfg_strategy["config"]["total_amount"]))
         self.strategy = instance
 
     def _init_data_source(self, cfg_data_source):
-        instance = _init_model(cfg_data_source)
+        instance = _init_model(cfg_data_source, excludes=[DataSource])
         if isinstance(instance, DataSource):
             DataSource.__init__(instance, self.bus)
-        if isinstance(instance, WSDataSource):
-            if "url" not in cfg_data_source["config"]:
-                raise RuntimeError("WSDataSource 需配置「url」属性")
-            WSDataSource.__init__(instance, cfg_data_source["config"]["url"])
+        # if isinstance(instance, WSDataSource):
+        #     if "url" not in cfg_data_source["config"]:
+        #         raise RuntimeError("WSDataSource 需配置「url」属性")
+        #     WSDataSource.__init__(instance, cfg_data_source["config"]["url"])
         self.data_source = instance
 
     def strategy_to_trader(self, data):
@@ -111,15 +119,25 @@ class BaseWorkflow(object):
             self.trader_to_strategy(order)
 
     def data_source_to_strategy(self, data):
-        BaseStrategy.handle(self.strategy, data)
-        order = self.strategy.handle(data)
+        order = self._strategy_run(data)
         self.strategy_to_trader(order)
+
+    def _strategy_run(self, data):
+        for fil in PRE_STRATEGY_LIST:
+            if isinstance(self.strategy, fil) and not fil.pre(self.strategy, data):
+                return
+
+        for risk_manager in RISK_STRATEGY_LIST:
+            if not isinstance(self.strategy, risk_manager):
+                continue
+            if order := risk_manager.handle(self.strategy, data):
+                return order
+        BaseStrategy.handle(self.strategy, data)
+        return self.strategy.handle(data)
 
     def trader_to_strategy(self, data):
         if data:
-            BaseStrategy.handle_position(self.strategy, data)
-            if _has_override(type(self.strategy), BaseStrategy, "handle_position"):
-                self.strategy.handle_position(data)
+            self.strategy.handle_position(data)
 
     def shutdown(self):
         logger.info(f"{self.strategy.job_id} 收到停止信号！")

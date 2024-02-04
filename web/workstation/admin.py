@@ -1,10 +1,15 @@
 import json
 from urllib.parse import unquote
 
+import cachetools
 from django.contrib import admin
+from django.db import connections
 from django.http import JsonResponse, StreamingHttpResponse
 from django.urls import path
 from import_export.admin import ImportExportModelAdmin
+
+from leek.common.utils import all_constructor_args, get_cls
+from leek.strategy.strategy import get_all_strategies_cls_iter
 from .models import TradeConfig, DataSourceConfig, StrategyConfig, TradeLog, Kline
 
 
@@ -130,7 +135,7 @@ class StrategyConfigAdmin(admin.ModelAdmin):
 
     def formfield_for_choice_field(self, db_field, request, **kwargs):
         if db_field.name == 'strategy_cls':
-            kwargs['choices'] = StrategyConfig.STRATEGY_TYPE_CHOICE
+            kwargs['choices'] = get_all_strategies_cls_iter()
 
         if db_field.name == 'status':
             kwargs['choices'] = StrategyConfig.STATUS_CHOICE
@@ -166,12 +171,13 @@ class StrategyConfigAdmin(admin.ModelAdmin):
             trader_cls = request.POST.get('strategy_cls', None)
             if trader_cls:
                 # 根据 trader_cls 返回相应的字段列表
-                pre = trader_cls.split('|')[1].lower()
+                pre = trader_cls.split('|')
                 fixed_fields = ['id', 'name', 'strategy_cls', 'total_amount', 'data_source', 'trade', 'status',
                                 'end_time', 'created_time', 'run_data']
+                args = all_constructor_args(get_cls(pre[0], pre[1]))
                 fields = [f.name for f in StrategyConfig._meta.get_fields() if f.name not in fixed_fields]
-                fields_to_show = [f for f in fields if f.startswith(pre)]
-                fields_to_hide = [f for f in fields if not f.startswith(pre)]
+                fields_to_show = [f for f in fields if f in args]
+                fields_to_hide = [f for f in fields if f not in fields_to_show]
 
             else:
                 fields_to_show = []
@@ -191,12 +197,18 @@ class StrategyConfigAdmin(admin.ModelAdmin):
     def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
         context.update(
             {
-                # todo 从数据取
                 'datasource_channel_choice': DataSourceConfig.CHANNEL_CHOICE,
-                'datasource_symbol_choice': ["BTCUSDT", "ETHUSDT", "TRBUSDT", "ARBUSDT", "DOGESDT"],
+                'datasource_symbol_choice': self.all_symbol(),
             }
         )
         return super().render_change_form(request, context, add, change, form_url, obj)
+
+    @cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=600))
+    def all_symbol(self):
+        with connections["data"].cursor() as cursor:
+            cursor.execute("select distinct symbol from workstation_kline")
+            rows = cursor.fetchall()
+            return [row[0] for row in rows]
 
     def position_value(self, obj):
         if obj.run_data is None:
@@ -257,18 +269,18 @@ class KlineIntervalFilter(admin.SimpleListFilter):
             self.used_parameters.setdefault(self.parameter_name, "1m")
 
 
-class KlineAdmin(ImportExportModelAdmin):
-    list_display = ('symbol', 'timestamp', 'open', 'high', 'low', 'close', 'volume', 'amount',)
-    list_display_links = ('symbol',)
-    sortable_by = ('timestamp desc',)
-    list_filter = (KlineIntervalFilter, 'symbol', 'timestamp',)
-    list_per_page = 10
+# class KlineAdmin(ImportExportModelAdmin):
+#     list_display = ('symbol', 'timestamp', 'open', 'high', 'low', 'close', 'volume', 'amount',)
+#     list_display_links = ('symbol',)
+#     sortable_by = ('timestamp desc',)
+#     list_filter = (KlineIntervalFilter, 'symbol', 'timestamp',)
+#     list_per_page = 10
 
 admin.site.register(TradeConfig, TradeConfigAdmin)
 admin.site.register(DataSourceConfig, DataSourceConfigAdmin)
 admin.site.register(StrategyConfig, StrategyConfigAdmin)
 admin.site.register(TradeLog, TradeLogAdmin)
-admin.site.register(Kline, KlineAdmin)
+# admin.site.register(Kline, KlineAdmin)
 admin.site.site_header = '量 韭 '
 admin.site.site_title = ' 量 韭 '
 admin.site.index_title = ' 量 韭 '

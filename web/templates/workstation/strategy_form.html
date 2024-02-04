@@ -271,7 +271,6 @@
 <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/v-charts/lib/index.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/v-charts/lib/style.min.css">
-<script type="text/javascript" src="{% static 'admin/simpleui-x/js/axios.min.js' %}"></script>
 <script type="text/javascript">
     var symbolOptions = {{ datasource_symbol_choice | safe }}
     new Vue({
@@ -329,10 +328,9 @@
                 volume_limit: 4
             },
             chartData: {
-                columns: ['timestamp', 'profit_rate', 'benchmark', 'benchmark_price', 'profit_rate_execution_fee'],
-                rows: [
-                ]
-
+                columns: ['timestamp', 'profit_rate', 'benchmark', 'benchmark_price'],
+                // columns: ['timestamp', 'profit_rate', 'benchmark', 'benchmark_price', 'profit_rate_execution_fee'],
+                rows: []
             },
             chartExtend: {
                 series(optionsSeries) {
@@ -340,6 +338,12 @@
                         optionsSeries[i].symbol = "none"
                     }
                     return optionsSeries
+                },
+                legend(legendValue) {
+                    legendValue.selected = {
+                        "基准增长率": false,
+                    }
+                    return legendValue
                 }
             },
             chartSettings: {
@@ -360,7 +364,7 @@
                 scale: [false, true],
                 labelMap: {
                     profit_rate: '策略收益',
-                    profit_rate_execution_fee: '扣除手续费策略收益',
+                    // profit_rate_execution_fee: '扣除手续费策略收益',
                     benchmark: '基准增长率',
                     benchmark_price: '基准价格',
                     timestamp: '时间'
@@ -370,7 +374,7 @@
             tradeLog: []
         },
         mounted() {
-          this.init()
+            this.init()
         },
         methods: {
             side_formatter(row, col) {
@@ -502,9 +506,9 @@
                 this.tradeLog = []
             },
             go_url: function (url) {
-                    this.url = url;
-                    this.dialogTableVisible = true;
-                }
+                this.url = url;
+                this.dialogTableVisible = true;
+            }
         }
     })
     if (document.getElementById('alert')) {
@@ -514,4 +518,5 @@
     }
 
 </script>
+<script type="text/javascript" src="{% static 'admin/simpleui-x/js/axios.min.js' %}"></script>
 {% endblock %}

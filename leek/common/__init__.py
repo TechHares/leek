@@ -7,11 +7,11 @@
 """
 公共工具包
 """
-
+from leek.common.calculator import Calculator
 from leek.common.log import logger, get_logger
 from leek.common.event import EventBus
 from leek.common import config
-from leek.common.utils import IdGenerator
+from leek.common.utils import IdGenerator, StateMachine
 
 
 class G(object):
@@ -23,8 +23,19 @@ class G(object):
         kwargs = {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
         return str(kwargs)
 
+    def __getattribute__(self, name):
+        if name.startswith('__'):
+            return object.__getattribute__(self, name)
+        items = self.__dict__
+        if name not in items:
+            object.__setattr__(self, name, None)
+        return object.__getattribute__(self, name)
 
-__all__ = ["EventBus", "logger", "get_logger", "config", "G", "IdGenerator"]
+
+__all__ = ["EventBus", "logger", "get_logger", "config", "G", "IdGenerator", "Calculator", "StateMachine"]
 
 if __name__ == '__main__':
-    pass
+    g = G()
+    print(g.r)
+    g.r = 1
+    print(g.r)

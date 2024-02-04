@@ -9,6 +9,8 @@ from multiselectfield import MultiSelectField
 from leek.common import logger, config
 from clickhouse_backend import models as ck_models
 
+from leek.strategy.strategy import get_all_strategies_cls_iter
+
 
 class TradeConfig(models.Model):
     id = models.AutoField(u'id', primary_key=True)
@@ -129,44 +131,42 @@ class StrategyConfig(models.Model):
     name = models.CharField(u'策略名称', max_length=200, unique=True)
     total_amount = models.DecimalField(u'投入总资产', max_digits=36, decimal_places=12, default="0")
 
-    STRATEGY_TYPE_CHOICE = (
-        ("leek.strategy.strategy_grid|SingleGridStrategy", u"单向单标的网格"),
-        ("leek.strategy.strategy_mean_reverting|MeanRevertingStrategy", u'均值回归'),
-    )
-    strategy_cls = models.CharField(u'策略', null=False, max_length=200, choices=STRATEGY_TYPE_CHOICE, default="")
+    # 加载策略列表
+    strategy_cls = models.CharField(u'策略', null=False, max_length=200, choices=get_all_strategies_cls_iter(), default="")
     # =====================================单向单标的网格================================================
-    singlegridstrategy_symbol = models.CharField(u'标的物', max_length=200, default="", blank=True)
-    singlegridstrategy_min_price = models.DecimalField(u'网格下界', max_digits=36, decimal_places=6, default="0")
-    singlegridstrategy_max_price = models.DecimalField(u'网格上界', max_digits=36, decimal_places=6, default="0")
-    singlegridstrategy_grid = models.IntegerField(u'网格个数', default="10")
-    singlegridstrategy_risk_rate = models.DecimalField(u'风控系数', max_digits=36, decimal_places=6, default="0.1")
+    symbol = models.CharField(u'标的物', max_length=200, default="", blank=True)
+    min_price = models.DecimalField(u'网格下界', max_digits=36, decimal_places=6, default="0")
+    max_price = models.DecimalField(u'网格上界', max_digits=36, decimal_places=6, default="0")
+    grid = models.IntegerField(u'网格个数', default="10")
+    risk_rate = models.DecimalField(u'风控系数', max_digits=36, decimal_places=6, default="0.1")
     DIRECTION_CHOICE = (
         (1, u"多"),
         (2, u"空"),
     )
-    singlegridstrategy_direction = models.IntegerField(u'方向', default=1, choices=DIRECTION_CHOICE)
-    singlegridstrategy_rolling_over = models.IntegerField(u'滚动操作', default=0, choices=((1, u"是"), (2, u"否")))
+    side = models.IntegerField(u'方向', default=1, choices=DIRECTION_CHOICE)
+    rolling_over = models.IntegerField(u'滚动操作', default=0, choices=((1, u"是"), (2, u"否")))
     # =====================================单向单标的网格================================================
     # =====================================均值回归================================================
-    meanrevertingstrategy_symbols = models.CharField(u'标的物', max_length=1000, default="", blank=True)
-    meanrevertingstrategy_direction = models.IntegerField(u'方向', default=4, choices=(
+    symbols = models.CharField(u'标的物(多个「,」分割)', max_length=1000, default="", blank=True)
+    direction = models.IntegerField(u'方向', default=4, choices=(
         (1, u"多"),
         (2, u"空"),
         (4, u"多|空"),
     ))
-    meanrevertingstrategy_mean_type = models.CharField(u'均值计算方式', max_length=10, default="SMA", blank=True,
+    mean_type = models.CharField(u'均值计算方式', max_length=10, default="SMA", blank=True,
                                                        choices=(
                                                            ("SMA", u"SMA"),
                                                            ("EMA", u"EMA"),
                                                        ))
-    meanrevertingstrategy_lookback_intervals = models.IntegerField(u'均线计算周期', default="10")
-    meanrevertingstrategy_threshold = models.DecimalField(u'阈值', max_digits=36, decimal_places=6, default="0.02")
-    meanrevertingstrategy_take_profit_rate = models.DecimalField(u'止盈比例', max_digits=36, decimal_places=6, default=0.2)
-    meanrevertingstrategy_fallback_percentage = models.DecimalField(u'回落止盈比例', max_digits=36, decimal_places=6,
+    window = models.IntegerField(u'均线计算周期', default="10")
+    threshold = models.DecimalField(u'阈值', max_digits=36, decimal_places=6, default="0.02")
+    take_profit_rate = models.DecimalField(u'止盈比例', max_digits=36, decimal_places=6, default=0.2)
+    fallback_percentage = models.DecimalField(u'回落止盈比例', max_digits=36, decimal_places=6,
                                                                     default=0.05)
-    meanrevertingstrategy_max_single_position = models.DecimalField(u'单个标的最大仓位占比', max_digits=36, decimal_places=6,
+    max_single_position = models.DecimalField(u'单个标的最大仓位占比', max_digits=36, decimal_places=6,
                                                                     default=0.2)
-    meanrevertingstrategy_stop_loss_rate = models.DecimalField(u'止损比例', max_digits=36, decimal_places=6, default=0.005)
+    stop_loss_rate = models.DecimalField(u'止损比例', max_digits=36, decimal_places=6, default=0.005)
+    num_std_dev = models.DecimalField(u'林带上线轨标准差倍数', max_digits=4, decimal_places=2, default="2.0")
     # =====================================均值回归================================================
 
     data_source = models.ForeignKey(DataSourceConfig, on_delete=models.PROTECT, verbose_name=u'数据源')
@@ -234,6 +234,9 @@ if config.KLINE_DB_TYPE == 'CLICKHOUSE':
                 index_granularity_bytes=1 << 20,
                 enable_mixed_granularity_parts=1,
             )
+            indexes = [
+                models.Index(fields=['symbol']),
+            ]
 
         def __str__(self):
             return "%s-%s-%s" % (self.interval, self.symbol, self.symbol)
@@ -260,6 +263,9 @@ else:
             unique_together = ('interval', "timestamp", "symbol")
             ordering = ["-timestamp"]
             db_tablespace = "data"
+            indexes = [
+                models.Index(fields=['symbol']),
+            ]
 
         def __str__(self):
             return "%s" % self.id

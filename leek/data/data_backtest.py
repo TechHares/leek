@@ -34,7 +34,7 @@ class BacktestDataSource(DataSource):
             args["password"] = config.KLINE_DB_PASSWORD
         client = Client(**args)
         sql = f"select count(*) from workstation_kline" \
-              f" where interval='{self.interval}' and timestamp >= {self.start_time} and timestamp <= " \
+              f" where interval='{self.interval.lower()}' and timestamp >= {self.start_time} and timestamp <= " \
               f"{self.end_time} and symbol in (%s)" % \
               (",".join(["'%s'" % symbol for symbol in self.symbols]))
         self.count = client.execute(query=sql)[0][0]
@@ -48,7 +48,7 @@ class BacktestDataSource(DataSource):
         conn = sqlite3.connect(config.KLINE_DB_PATH)
         cursor = conn.cursor()
         sql = f"select count(*) from workstation_kline" \
-              f" where interval='{self.interval}' and timestamp >= {self.start_time} and timestamp <= " \
+              f" where interval='{self.interval.lower()}' and timestamp >= {self.start_time} and timestamp <= " \
               f"{self.end_time} and symbol in (%s) order by timestamp" % \
               (",".join(["'%s'" % symbol for symbol in self.symbols]))
         cursor.execute(sql)

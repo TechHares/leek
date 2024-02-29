@@ -73,8 +73,7 @@ class BacktestTrader(Trader):
         elif self.fee_type == 3:
             order.fee = order.transaction_volume * self.fee
         order.fee = - abs(order.fee)
-        return order
-
+        self._trade_callback(order)
 
 if __name__ == '__main__':
     trader = BacktestTrader()

@@ -7,12 +7,12 @@
 
 from leek.common import EventBus
 from leek.common.utils import *
-from leek.strategy import SymbolFilter, PositionSideManager, PositionRollingCalculator
-from leek.strategy.strategy import BaseStrategy
+from leek.strategy.common import *
+from leek.strategy import BaseStrategy
 from leek.trade.trade import Order, PositionSide as PS, OrderType as OT
 
 
-class SingleGridStrategy(PositionRollingCalculator, SymbolFilter, PositionSideManager, BaseStrategy):
+class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
     verbose_name = "单标的单方向网格策略"
     """
     单标的单方向网格策略
@@ -43,7 +43,11 @@ class SingleGridStrategy(PositionRollingCalculator, SymbolFilter, PositionSideMa
         self.last_price = Decimal("0")
         self.risk = False  # 是否已经风控
 
-    def handle(self, market_data) -> Order:
+    def post_constructor(self):
+        super().post_constructor()
+        self.bus.subscribe(EventBus.TOPIC_POSITION_DATA, self.handle_position)
+
+    def handle(self):
         """
         网格策略:
             1. 网格区间 min_price ~ max_price, 价格 在 min_price(1 - risk_rate) ~ max_price(1 + risk_rate) 之外清仓
@@ -56,17 +60,15 @@ class SingleGridStrategy(PositionRollingCalculator, SymbolFilter, PositionSideMa
         :param market_data: 市场数据
         :return: 交易指令
         """
+        market_data = self.market_data
         price = market_data.close
         if price > self.max_price * (1 + self.risk_rate) or price < self.min_price * (1 - self.risk_rate):
             if self.current_grid > 0:  # 有持仓
                 self.notify(f"SingleGridStrategy 价格{price}超出风控范围{self.min_price * (1 - self.risk_rate)}"
                             f"-{self.max_price * (1 + self.risk_rate)} 平仓")
-                o = self.position_map[self.symbol].get_close_order(self.job_id,
-                                                                   f"C{self.job_id}{self._get_seq_id()}", price)
-                o.extend = 0
-                o.order_time = market_data.timestamp
+                self.close_position("网格风控", extend=0)
                 self.risk = True
-                return o
+                return
 
         if price > self.max_price or price < self.min_price:  # 网格之外
             return
@@ -87,54 +89,32 @@ class SingleGridStrategy(PositionRollingCalculator, SymbolFilter, PositionSideMa
             self.risk = False
 
         self.last_price = price
-        order = Order(strategy_id=self.job_id,
-                      order_id=f"SG{self.job_id}{self._get_seq_id()}",
-                      price=price,
-                      tp=OT.MarketOrder,
-                      symbol=self.symbol)
-        if dt_gird > self.current_grid:
-            order.side = PS.LONG
-            if self.is_short():  # 空
-                order.side = PS.switch_side(order.side)
-        else:
-            order.side = PS.SHORT
-            if self.is_short():  # 空
-                order.side = PS.switch_side(order.side)
 
-        if order.side == self.side:  # 开仓
-            order.amount = self.calculate_buy_amount(Decimal(abs(self.current_grid - dt_gird)/self.grid))
-        else:  # 平仓
-            order.amount = decimal_quantize(self.position_value / self.current_grid
-                                            * abs(self.current_grid - dt_gird), 2)
-            order.amount = min(self.position_value, order.amount)
-        if order.amount is None:
-            return
-        order.extend = dt_gird
+        side = PS.LONG
+        if dt_gird > self.current_grid:
+            if self.is_short():  # 空
+                side = PS.switch_side(side)
+        else:
+            side = PS.SHORT
+            if self.is_short():  # 空
+                side = PS.switch_side(side)
+
         self.notify(
-            f"总投入{self.total_amount} 方向{self.side} 已投入{self.total_amount}"
-            f" 网格数{self.current_grid}/{self.grid} \n"
+            f"方向{self.side} 操作方向{side}"
+            f" 网格数{self.current_grid}/{self.grid} 开仓：{abs(self.current_grid - dt_gird) / self.grid}\n"
             f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}\n"
-            f"操作方向{order.side} 最大可投= {self.available_amount}\n"
-            f"金额:{order.amount}=math.floor({self.total_amount}/{self.grid}*abs({self.current_grid}-{dt_gird}))"
         )
         # si = "卖" if self.direction != order.side else "买"
         # print(f"网格数{self.current_grid} -> {dt_gird}, 资金: {self.available_amount} + {self.position_value} ="
         #       f" {self.available_amount + self.position_value} , {si} {order.amount}")
-        order.order_time = market_data.timestamp
-        return order
+        self.create_order(side, abs(self.current_grid - dt_gird) / self.grid, extend=dt_gird)
 
     def handle_position(self, order: Order):
-        super().handle_position(order)
         self.current_grid = order.extend
-        # si = "卖" if self.direction != order.side else "买"
-        # print(
-        #     f"网格购买成功 -> {order.extend}, 资金: {self.available_amount} + {self.position_value} ="
-        #     f" {self.available_amount + self.position_value} , {si} {order.amount}")
-        quantity = 0
-        if self.symbol in self.position_map:
-            quantity = self.position_map[self.symbol].quantity
-        self.notify(f"持仓更新: 总投入{self.total_amount} 方向{self.side} 剩余{self.available_amount}"
-                    f" 网格数{self.current_grid}/{self.grid} 持仓数量：{quantity}")
+        si = "卖" if self.side != order.side else "买"
+        print(
+            f"网格购买成功 -> {order.extend}, 资金: {self.position_manager.available_amount} + {self.position_manager.position_value} ="
+            f" {self.position_manager.available_amount + self.position_manager.position_value} , {si} {order.amount}")
 
     def to_dict(self):
         d = super().to_dict()

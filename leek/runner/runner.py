@@ -13,7 +13,7 @@ from leek.common import EventBus, logger
 from leek.common.utils import get_all_base_classes, get_constructor_args
 from leek.data.data import DataSource, WSDataSource
 from leek.strategy import BaseStrategy
-from leek.strategy.strategy_common import PRE_STRATEGY_LIST, RISK_STRATEGY_LIST
+from leek.strategy.common import Filter
 from leek.trade.trade import Trader
 
 
@@ -113,39 +113,11 @@ class BaseWorkflow(object):
         #     WSDataSource.__init__(instance, cfg_data_source["config"]["url"])
         self.data_source = instance
 
-    def strategy_to_trader(self, data):
-        if data:
-            order = self.trader.order(data)
-            self.trader_to_strategy(order)
-
-    def data_source_to_strategy(self, data):
-        order = self._strategy_run(data)
-        self.strategy_to_trader(order)
-
-    def _strategy_run(self, data):
-        for fil in PRE_STRATEGY_LIST:
-            if isinstance(self.strategy, fil) and not fil.pre(self.strategy, data):
-                return
-
-        for risk_manager in RISK_STRATEGY_LIST:
-            if not isinstance(self.strategy, risk_manager):
-                continue
-            if order := risk_manager.handle(self.strategy, data):
-                return order
-        BaseStrategy.handle(self.strategy, data)
-        return self.strategy.handle(data)
-
-    def trader_to_strategy(self, data):
-        if data:
-            self.strategy.handle_position(data)
-
     def shutdown(self):
-        logger.info(f"{self.strategy.job_id} 收到停止信号！")
         self.run_state = False
         self.data_source.shutdown()
         self.strategy.shutdown()
         self.trader.shutdown()
-        logger.info(f"{self.strategy.job_id} 停止成功！")
 
 
 if __name__ == '__main__':

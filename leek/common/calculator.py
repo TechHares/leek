@@ -4,10 +4,11 @@
 # @Author  : shenglin.li
 # @File    : calculator.py
 # @Software: PyCharm
-import decimal
+from decimal import Decimal
 from collections import deque
 
 import numpy as np
+import pandas as pd
 
 
 class Calculator(object):
@@ -16,6 +17,8 @@ class Calculator(object):
         self.q = deque(maxlen=max_size)
 
     def add_element(self, element):
+        if len(self.q) > 0 and self.q[-1].timestamp == element.timestamp:
+            return
         self.q.append(element)
 
     def get_elements(self, window=None):
@@ -40,7 +43,7 @@ class Calculator(object):
         if len(self.q) < window:
             return 0
         if alpha is None:
-            alpha = decimal.Decimal(2 / (window + 1))
+            alpha = Decimal(2 / (window + 1))
 
         ema = self.q[0].close
         for i in range(1, len(self.q)):
@@ -59,6 +62,61 @@ class Calculator(object):
         lower_band = rolling_mean - (rolling_std * num_std_dev)
 
         return upper_band, rolling_mean, lower_band
+
+    def stochastics(self, k_period=14, d_period=3, smooth=1):
+        if len(self.q) < (k_period + d_period + smooth - 1):
+            return 0, 0, 0
+        data = list(self.q)
+        df = pd.DataFrame([d.__json__() for d in data])
+        # 计算14日内的最高价和最低价
+        df['rolling-high'] = df['high'].rolling(k_period).max().apply(lambda x: Decimal(x))
+        df['rolling-low'] = df['low'].rolling(k_period).min().apply(lambda x: Decimal(x))
+
+        # 计算 %K 值
+        df['%K'] = (100 * (df['close'] - df['rolling-low']) / (df['rolling-high'] - df['rolling-low'])).apply(
+            lambda x: x.__float__())
+
+        # 计算 %D 值
+        df['%D'] = df['%K'].rolling(d_period).mean()
+        # 计算 %D_smooth 值
+        df['%D_smooth'] = df['%D'].rolling(smooth).mean()
+
+        return df
+
+    def atr(self, n=3, window=14):
+        if len(self.q) < window + n - 1:
+            return None
+
+        data = list(self.q)
+        df = pd.DataFrame([d.__json__() for d in data])
+        # 计算 ATR
+        df['TR'] = df['high'] - df['low']
+        df['TR1'] = abs(df['high'] - df['close'].shift(1))
+        df['TR2'] = abs(df['low'] - df['close'].shift(1))
+        df['TR'] = df[['TR', 'TR1', 'TR2']].max(axis=1)
+        df['ATR'] = df['TR'].rolling(window=window).mean()
+
+        return df.tail(n)["ATR"].tolist()
+
+    def heikin_ashi(self):
+        """
+        判断趋势开始 连续三个颜色一致，且往前第四个不一样
+        :return: df k线数据
+        """
+        if len(self.q) < 5:
+            return None
+
+        data = list(self.q)
+        df = pd.DataFrame([d.__json__() for d in data])
+        # 计算 Heikin-Ashi
+        df["ha_close"] = (df['open'] + df['high'] + df['low'] + df['close']) / 4
+        df["ha_open"] = (df['open'].shift(1) + df['close'].shift(1)) / 2
+        df["ha_high"] = df[['high', 'open', 'close']].max(axis=1)
+        df["ha_low"] = df[['low', 'open', 'close']].min(axis=1)
+
+        df['side'] = 1
+        df.loc[df['ha_close'] < df['ha_open'], 'side'] = 2
+        return df
 
 
 if __name__ == '__main__':

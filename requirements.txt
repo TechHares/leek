@@ -1,19 +1,21 @@
-cachetools==4.2.2
-pandas==2.0.3
-python_okx==0.2.3
+cachetools==5.3.2
+pandas==2.2.0
+python_okx==0.2.7
 
 
-mock~=4.0.3
+mock==5.1.0
 websocket-client~=1.7.0
 pyyaml~=6.0.1
 requests~=2.31.0
-tables~=3.8.0
 django-multiselectfield~=0.1.12
 django-simpleui~=2023.12.12
 django-import-export~=3.3.6
 django-clickhouse-backend~=1.1.6
-numpy~=1.24.3
+numpy~=1.26.4
 django~=4.2.8
-psutil~=5.9.0
-tqdm==4.65.0
-yaml==0.2.5
+psutil~=5.9.8
+tqdm==4.66.2
+# mac 安装tables需要hdf5
+# export HDF5_DIR=/opt/homebrew/opt/hdf5/
+tables~=3.9.2
+plotly~=5.19.0

@@ -4,10 +4,12 @@
 # @Author  : shenglin.li
 # @File    : data_backtest.py
 # @Software: PyCharm
+import json
 import sqlite3
 from decimal import Decimal
 
 from leek.common import EventBus, logger, config, G
+from leek.common.utils import decimal_quantize, decimal_to_str
 from leek.data.data import DataSource
 
 
@@ -109,7 +111,12 @@ def shutdown(self):
 
 
 if __name__ == '__main__':
-    source = BacktestDataSource("30m", ["BTCUSDT", "ETHUSDT"], 1674544707299, 1706080707299)
-    DataSource.__init__(source, EventBus())
+    # select * from workstation_kline where `symbol`="ETHUSDT"  and timestamp between 1703132100000 and 1703337300000 and interval='15m'
+    source = BacktestDataSource("15m", ["ETHUSDT"], 1703132100000, 1703337300000)
+    bus = EventBus()
+    data = []
+    bus.subscribe(EventBus.TOPIC_TICK_DATA, lambda x: data.append(x.__json__()))
+    DataSource.__init__(source, bus)
     source._run()
+    print(json.dumps(data, default=decimal_to_str))
     # source.shutdown()

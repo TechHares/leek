@@ -4,21 +4,16 @@
 # @Author  : shenglin.li
 # @File    : strategy_mean_reverting.py
 # @Software: PyCharm
-import decimal
-from collections import deque
 from decimal import Decimal
 
-import numpy as np
-
-from leek.common import G, logger
+from leek.common import G
 from leek.strategy import *
-from leek.strategy.strategy import BaseStrategy
-from leek.strategy.strategy_common import StopLoss
-from leek.trade.trade import Order, PositionSide, OrderType
+from leek.strategy.common import *
+from leek.trade.trade import PositionSide
 
 
 class MeanRevertingStrategy(SymbolsFilter, PositionDirectionManager, TakeProfit, StopLoss, CalculatorContainer,
-                            FallbackTakeProfit, PositionRollingCalculator, BaseStrategy):
+                            FallbackTakeProfit, BaseStrategy):
     verbose_name = "均值回归"
     """
     均值回归策略
@@ -36,8 +31,6 @@ class MeanRevertingStrategy(SymbolsFilter, PositionDirectionManager, TakeProfit,
         self.threshold = Decimal(threshold)
         self.max_single_position = Decimal(max_single_position)
 
-        self.short_count = 0
-        self.long_count = 0
         self.count = 0
         self.sell_count = 0
 
@@ -57,7 +50,7 @@ class MeanRevertingStrategy(SymbolsFilter, PositionDirectionManager, TakeProfit,
         #         and abs(score1) > np.mean([abs(score2), abs(score3)]):
         #     return score1
 
-    def handle(self, market_data: G) -> Order:
+    def handle(self):
         """
         均线回归策略
         1. 标的无持仓时，
@@ -66,42 +59,21 @@ class MeanRevertingStrategy(SymbolsFilter, PositionDirectionManager, TakeProfit,
         2. 标的有持仓时:
             a. 触发止盈止损 平仓
             b. 计算购买之后最高(低)点回撤， 止盈止损
-        :param market_data: 市场数据
-        :return: 交易指令
         """
-        if self.symbols is not None and market_data.symbol not in self.symbols:  # 该标的不做
-            return None
-
-        if market_data.symbol not in self.position_map:  # 没有持仓
-            z_score = self.__calculate_z_score(market_data)
-            if z_score > self.threshold and self.is_short():  # 做空
+        if not self.have_position():  # 没有持仓
+            z_score = self.__calculate_z_score(self.market_data)
+            if z_score > self.threshold and self.can_short():  # 做空
                 side = PositionSide.SHORT
-            elif z_score < -self.threshold and self.is_long():  # 做多
+            elif z_score < -self.threshold and self.can_long():  # 做多
                 side = PositionSide.LONG
             else:
-                return None
-            amount = self.calculate_buy_amount(self.max_single_position, symbol=market_data.symbol)
-            if amount < (self.max_single_position * self.total_amount / 2):  # 可用资金不足
-                return None
+                return
 
-            order = Order(self.job_id, f"MR{self.job_id}{self._get_seq_id()}", OrderType.MarketOrder,
-                          market_data.symbol)
-            if side == PositionSide.LONG:
-                self.long_count += 1
-            else:
-                self.short_count += 1
-            order.amount = amount
-            order.side = side
-            order.price = market_data.close
-            order.order_time = market_data.timestamp
-            logger.info(f"开仓：{order}")
-            return order
-
+            self.create_order(side, position_rate=self.max_single_position)
         #  有持仓 使用公用策略止盈止损
 
     def shutdown(self):
         super(MeanRevertingStrategy, self).shutdown()
-        print(f"开单：多单数{self.long_count} 空单数{self.short_count} 平仓数{self.sell_count}")
 
 
 if __name__ == '__main__':

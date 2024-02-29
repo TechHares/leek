@@ -9,7 +9,7 @@ from multiselectfield import MultiSelectField
 from leek.common import logger, config
 from clickhouse_backend import models as ck_models
 
-from leek.strategy.strategy import get_all_strategies_cls_iter
+from leek.strategy import get_all_strategies_cls_iter
 
 
 class TradeConfig(models.Model):
@@ -129,7 +129,7 @@ def time_now():
 class StrategyConfig(models.Model):
     id = models.AutoField(u'id', primary_key=True)
     name = models.CharField(u'策略名称', max_length=200, unique=True)
-    total_amount = models.DecimalField(u'投入总资产', max_digits=36, decimal_places=12, default="0")
+    total_amount = models.DecimalField(u'投入总资产', max_digits=36, decimal_places=12, default="1000")
 
     # 加载策略列表
     strategy_cls = models.CharField(u'策略', null=False, max_length=200, choices=get_all_strategies_cls_iter(), default="")
@@ -168,6 +168,7 @@ class StrategyConfig(models.Model):
     stop_loss_rate = models.DecimalField(u'止损比例', max_digits=36, decimal_places=6, default=0.005)
     num_std_dev = models.DecimalField(u'林带上线轨标准差倍数', max_digits=4, decimal_places=2, default="2.0")
     # =====================================均值回归================================================
+    atr_coefficient = models.DecimalField(u'ATR动态止损系数', max_digits=36, decimal_places=6, default=1)
 
     data_source = models.ForeignKey(DataSourceConfig, on_delete=models.PROTECT, verbose_name=u'数据源')
     trade = models.ForeignKey(TradeConfig, on_delete=models.PROTECT, verbose_name=u'交易器')

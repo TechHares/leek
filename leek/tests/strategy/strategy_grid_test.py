@@ -6,7 +6,7 @@
 # @Software: PyCharm
 
 
-from leek.strategy.strategy import BaseStrategy
+from leek.strategy.strategy_old import BaseStrategy
 from leek.strategy.strategy_grid import SingleGridStrategy
 from leek.trade.trade import Order, PositionSide as PS, OrderType as OT
 

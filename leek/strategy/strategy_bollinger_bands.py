@@ -8,12 +8,12 @@ import decimal
 
 from leek.common import G, Calculator, logger, StateMachine
 from leek.strategy import *
-from leek.strategy.strategy_common import StopLoss
+from leek.strategy.common import *
 from leek.trade.trade import Order, PositionSide, OrderType
 
 
 class BollingerBandsStrategy(SymbolsFilter, CalculatorContainer, PositionDirectionManager, FallbackTakeProfit,
-                             StopLoss, PositionRollingCalculator, BaseStrategy):
+                             StopLoss, BaseStrategy):
     verbose_name = "布林带策略"
     """
     布林带策略
@@ -60,82 +60,60 @@ class BollingerBandsStrategy(SymbolsFilter, CalculatorContainer, PositionDirecti
         """
         self.num_std_dev = decimal.Decimal(num_std_dev)
 
-    def handle(self, market_data: G) -> Order:
+    def handle(self):
         """
         未持仓时，如果收盘价穿过布林线上轨，空，如果收盘价穿过布林线下轨，多
         有持仓时，
             如果收盘价穿过布林线上穿中轨回落，平多或者加空
             如果收盘价穿过布林线回踩中轨拉升，平空或者加多
-        :param market_data: 数据
-        :return: 交易指令
         """
-        calculator = self.calculator(market_data)
-        upper_band, rolling_mean, lower_band = calculator.boll(market_data.close if market_data.finish != 1 else None,
-                                                               num_std_dev=self.num_std_dev)
+        calculator = self.calculator(self.market_data)
+        upper_band, rolling_mean, lower_band = calculator.boll(self.market_data.close if self.market_data.finish != 1
+                                                               else None, num_std_dev=self.num_std_dev)
         if rolling_mean == 0:
-            return None
+            return
 
-        if not self.have_position(market_data):  # 无持仓
-            if market_data.close > upper_band and self.is_short():
+        price = self.market_data.close
+        if not self.have_position():  # 无持仓
+            if price > upper_band and self.can_short():
                 self.g.status = StateMachine("UP_UP", self._state_transitions)
-                side = PositionSide.SHORT
-            elif market_data.close < lower_band and self.is_long():
+                logger.info(f"布林带开空：price={price}, upper_band={upper_band}, rolling_mean={rolling_mean}, lower_band={lower_band}")
+                self.create_order(PositionSide.SHORT, position_rate=0.3, memo="布林带开空")
+            elif price < lower_band and self.can_long():
                 self.g.status = StateMachine("DOWN_DOWN", self._state_transitions)
-                side = PositionSide.LONG
-            else:
-                return None
-
-            amount = self.calculate_buy_amount("0.3", market_data.symbol, "0.8")
-            if amount <= 0:
-                return None
-            order = self._create_order(market_data, side, amount)
-            logger.info(f"布林带开仓：{order}")
-            return order
+                logger.info(f"布林带开多：price={price}, upper_band={upper_band}, rolling_mean={rolling_mean}, lower_band={lower_band}")
+                self.create_order(PositionSide.LONG, position_rate=0.3, memo="布林带开多")
         else:
-            if market_data.close > upper_band:
+            if price > upper_band:
                 event = "UP"
-            elif market_data.close > rolling_mean:
+            elif price > rolling_mean:
                 event = "ON_CENTER"
-            elif market_data.close > lower_band:
+            elif price > lower_band:
                 event = "UNDER_CENTER"
             else:
                 event = "DOWN"
 
-            return self.deal_position(market_data, event)
+            states = self.g.status.next(event)
+            if len(states) < 3:
+                return None
+            # 回踩中轨继续向上 或 踩中轨拉回： 多
+            if (states[-3] == "UP_CENTER" and states[-2] == "DOWN_CENTER" and states[-1] == "UP_CENTER") \
+                    or (states[-3] == "DOWN_CENTER" and states[-2] == "UP_CENTER" and states[-1] == "UP_CENTER"):
+                if self.is_long_position():
+                    self.create_order(PositionSide.LONG, position_rate=0.3, memo="布林带加仓")
+                else:
+                    logger.info(f"布林带加仓：price={price}, states={states}")
+                    self.close_position("布林带平仓")
+                return
 
-    def deal_position(self, market_data: G, event):
-        states = self.g.status.next(event)
-        if len(states) < 3:
-            return None
-        # 回踩中轨继续向上 或 踩中轨拉回： 多
-        if (states[-3] == "UP_CENTER" and states[-2] == "DOWN_CENTER" and states[-1] == "UP_CENTER") \
-                or (states[-3] == "DOWN_CENTER" and states[-2] == "UP_CENTER" and states[-1] == "UP_CENTER"):
-            if self.position_is_long(market_data):
-                amount = self.calculate_buy_amount("0.3", market_data.symbol, "0.8")
-                if amount <= 0:
-                    return None
-                order = self._create_order(market_data, PositionSide.LONG, amount)
-                logger.info(f"布林带加仓：{order}")
-                return order
-            else:
-                order = self._close_position(market_data)
-                logger.info(f"布林带平仓：{order}")
-                return order
-
-        # 回踩中轨继续向下 或 上穿中轨后回落： 空
-        if (states[-3] == "DOWN_CENTER" and states[-2] == "UP_CENTER" and states[-1] == "DOWN_CENTER") \
-                or (states[-3] == "UP_CENTER" and states[-2] == "DOWN_CENTER" and states[-1] == "DOWN_CENTER"):
-            if self.position_is_long(market_data):
-                order = self._close_position(market_data)
-                logger.info(f"布林带平仓：{order}")
-                return order
-            else:
-                amount = self.calculate_buy_amount("0.3", market_data.symbol, "0.8")
-                if amount <= 0:
-                    return None
-                order = self._create_order(market_data, PositionSide.SHORT, amount)
-                logger.info(f"布林带加仓：{order}")
-                return order
+            # 回踩中轨继续向下 或 上穿中轨后回落： 空
+            if (states[-3] == "DOWN_CENTER" and states[-2] == "UP_CENTER" and states[-1] == "DOWN_CENTER") \
+                    or (states[-3] == "UP_CENTER" and states[-2] == "DOWN_CENTER" and states[-1] == "DOWN_CENTER"):
+                if self.is_long_position():
+                    self.close_position("布林带平仓")
+                else:
+                    logger.info(f"布林带加仓：price={price}, states={states}")
+                    self.create_order(PositionSide.SHORT, position_rate=0.3, memo="布林带加仓")
 
 
 if __name__ == '__main__':

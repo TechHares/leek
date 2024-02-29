@@ -31,6 +31,9 @@ class G(object):
             object.__setattr__(self, name, None)
         return object.__getattribute__(self, name)
 
+    def __json__(self):
+        return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
+
 
 __all__ = ["EventBus", "logger", "get_logger", "config", "G", "IdGenerator", "Calculator", "StateMachine"]
 

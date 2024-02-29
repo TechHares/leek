@@ -13,6 +13,12 @@ import os
 import django
 import tqdm
 
+root = Path(__file__).resolve().parent.parent.parent
+if root in sys.path:
+    sys.path.remove(f"{root}")
+sys.path.append(f'{Path(__file__).resolve().parent.parent}')
+sys.path.append(f'{root}')
+
 from leek.common import IdGenerator
 
 generator = IdGenerator(1)
@@ -112,9 +118,6 @@ def ods_2_dw():
 
 
 if __name__ == '__main__':
-    sys.path.remove(f"{Path(__file__).resolve().parent.parent.parent}")
-    sys.path.append(f'{Path(__file__).resolve().parent.parent}')
-    sys.path.append(f'{Path(__file__).resolve().parent.parent.parent}')
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "website.settings")
     os.environ.setdefault("DISABLE_WORKER", "true")
     django.setup()

@@ -9,7 +9,7 @@ from django.urls import path
 from import_export.admin import ImportExportModelAdmin
 
 from leek.common.utils import all_constructor_args, get_cls
-from leek.strategy.strategy import get_all_strategies_cls_iter
+from leek.strategy import get_all_strategies_cls_iter
 from .models import TradeConfig, DataSourceConfig, StrategyConfig, TradeLog, Kline
 
 

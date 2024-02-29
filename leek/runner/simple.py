@@ -40,10 +40,6 @@ class SimpleWorkflow(BaseWorkflow):
                                              self.cfg_trader))
         logger.info(f"交易执行器配置完成: {self.cfg_trader}")
 
-        self.bus.subscribe(EventBus.TOPIC_TICK_DATA, self.error_wrapper(self.data_source_to_strategy))
-        self.bus.subscribe(EventBus.TOPIC_POSITION_DATA, self.error_wrapper(self.trader_to_strategy))
-        logger.info(f"策略监听配置完成")
-
         self.bus.subscribe(EventBus.TOPIC_NOTIFY, self.alert)
         logger.info(f"策略通知配置完成")
 

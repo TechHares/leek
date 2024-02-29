@@ -193,9 +193,7 @@
                                 </el-form-item>
                                 <el-form-item label="收益基准线">
                                     <el-radio-group v-model="datasource.benchmark" style="margin-left: 100px">
-                                        {% for symbol in datasource_symbol_choice %}
-                                        <el-radio label="{{symbol}}" class="choice"></el-radio>
-                                        {% endfor %}
+                                        <el-radio v-for="symbol in datasource.symbols" :label="symbol" class="choice">{{symbol}}</el-radio>
                                     </el-radio-group>
                                 </el-form-item>
                             </el-form>
@@ -284,10 +282,10 @@
             url: '',
             datasource: {
                 isIndeterminateSymbols: false,
-                benchmark: symbolOptions[0],
                 checkAllSymbols: true,
                 interval: "5m",
                 symbols: symbolOptions,
+                benchmark: symbolOptions[0],
                 daterange: [new Date().setTime(new Date().getTime() - 3600 * 1000 * 24 * 365), new Date().getTime()],
                 start_time: new Date().getTime(),
                 end_time: new Date().getTime(),
@@ -341,7 +339,7 @@
                 },
                 legend(legendValue) {
                     legendValue.selected = {
-                        "基准增长率": false,
+                        "基准价格": false,
                     }
                     return legendValue
                 }
@@ -372,6 +370,25 @@
             },
             statistic: [],
             tradeLog: []
+        },
+        watch: {
+            datasource: {
+                handler: function (newVal, oldVal) {
+                    let eq = true
+                    let set = new Set(newVal.symbols);
+                    for (let i = 0; i < oldVal.symbols.length; i++) {
+                        if (!set.has(oldVal.symbols[i])) {
+                            eq = false
+                            break
+                        }
+                        set.delete(oldVal.symbols[i])
+                    }
+                    if(eq && set.size == 0){
+                        newVal.benchmark = newVal.symbols[0]
+                    }
+                },
+                deep: true
+            }
         },
         mounted() {
             this.init()

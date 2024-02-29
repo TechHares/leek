@@ -46,9 +46,7 @@ class BacktestWorkflow(BaseWorkflow):
         self._init_trader(self._clean_config("leek.trade.trade_backtest|BacktestTrader",
                                              self.config_data["trader_data"]))
 
-        self.bus.subscribe(EventBus.TOPIC_TICK_DATA, self.data_source_to_strategy)
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA, self.sync_data_to_ui)
-        self.bus.subscribe(EventBus.TOPIC_POSITION_DATA, self.trader_to_strategy)
         self.bus.subscribe(EventBus.TOPIC_POSITION_DATA, self.trader_to_strategy)
         # self.bus.subscribe(EventBus.TOPIC_NOTIFY, lambda msg: print(msg))
         self.bus.subscribe("ERROR", lambda e: self.shutdown)
@@ -70,7 +68,12 @@ class BacktestWorkflow(BaseWorkflow):
             if position.direction != order.side:
                 self.trade_count += 1
 
-            if position.win:
+            if (position.direction != order.side) \
+                    and (
+                    (position.direction == PositionSide.LONG and order.transaction_price > position.avg_price)
+                    or
+                    (position.direction == PositionSide.SHORT and order.transaction_price < position.avg_price)
+            ):
                 self.win_count += 1
 
     def sync_data_to_ui(self, data):
@@ -93,8 +96,8 @@ class BacktestWorkflow(BaseWorkflow):
         else:
             base_rate = 0
 
-        amount = self.strategy.available_amount + self.strategy.position_value  # 当前总估值
-        profit_rate = (amount - self.strategy.total_amount) / self.strategy.total_amount
+        amount = self.strategy.position_manager.available_amount + self.strategy.position_manager.position_value  # 当前总估值
+        profit_rate = (amount - self.strategy.position_manager.total_amount) / self.strategy.position_manager.total_amount
         # profit_rate_execution_fee = (amount - self.strategy.total_amount) / self.strategy.total_amount
         p_data = {
             'timestamp': data.timestamp,
@@ -102,7 +105,7 @@ class BacktestWorkflow(BaseWorkflow):
             'profit_rate': profit_rate,
             # 'profit_rate_execution_fee': profit_rate_execution_fee,
             'benchmark': base_rate,
-            'fee': self.strategy.fee,
+            'fee': self.strategy.position_manager.fee,
             'benchmark_price': self.base_line_current_price
         }
         self.evaluation.update_profit_data(p_data)
@@ -112,8 +115,6 @@ class BacktestWorkflow(BaseWorkflow):
         })
 
     def trader_to_strategy(self, data):
-        super(BacktestWorkflow, self).trader_to_strategy(data)
-
         if data:  # 处理交易结果
             # self.queue.put({
             #     "type": "trade",
@@ -147,8 +148,9 @@ class BacktestWorkflow(BaseWorkflow):
                     statistics[k] = "%.4f" % statistics[k]
             statistics["trade_signal"] = "%s/%s" % (self.long_single, self.short_single)  # 交易信号(多/空)
             statistics["winning_percentage"] = (self.win_count / self.trade_count) if self.trade_count > 0 else 0  # 胜率
-            statistics["average_trade_pl"] = "%.4f" % (((self.strategy.position_value + self.strategy.available_amount -
-                                                        self.strategy.total_amount) / self.trade_count)
+            statistics["average_trade_pl"] = "%.4f" % (((self.strategy.position_manager.position_value +
+                                                         self.strategy.position_manager.available_amount -
+                                                        self.strategy.position_manager.total_amount) / self.trade_count)
                                                        if self.trade_count > 0 else 0)  # 平均交易获利/损失
             return {
                 "type": "statistics",

@@ -80,6 +80,11 @@ class Trader(metaclass=ABCMeta):
     def __init__(self, bus: EventBus):
         self.bus = bus
 
+        self.post_constructor()
+
+    def post_constructor(self):
+        self.bus.subscribe(EventBus.TOPIC_ORDER_DATA, self.order)
+
     @abstractmethod
     def order(self, order: Order) -> Order:
         """

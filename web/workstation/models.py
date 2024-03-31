@@ -235,9 +235,6 @@ if config.KLINE_DB_TYPE == 'CLICKHOUSE':
                 index_granularity_bytes=1 << 20,
                 enable_mixed_granularity_parts=1,
             )
-            indexes = [
-                models.Index(fields=['symbol']),
-            ]
 
         def __str__(self):
             return "%s-%s-%s" % (self.interval, self.symbol, self.symbol)

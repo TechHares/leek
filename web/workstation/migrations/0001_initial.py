@@ -179,7 +179,6 @@ class Migration(migrations.Migration):
                                                                            order_by=('interval', 'timestamp', 'symbol'),
                                                                            partition_by='interval', primary_key=(
                             'interval', 'timestamp', 'symbol')),
-                    'indexes': [models.Index(fields=['symbol'], name='workstation_symbol_306d4f_idx')],
                     'unique_together': {('interval', 'timestamp', 'symbol')},
                 },
                 managers=[

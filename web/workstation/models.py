@@ -169,6 +169,9 @@ class StrategyConfig(models.Model):
     num_std_dev = models.DecimalField(u'林带上线轨标准差倍数', max_digits=4, decimal_places=2, default="2.0")
     # =====================================均值回归================================================
     atr_coefficient = models.DecimalField(u'ATR动态止损系数', max_digits=36, decimal_places=6, default=1)
+    # =====================================均线================================================
+    ma = models.CharField(u'均线(多个周期「,」分割)', max_length=200, default="10")
+    smoothing_period = models.CharField(u'平滑周期(多个周期「,」分割)', max_length=200, default="9")
 
     data_source = models.ForeignKey(DataSourceConfig, on_delete=models.PROTECT, verbose_name=u'数据源')
     trade = models.ForeignKey(TradeConfig, on_delete=models.PROTECT, verbose_name=u'交易器')

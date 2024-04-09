@@ -118,6 +118,30 @@ class Calculator(object):
         df.loc[df['ha_close'] < df['ha_open'], 'side'] = 2
         return df
 
+    def ama(self, period=9, slow_coefficient=30, fast_coefficient=2):
+        if len(self.q) < period + 1:
+            return None
+
+        data = list(self.q)
+        df = pd.DataFrame([d.__json__() for d in data])
+
+        df['change_value'] = (df["close"] - df["close"].shift(period)).abs()
+        df['volatility_value'] = df["close"].diff(period).abs().sum()
+        df['er'] = (df['change_value'] / df['volatility_value'])
+        fast_sc = Decimal(2 / (fast_coefficient + 1))
+        slow_sc = Decimal(2 / (slow_coefficient + 1))
+        df['ssc'] = (df['er'] * (fast_sc - slow_sc) + slow_sc) * 2
+
+        df['ama'] = df['close'].copy()
+        for i in range(period, len(df)):
+            df.loc[i, 'ama'] = df.loc[i - 1, 'ama'] + (df.loc[i, 'ssc'] * (df.loc[i, 'close'] - df.loc[i - 1, 'ama']))
+        return df.tail(period)["ama"].tolist()
+
 
 if __name__ == '__main__':
-    pass
+    # pass
+    import pandas as pd
+
+    s = pd.Series([1, 2, 3, 4, 5])
+    result = s.diff(periods=3)
+    print(result)

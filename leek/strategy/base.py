@@ -4,9 +4,9 @@
 # @Author  : shenglin.li
 # @File    : strategy_old.py
 # @Software: PyCharm
-import json
 import os
 import re
+import threading
 from abc import abstractmethod, ABCMeta
 from datetime import datetime
 from decimal import Decimal
@@ -15,8 +15,7 @@ from typing import Dict
 
 from leek.common import logger, G
 from leek.common.event import EventBus
-from leek.common.utils import decimal_quantize, get_defined_classes, all_constructor_args, get_defined_classes_in_file, \
-    get_all_base_classes
+from leek.common.utils import decimal_quantize, get_defined_classes, get_all_base_classes
 from leek.strategy.common import Filter
 from leek.trade.trade import Order, PositionSide, OrderType as OT
 
@@ -31,6 +30,7 @@ class Position:
         self.direction = direction  # 持仓仓位方向
 
         self.quantity = Decimal("0")  # 持仓数量
+        self.quantity_rate = Decimal("0")  # 投入仓位比例
         self.quantity_amount = Decimal("0")  # 花费本金/保证金
         self.avg_price = Decimal("0")  # 平均持仓价格
         self.value = Decimal("0")  # 价值
@@ -131,17 +131,36 @@ class Position:
                f"avg_price={self.avg_price}, value={self.value}, fee={self.fee},quantity_amount={self.quantity_amount})"
 
 
+lock = threading.RLock()
+
+
+def locked(func):
+    def wrapper(*args, **kw):
+        with lock:
+            return func(*args, **kw)
+
+    return wrapper
+
+
 class PositionManager:
     """
     仓位管理
     """
+    MIN_POSITION = Decimal("0.05")
 
     def __init__(self, bus: EventBus, total_amount: Decimal):
         self.bus = bus  # 总投入
         self.total_amount = Decimal(total_amount)  # 总投入
         if not total_amount or self.total_amount <= 0:
             raise ValueError("total_amount must > 0")
-        self.available_amount = self.total_amount  # 剩余可用
+
+        self.available_amount = self.total_amount  # 可用金额
+        self.freeze_amount = Decimal("0")  # 冻结金额
+        self.used_amount = Decimal("0")  # 已用金额
+        self.available_rate = Decimal("1")  # 可用比例
+        self.freeze_rate = Decimal("0")  # 冻结比例
+        self.used_rate = Decimal("0")  # 已用比例
+        self.freeze_map = {}
 
         self.position_value = Decimal("0")  # 持仓价值
         self.fee = Decimal("0")  # 花费手续费
@@ -165,6 +184,7 @@ class PositionManager:
             self.quantity_map[data.symbol].update_price(price)
             self.position_value = sum([position.value for position in self.quantity_map.values()])
 
+    @locked
     def position_handle(self, order: Order):
         """
         更新持仓
@@ -175,6 +195,11 @@ class PositionManager:
             self.quantity_map[order.symbol] = Position(order.symbol, order.side)
 
         position = self.quantity_map[order.symbol]
+        if position.direction == order.side:  # 开仓
+            rate = self.release_amount(order.order_id, order.transaction_amount)
+            position.quantity_rate += rate
+        else:
+            self.release_position(position.quantity_rate, order.transaction_amount)
         self.bus.publish("position_update", position, order)
         amt = position.update_filled_position(order)
         self.position_value = sum([p.value for p in self.quantity_map.values()])
@@ -186,21 +211,87 @@ class PositionManager:
         self.fee += order.fee
         logger.info(f"已花费手续费: {self.fee}, 可用资金: {self.available_amount}, 仓位价值: {self.position_value}")
 
+    @locked
     def position_signal(self, signal):
-        amount = decimal_quantize((self.available_amount + self.position_value) * signal.position_rate, 2)
-        amount = min(amount, self.available_amount)
-        logger.info(f"处理策略信号: {signal.symbol}-{signal.signal_name}/{datetime.fromtimestamp(signal.timestamp/1000)}"
+        logger.info(f"处理策略信号: {signal.symbol}-{signal.signal_name}/{datetime.fromtimestamp(signal.timestamp / 1000)}"
                     f" rate={signal.position_rate}, cls={signal.creator.__name__}, price={signal.price}: {signal.memo}")
-        if amount <= 0:
-            return
+
         self.__seq_id += 1
-        order = Order(signal.strategy_id,
-                      f"{signal.strategy_id}{'LONG' if signal.side == PositionSide.LONG else 'SHORT'}{self.__seq_id}",
-                      OT.MarketOrder, signal.symbol, amount, signal.price, signal.side, signal.timestamp)
+        order_id = f"{signal.strategy_id}{'LONG' if signal.side == PositionSide.LONG else 'SHORT'}{self.__seq_id}"
+
+        order = Order(signal.strategy_id, order_id, OT.MarketOrder, signal.symbol, Decimal(0), signal.price,
+                      signal.side, signal.timestamp)
+
         if signal.signal_type == "CLOSE":
             order.sz = self.get_position(signal.symbol).sz
+        else:
+            amount = self.freeze(order_id, signal.position_rate)
+            if amount <= 0:
+                return
+            order.amount = amount
+
         order.extend = signal.extend
         self.bus.publish(EventBus.TOPIC_ORDER_DATA, order)
+
+    @locked
+    def freeze(self, order_id, rate) -> Decimal:
+        """
+        冻结
+        :param order_id: 订单ID
+        :param rate: 冻结比例
+        :return: 金额
+        """
+        rate = min(rate, self.available_rate)
+        if rate < PositionManager.MIN_POSITION:
+            return Decimal(0)
+        freeze_amount = min(decimal_quantize(rate / self.available_rate * self.available_amount, 2),
+                            self.available_amount)
+        self.available_rate -= rate
+        self.available_amount -= freeze_amount
+
+        self.freeze_rate += rate
+        self.freeze_amount += freeze_amount
+
+        self.freeze_map[order_id] = [rate, freeze_amount]
+        return freeze_amount
+
+    @locked
+    def release_amount(self, order_id, real_amount):
+        """
+        释放仓位
+        :param order_id: 冻结记录
+        :param real_amount: 实际金额
+        :return: 金额
+        """
+        if order_id not in self.freeze_map:
+            raise Exception("freeze ID Not Found")
+        rate, amount = self.freeze_map[order_id]
+        if amount < real_amount:
+            raise Exception("real_amount is > amount")
+
+        self.freeze_rate -= rate
+        self.freeze_amount -= amount
+
+        self.used_rate += rate
+        self.used_amount += real_amount
+
+        self.available_amount += (amount - real_amount)
+        del self.freeze_map[order_id]
+        return rate
+
+    @locked
+    def release_position(self, rate, amount):
+        """
+        释放仓位
+        :param rate: 冻结比例
+        :param amount: 金额
+        :return: 金额
+        """
+        self.used_rate -= rate
+        self.used_amount -= amount
+
+        self.available_rate += rate
+        self.available_amount += amount
 
     def get_position(self, symbol) -> Position:
         if symbol in self.quantity_map:

@@ -13,24 +13,23 @@ import pandas as pd
 from leek.common import G
 from leek.strategy import *
 from leek.strategy.common import *
+from leek.strategy.common.strategy_common import PositionRateManager
 from leek.trade.trade import PositionSide
 
 
-class MacdStrategy(BaseStrategy):
+class MacdStrategy(PositionRateManager, BaseStrategy):
     verbose_name = "MACD策略"
 
-    def __init__(self, ma, smoothing_period, max_single_position):
+    def __init__(self, fast_period, slow_period, long_period, smoothing_period):
         # macd
         # self.fast_line_period = 5
         # self.slow_line_period = 17
         # self.long_line_period = 34
         # self.average_moving_period = 7
-        self.fast_line_period = int(ma.split(",")[0])
-        self.slow_line_period = int(ma.split(",")[1])
-        self.long_line_period = int(ma.split(",")[2])
-        self.average_moving_period = int(smoothing_period.split(",")[0])
-
-        self.max_single_position = Decimal(max_single_position)
+        self.fast_line_period = int(fast_period)
+        self.slow_line_period = int(slow_period)
+        self.long_line_period = int(long_period)
+        self.average_moving_period = int(smoothing_period)
 
     def __calculate_macd(self, df):
         """

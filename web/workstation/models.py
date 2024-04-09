@@ -132,7 +132,8 @@ class StrategyConfig(models.Model):
     total_amount = models.DecimalField(u'投入总资产', max_digits=36, decimal_places=12, default="1000")
 
     # 加载策略列表
-    strategy_cls = models.CharField(u'策略', null=False, max_length=200, choices=get_all_strategies_cls_iter(), default="")
+    strategy_cls = models.CharField(u'策略', null=False, max_length=200, choices=get_all_strategies_cls_iter(),
+                                    default="")
     # =====================================单向单标的网格================================================
     symbol = models.CharField(u'标的物', max_length=200, default="", blank=True)
     min_price = models.DecimalField(u'网格下界', max_digits=36, decimal_places=6, default="0")
@@ -154,24 +155,27 @@ class StrategyConfig(models.Model):
         (4, u"多|空"),
     ))
     mean_type = models.CharField(u'均值计算方式', max_length=10, default="SMA", blank=True,
-                                                       choices=(
-                                                           ("SMA", u"SMA"),
-                                                           ("EMA", u"EMA"),
-                                                       ))
+                                 choices=(
+                                     ("SMA", u"SMA"),
+                                     ("EMA", u"EMA"),
+                                     ("AMA", u"AMA"),
+                                 ))
     window = models.IntegerField(u'均线计算周期', default="10")
     threshold = models.DecimalField(u'阈值', max_digits=36, decimal_places=6, default="0.02")
     take_profit_rate = models.DecimalField(u'止盈比例', max_digits=36, decimal_places=6, default=0.2)
     fallback_percentage = models.DecimalField(u'回落止盈比例', max_digits=36, decimal_places=6,
-                                                                    default=0.05)
+                                              default=0.05)
     max_single_position = models.DecimalField(u'单个标的最大仓位占比', max_digits=36, decimal_places=6,
-                                                                    default=0.2)
+                                              default=0.2)
     stop_loss_rate = models.DecimalField(u'止损比例', max_digits=36, decimal_places=6, default=0.005)
     num_std_dev = models.DecimalField(u'林带上线轨标准差倍数', max_digits=4, decimal_places=2, default="2.0")
     # =====================================均值回归================================================
     atr_coefficient = models.DecimalField(u'ATR动态止损系数', max_digits=36, decimal_places=6, default=1)
     # =====================================均线================================================
-    ma = models.CharField(u'均线(多个周期「,」分割)', max_length=200, default="10")
-    smoothing_period = models.CharField(u'平滑周期(多个周期「,」分割)', max_length=200, default="9")
+    fast_period = models.IntegerField(u'快线计算周期', default="5")
+    slow_period = models.IntegerField(u'慢线计算周期', default="20")
+    long_period = models.IntegerField(u'趋势线计算周期', default="60")
+    smoothing_period = models.IntegerField(u'平滑周期', default="9")
 
     data_source = models.ForeignKey(DataSourceConfig, on_delete=models.PROTECT, verbose_name=u'数据源')
     trade = models.ForeignKey(TradeConfig, on_delete=models.PROTECT, verbose_name=u'交易器')

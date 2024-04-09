@@ -9,10 +9,11 @@ from decimal import Decimal
 from leek.common import G
 from leek.strategy import *
 from leek.strategy.common import *
+from leek.strategy.common.strategy_common import PositionRateManager
 from leek.trade.trade import PositionSide
 
 
-class MeanRevertingStrategy(SymbolsFilter, PositionDirectionManager, TakeProfit, StopLoss, CalculatorContainer,
+class MeanRevertingStrategy(PositionRateManager, SymbolsFilter, PositionDirectionManager, TakeProfit, StopLoss, CalculatorContainer,
                             FallbackTakeProfit, BaseStrategy):
     verbose_name = "均值回归"
     """
@@ -21,15 +22,13 @@ class MeanRevertingStrategy(SymbolsFilter, PositionDirectionManager, TakeProfit,
     风险: 单边行情
     """
 
-    def __init__(self, mean_type: str = "EMA", threshold="0.1", max_single_position="0.5"):
+    def __init__(self, mean_type: str = "EMA", threshold="0.1"):
         """
         :param mean_type: 均值计算方式 EMA 简单移动平均 EMA 指数移动平均
         :param threshold: 偏离阈值
-        :param max_single_position: 单个标的最大持仓比例
         """
         self.mean_type = mean_type.upper()
         self.threshold = Decimal(threshold)
-        self.max_single_position = Decimal(max_single_position)
 
         self.count = 0
         self.sell_count = 0

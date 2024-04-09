@@ -4,6 +4,7 @@
 # @Author  : shenglin.li
 # @File    : strategy_common.py
 # @Software: PyCharm
+from decimal import Decimal
 
 from leek.common import G, Calculator
 from leek.trade.trade import PositionSide
@@ -104,6 +105,18 @@ class PositionSideManager:
 
     def is_short(self):
         return self.side == PositionSide.SHORT
+
+
+class PositionRateManager:
+    """
+    最大仓位
+    """
+
+    def __init__(self, max_single_position):
+        """
+        :param max_single_position: 最大仓位
+        """
+        self.max_single_position = Decimal(max_single_position)
 
 
 if __name__ == '__main__':

@@ -176,6 +176,18 @@ class StrategyConfig(models.Model):
     slow_period = models.IntegerField(u'慢线计算周期', default="20")
     long_period = models.IntegerField(u'趋势线计算周期', default="60")
     smoothing_period = models.IntegerField(u'平滑周期', default="9")
+    factory = models.IntegerField(u'扩展系数', default="2")
+    PRICE_TYPE_CHOICE = (
+        (1, u"收盘价"),
+        (2, u"最高价"),
+        (3, u"最低价"),
+        (4, u"开盘价"),
+        (5, u"平均价"),
+        (6, u"avg(high+low)"),
+        (7, u"avg(high+low+close)"),
+        (8, u"avg(open+high+low+close)"),
+    )
+    price_type = models.IntegerField(u'Basic取值', default=1, choices=PRICE_TYPE_CHOICE)
 
     data_source = models.ForeignKey(DataSourceConfig, on_delete=models.PROTECT, verbose_name=u'数据源')
     trade = models.ForeignKey(TradeConfig, on_delete=models.PROTECT, verbose_name=u'交易器')

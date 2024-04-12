@@ -60,6 +60,8 @@ class MeanRevertingStrategy(PositionRateManager, SymbolsFilter, PositionDirectio
             b. 计算购买之后最高(低)点回撤， 止盈止损
         """
         if not self.have_position():  # 没有持仓
+            if not self.enough_amount():
+                return
             z_score = self.__calculate_z_score(self.market_data)
             if z_score > self.threshold and self.can_short():  # 做空
                 side = PositionSide.SHORT

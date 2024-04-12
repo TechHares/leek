@@ -13,20 +13,21 @@ from plotly.subplots import make_subplots
 from leek.runner.view import ViewWorkflow
 import plotly.graph_objs as go
 
-
+from leek.strategy.common.strategy_common import PositionRateManager
 
 if __name__ == '__main__':
     from leek.strategy.common import SymbolsFilter, PositionDirectionManager, CalculatorContainer, AtrStopLoss
     from leek.strategy.strategy_macd import MacdStrategy
 
-    strategy = MacdStrategy()
+    strategy = MacdStrategy(5, 17, 60, 7)
+    PositionRateManager.__init__(strategy, 0.5)
     workflow = ViewWorkflow(strategy, "5m", 1710000000000, 1710259200000, "ZRXUSDT")
     workflow.start()
     df = pd.DataFrame(workflow.kline_data)
     df['Datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True)
     fig = workflow.draw(fig=fig, df=df, row=1)
-    workflow.draw(fig=fig, df=df)
+    # workflow.draw(fig=fig, df=df)
 
     df['avg_price'] = df['amount'] / df['volume']
     df['ma_fast'] = df['avg_price'].rolling(window=strategy.fast_line_period).mean().apply(lambda x: Decimal(x))

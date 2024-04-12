@@ -74,14 +74,14 @@ class StopLoss(Filter):
     def pre(self, market_data: G, position) -> bool:
         if position is None:
             return True
-        rate = (position.avg_price - market_data.close) / position.avg_price
+        rate = (position.quantity_amount - market_data.close * position.quantity) / position.quantity_amount
         if position.direction == PositionSide.SHORT:
             rate *= -1
 
         if rate < -self.stop_loss_rate:  # 止盈止损
             self.close_position(memo=f"止盈平仓：阈值={self.stop_loss_rate} "
                                      f"触发价格={market_data.close}"
-                                     f" 平均持仓价={position.avg_price} 触发比例={rate}")
+                                     f" 平均持仓价={position.quantity_amount / market_data.close} 触发比例={rate}")
             return False
         return True
 
@@ -100,13 +100,13 @@ class TakeProfit(Filter):
     def pre(self, market_data: G, position) -> bool:
         if position is None:
             return True
-        rate = (position.avg_price - market_data.close) / position.avg_price
+        rate = (position.quantity_amount - market_data.close * position.quantity) / position.quantity_amount
         if position.direction == PositionSide.SHORT:
             rate *= -1
 
         if rate > self.take_profit_rate:  # 止盈
             self.close_position(memo=f"止盈平仓：阈值={self.take_profit_rate} "
-                                     f"触发价格={market_data.close} 平均持仓价={position.avg_price}"
+                                     f"触发价格={market_data.close} 平均持仓价={position.quantity_amount / position.quantity}"
                                      f" 触发比例={rate}")
             return False
         return True
@@ -136,14 +136,15 @@ class FallbackTakeProfit(Filter):
         g.high = max(g.high, market_data.high)
         g.low = min(g.low, market_data.low)
 
-        rate = (g.high - market_data.close) / position.avg_price
         if position.direction == PositionSide.SHORT:
-            rate = (market_data.close - g.low) / position.avg_price
+            rate = (market_data.close - g.low) * position.quantity / position.quantity_amount
+        else:
+            rate = (g.high - market_data.close) * position.quantity / position.quantity_amount
 
         if rate > self.fallback_percentage:  # 回撤止盈
             self.close_position(memo=f"回撤止盈平仓：阈值={self.fallback_percentage}"
                                      f" 触发价格={market_data.close} "
-                                     f"平均持仓价={position.avg_price} 触发比例={rate}")
+                                     f"最高价={g.high} 触发比例={rate}")
             return False
         return True
 

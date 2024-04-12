@@ -9,11 +9,12 @@ import decimal
 from leek.common import G, Calculator, logger, StateMachine
 from leek.strategy import *
 from leek.strategy.common import *
+from leek.strategy.common.strategy_common import PositionRateManager
 from leek.trade.trade import Order, PositionSide, OrderType
 
 
-class BollingerBandsStrategy(SymbolsFilter, CalculatorContainer, PositionDirectionManager, FallbackTakeProfit,
-                             StopLoss, BaseStrategy):
+class BollingerBandsStrategy(SymbolsFilter, CalculatorContainer, PositionRateManager, PositionDirectionManager,
+                             FallbackTakeProfit, StopLoss, BaseStrategy):
     verbose_name = "布林带策略"
     """
     布林带策略
@@ -67,22 +68,25 @@ class BollingerBandsStrategy(SymbolsFilter, CalculatorContainer, PositionDirecti
             如果收盘价穿过布林线上穿中轨回落，平多或者加空
             如果收盘价穿过布林线回踩中轨拉升，平空或者加多
         """
+        if self.market_data.finish != 1:
+            return
         calculator = self.calculator(self.market_data)
-        upper_band, rolling_mean, lower_band = calculator.boll(self.market_data.close if self.market_data.finish != 1
-                                                               else None, num_std_dev=self.num_std_dev)
+        upper_band, rolling_mean, lower_band = calculator.boll(self.market_data.close, num_std_dev=self.num_std_dev)
         if rolling_mean == 0:
             return
 
         price = self.market_data.close
         if not self.have_position():  # 无持仓
+            if not self.enough_amount():
+                return
             if price > upper_band and self.can_short():
                 self.g.status = StateMachine("UP_UP", self._state_transitions)
                 logger.info(f"布林带开空：price={price}, upper_band={upper_band}, rolling_mean={rolling_mean}, lower_band={lower_band}")
-                self.create_order(PositionSide.SHORT, position_rate=0.3, memo="布林带开空")
+                self.create_order(PositionSide.SHORT, position_rate=self.max_single_position, memo="布林带开空")
             elif price < lower_band and self.can_long():
                 self.g.status = StateMachine("DOWN_DOWN", self._state_transitions)
                 logger.info(f"布林带开多：price={price}, upper_band={upper_band}, rolling_mean={rolling_mean}, lower_band={lower_band}")
-                self.create_order(PositionSide.LONG, position_rate=0.3, memo="布林带开多")
+                self.create_order(PositionSide.LONG, position_rate=self.max_single_position, memo="布林带开多")
         else:
             if price > upper_band:
                 event = "UP"
@@ -100,7 +104,7 @@ class BollingerBandsStrategy(SymbolsFilter, CalculatorContainer, PositionDirecti
             if (states[-3] == "UP_CENTER" and states[-2] == "DOWN_CENTER" and states[-1] == "UP_CENTER") \
                     or (states[-3] == "DOWN_CENTER" and states[-2] == "UP_CENTER" and states[-1] == "UP_CENTER"):
                 if self.is_long_position():
-                    self.create_order(PositionSide.LONG, position_rate=0.3, memo="布林带加仓")
+                    self.create_order(PositionSide.LONG, position_rate=self.max_single_position, memo="布林带加仓")
                 else:
                     logger.info(f"布林带加仓：price={price}, states={states}")
                     self.close_position("布林带平仓")
@@ -113,7 +117,7 @@ class BollingerBandsStrategy(SymbolsFilter, CalculatorContainer, PositionDirecti
                     self.close_position("布林带平仓")
                 else:
                     logger.info(f"布林带加仓：price={price}, states={states}")
-                    self.create_order(PositionSide.SHORT, position_rate=0.3, memo="布林带加仓")
+                    self.create_order(PositionSide.SHORT, position_rate=self.max_single_position, memo="布林带加仓")
 
 
 if __name__ == '__main__':

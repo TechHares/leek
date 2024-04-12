@@ -55,7 +55,8 @@ class MacdStrategy(PositionRateManager, BaseStrategy):
             return
         if self.g.q is None:
             self.g.q = deque(maxlen=int(self.long_line_period * 2))
-
+        if not self.have_position() and not self.enough_amount():
+            return
         self.g.q.append(self.market_data.__json__())
         df = pd.DataFrame(list(self.g.q))
         self.__calculate_macd(df)

@@ -10,15 +10,24 @@ from datetime import datetime
 from typing import Any
 
 from leek.common import EventBus
-from leek.strategy import MeanRevertingStrategy, BaseStrategy
+from leek.strategy import BaseStrategy
 from leek.data import BacktestDataSource, DataSource
+from leek.strategy.common import SymbolsFilter, StopLoss, TakeProfit, FallbackTakeProfit
+from leek.strategy.common.strategy_common import PositionRateManager, PositionDirectionManager, CalculatorContainer
+from leek.strategy.strategy_mean_reverting import MeanRevertingStrategy
 
 
 class TestDemoClass(unittest.TestCase):
     def setUp(self):
-        self.demo_class = MeanRevertingStrategy(symbols="BTCUSDT", direction="4", mean_type="EMA", lookback_intervals=10,
-                                                threshold="0.002", take_profit_rate="0.03", stop_loss_rate="0.02",
-                                                fallback_percentage="0.008", max_single_position="0.5")
+        self.demo_class = MeanRevertingStrategy(mean_type="EMA",
+                                                threshold="0.002")
+        PositionRateManager.__init__(self.demo_class, "0.5")
+        SymbolsFilter.__init__(self.demo_class, "BTCUSDT")
+        PositionDirectionManager.__init__(self.demo_class)
+        CalculatorContainer.__init__(self.demo_class)
+        StopLoss.__init__(self.demo_class)
+        TakeProfit.__init__(self.demo_class)
+        FallbackTakeProfit.__init__(self.demo_class)
         self.bus = EventBus()
         BaseStrategy.__init__(self.demo_class, 1, self.bus,
                               decimal.Decimal("1000"))
@@ -27,7 +36,7 @@ class TestDemoClass(unittest.TestCase):
 
     def test_handle(self):
         self.demo_class.symbols = None
-        self.bus.subscribe(EventBus.TOPIC_TICK_DATA, self.demo_class.handle)
+        self.demo_class.post_constructor()
         self.data._run()
 
 

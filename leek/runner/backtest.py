@@ -70,9 +70,9 @@ class BacktestWorkflow(BaseWorkflow):
 
             if (position.direction != order.side) \
                     and (
-                    (position.direction == PositionSide.LONG and order.transaction_price > position.avg_price)
+                    (position.direction == PositionSide.LONG and order.transaction_price > (position.quantity_amount / position.quantity))
                     or
-                    (position.direction == PositionSide.SHORT and order.transaction_price < position.avg_price)
+                    (position.direction == PositionSide.SHORT and order.transaction_price < (position.quantity_amount / position.quantity))
             ):
                 self.win_count += 1
 

@@ -292,6 +292,12 @@
             },
             pickerOptions: {
                 shortcuts: [{
+                    text: '最近一个月',
+                    onClick(picker) {
+                        const now = new Date();
+                        picker.$emit('pick', [now.getTime() - 3600 * 1000 * 24 * 30, now.getTime()]);
+                    }
+                },{
                     text: '最近三个月',
                     onClick(picker) {
                         const now = new Date();
@@ -374,18 +380,11 @@
         watch: {
             datasource: {
                 handler: function (newVal, oldVal) {
-                    let eq = true
                     let set = new Set(newVal.symbols);
-                    for (let i = 0; i < oldVal.symbols.length; i++) {
-                        if (!set.has(oldVal.symbols[i])) {
-                            eq = false
-                            break
-                        }
-                        set.delete(oldVal.symbols[i])
-                    }
-                    if(eq && set.size == 0){
+                    if (!set.has(newVal.benchmark)) {
                         newVal.benchmark = newVal.symbols[0]
                     }
+                    console.log("newVal", newVal.benchmark, "oldVal", oldVal.benchmark)
                 },
                 deep: true
             }

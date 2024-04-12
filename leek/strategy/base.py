@@ -32,47 +32,38 @@ class Position:
         self.quantity = Decimal("0")  # 持仓数量
         self.quantity_rate = Decimal("0")  # 投入仓位比例
         self.quantity_amount = Decimal("0")  # 花费本金/保证金
-        self.avg_price = Decimal("0")  # 平均持仓价格
-        self.value = Decimal("0")  # 价值
-        self.fee = Decimal("0")  # 手续费消耗
+        self.fee = Decimal("0")  # 费用损耗
 
+        self.value = Decimal("0")  # 价值
         self.sz = 0
 
     def update_price(self, price: Decimal):
+        amount = self.quantity * price
         if self.direction == PositionSide.LONG:
-            self.value = self.quantity_amount + self.quantity * (price - self.avg_price)
+            self.value = amount
         else:
-            self.value = self.quantity_amount + self.quantity * (self.avg_price - price)
+            self.value = 2 * self.quantity_amount - amount
 
     def update_filled_position(self, order: Order):
-        pre = self.quantity_amount
-        self.fee += order.fee
-        if self.quantity == 0:
-            self.avg_price = order.transaction_price
-        profit = Decimal(0)
+        self.fee += abs(order.fee)
 
         if self.direction == order.side:
             self.sz += order.sz
             self.quantity += order.transaction_volume
             self.quantity_amount += order.transaction_amount
+            return_amount = order.transaction_amount
         else:
+            if self.direction == PositionSide.LONG:
+                return_amount = order.transaction_amount
+            else:
+                return_amount = 2 * self.quantity_amount * order.transaction_volume / self.quantity - order.transaction_amount
             self.sz -= order.sz
             self.quantity -= order.transaction_volume
-            profit = (order.transaction_price - self.avg_price) * order.transaction_volume
-            if self.direction == PositionSide.SHORT:
-                profit *= -1
-            if self.sz == 0:
-                self.quantity_amount = Decimal("0")
-            else:
-                self.quantity_amount -= order.transaction_amount
-
-        if self.quantity == 0:
-            self.avg_price = Decimal("0")
-            self.value = Decimal("0")
-        else:
-            self.avg_price = decimal_quantize(self.quantity_amount / self.quantity, 8)
+            self.quantity_amount -= order.transaction_amount
+        # if self.quantity == 0:
+        #     logger.info(f"剩余利润：{-self.quantity_amount}")
         self.update_price(order.transaction_price)
-        return pre - self.quantity_amount + profit
+        return return_amount
 
     def get_close_order(self, strategy_id, order_id, price: Decimal = None,
                         order_type=OT.MarketOrder,
@@ -95,40 +86,9 @@ class Position:
         order.sz = self.sz
         return order
 
-    def to_dict(self) -> Dict:
-        return {
-            "symbol": self.symbol,
-            "direction": self.direction.value,
-            "quantity": self.quantity.__str__(),
-            "quantity_amount": self.quantity_amount.__str__(),
-            "avg_price": self.avg_price.__str__(),
-            "value": self.value.__str__(),
-            "fee": self.fee.__str__()
-        }
-
-    @staticmethod
-    def form_dict(d):
-        position = Position(d["symbol"], PositionSide(d["direction"]))
-        if "quantity" in d:
-            position.quantity = Decimal(d["quantity"])
-
-        if "quantity_amount" in d:
-            position.quantity_amount = Decimal(d["quantity_amount"])
-
-        if "avg_price" in d:
-            position.avg_price = Decimal(d["avg_price"])
-
-        if "fee" in d:
-            position.fee = Decimal(d["fee"])
-
-        if "value" in d:
-            position.value = Decimal(d["value"])
-
-        return position
-
     def __str__(self):
         return f"Position(symbol={self.symbol}, direction={self.direction}, quantity={self.quantity}, " \
-               f"avg_price={self.avg_price}, value={self.value}, fee={self.fee},quantity_amount={self.quantity_amount})"
+               f"quantity_rate={self.quantity_rate}, value={self.value},quantity_amount={self.quantity_amount})"
 
 
 lock = threading.RLock()
@@ -190,26 +150,29 @@ class PositionManager:
         更新持仓
         :param order: 订单指令结果
         """
-        logger.info(f"持仓更新: {order}")
+        # logger.info(f"持仓更新: {order}")
         if order.symbol not in self.quantity_map:
             self.quantity_map[order.symbol] = Position(order.symbol, order.side)
 
         position = self.quantity_map[order.symbol]
+        self.bus.publish("position_update", position, order)
+
+        amt = position.update_filled_position(order)
         if position.direction == order.side:  # 开仓
-            rate = self.release_amount(order.order_id, order.transaction_amount)
+            rate = self.release_amount(order.order_id, amt)
             position.quantity_rate += rate
         else:
-            self.release_position(position.quantity_rate, order.transaction_amount)
-        self.bus.publish("position_update", position, order)
-        amt = position.update_filled_position(order)
-        self.position_value = sum([p.value for p in self.quantity_map.values()])
+            self.release_position(position.quantity_rate, amt)
+
         # 更新可用资金
-        self.available_amount += amt
         if position.quantity == 0:
             del self.quantity_map[order.symbol]
-        self.available_amount += order.fee
+        self.position_value = sum([p.value for p in self.quantity_map.values()])
+        self.available_amount -= abs(order.fee)
         self.fee += order.fee
-        logger.info(f"已花费手续费: {self.fee}, 可用资金: {self.available_amount}, 仓位价值: {self.position_value}")
+        a = decimal_quantize(self.available_amount + self.freeze_amount + self.position_value)
+        logger.info(f"资产({a})=可用({self.available_amount}) + 冻结({self.freeze_amount}) + 已用({self.used_amount}) +"
+                    f" 浮盈({decimal_quantize(self.position_value - self.used_amount)}), 已花费手续费: {self.fee}")
 
     @locked
     def position_signal(self, signal):
@@ -246,6 +209,10 @@ class PositionManager:
             return Decimal(0)
         freeze_amount = min(decimal_quantize(rate / self.available_rate * self.available_amount, 2),
                             self.available_amount)
+        if freeze_amount < PositionManager.MIN_POSITION * self.total_amount:
+            if rate < 1:
+                return self.freeze(order_id, min(1, rate / (self.available_amount / self.total_amount)))
+            return Decimal(0)
         self.available_rate -= rate
         self.available_amount -= freeze_amount
 
@@ -287,8 +254,8 @@ class PositionManager:
         :param amount: 金额
         :return: 金额
         """
+        self.used_amount *= (self.used_rate - rate) / self.used_rate
         self.used_rate -= rate
-        self.used_amount -= amount
 
         self.available_rate += rate
         self.available_amount += amount
@@ -299,10 +266,17 @@ class PositionManager:
 
     def get_profit_rate(self, market_data):
         position = self.get_position(market_data.symbol)
-        rate = (position.avg_price - market_data.close) / position.avg_price
+        avg_price = position.quantity_amount / position.quantity
+        rate = (avg_price - market_data.close) / avg_price
         if position.direction == PositionSide.SHORT:
             rate *= -1
         return rate
+
+    def enough_amount(self):
+        """
+        判断是否足够余额
+        """
+        return self.available_rate > PositionManager.MIN_POSITION and self.available_amount > PositionManager.MIN_POSITION * self.total_amount
 
 
 class BaseStrategy(metaclass=ABCMeta):
@@ -326,6 +300,7 @@ class BaseStrategy(metaclass=ABCMeta):
         self.market_data = None  # 当前数据
 
         self.post_constructor()
+        self.test_mode = strategy_id == "T0"
 
     def post_constructor(self):
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA, self._wrap_handle)
@@ -394,6 +369,9 @@ class BaseStrategy(metaclass=ABCMeta):
 
     def have_position(self):
         return self.position is not None
+
+    def enough_amount(self):
+        return self.position_manager.enough_amount()
 
     def close_position(self, memo="", extend=None):
         """

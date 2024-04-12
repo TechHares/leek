@@ -72,6 +72,10 @@ class ViewWorkflow(BaseWorkflow):
                   finish=1
                   ).__json__() for row in cursor]
 
+    @cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=600))
+    def get_data_g(self):
+        return [G(**row) for row in self.get_data()]
+
     def handle_data(self):
         for row in self.get_data():
             data = G(symbol=row["symbol"],

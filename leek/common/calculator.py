@@ -24,7 +24,7 @@ class Calculator(object):
     def get_elements(self, window=None):
         if window is None or window == self.max_size:
             return list(self.q)
-        return list(self.q)[-window]
+        return list(self.q)[-window:]
 
     def sma(self, window=None, new_price=None):
         if len(self.q) < window:

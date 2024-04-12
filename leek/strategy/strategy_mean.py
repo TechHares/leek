@@ -28,6 +28,8 @@ class SingleMaStrategy(PositionRateManager, CalculatorContainer, BaseStrategy):
         if self.market_data.finish != 1:
             return
         calculator = self.calculator(self.market_data)
+        if not self.have_position() and not self.enough_amount():
+            return
         ama = calculator.ama(self.window, fast_coefficient=5)
         self.__handle_long(ama)
 

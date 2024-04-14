@@ -31,18 +31,18 @@ class DecisionStrategy(PositionRateManager, BaseStrategy):
 
         # 决策节点超参数
         self.decision_node_params = {
-            OBVDecisionNode: {"fast_period": range(3, 15), "slow_period": range(15, 40, 2)},
-            # MADecisionNode: {"fast_period": range(3, 15), "slow_period": range(15, 40, 3)},
-            # MACDDecisionNode: {"fast_period": range(3, 15, 2), "slow_period": range(15, 40, 3),
-            #                    "moving_period": range(5, 12)},
-            # STDecisionNode: {"period": range(10, 26, 2), "factory": range(1, 5)},
-            # VolumeDecisionNode: {"fast_period": range(3, 15, 2), "slow_period": range(15, 40, 3)},
-            # BollDecisionNode: {"period": range(7, 30, 2), "num_std_devs": range(2, 10)},
-            # MomDecisionNode: {"period": (7, 30, 3), "price_type": range(1, 8)},
-            # PVTDecisionNode: {"fast_period": range(3, 15), "slow_period": range(15, 40, 3)}
+            OBVDecisionNode: {"fast_period": range(3, 15, 3), "slow_period": range(15, 45, 3)},
+            MADecisionNode: {"fast_period": range(3, 15, 3), "slow_period": range(15, 45, 3)},
+            MACDDecisionNode: {"fast_period": range(3, 15, 3), "slow_period": range(15, 45, 3),
+                               "moving_period": range(5, 12)},
+            STDecisionNode: {"period": range(10, 26, 2), "factory": range(1, 5)},
+            VolumeDecisionNode: {"fast_period": range(3, 15, 3), "slow_period": range(15, 45, 3)},
+            BollDecisionNode: {"period": range(7, 30, 2), "num_std_devs": range(2, 10)},
+            MomDecisionNode: {"period": (7, 30, 3), "price_type": range(1, 8)},
+            PVTDecisionNode: {"fast_period": range(3, 15, 3), "slow_period": range(15, 45, 3)}
         }
-        self.evaluation_data_length = 12 * 24 * 7  # 评估数据容器数据量
-        self.re_eval_internal = self.evaluation_data_length / 7  # 重新评估周期
+        self.evaluation_data_length = 200  # 评估数据容器数据量
+        self.re_eval_internal = 60  # 重新评估周期
         self.evaluation_fee_rate = Decimal(0.0005)  # 手续费率
 
     def pre_handle(self):
@@ -64,7 +64,7 @@ class DecisionStrategy(PositionRateManager, BaseStrategy):
                     self.g.weight_params[decision_cls] = 1 / len(self.decision_node_params)
             # 开仓阈值
             if self.g.threshold is None:
-                self.g.threshold = Decimal(0.8)
+                self.g.threshold = Decimal(0.5)
 
             # 决策实例容器
             if self.g.decision_node_instance is None:
@@ -72,11 +72,11 @@ class DecisionStrategy(PositionRateManager, BaseStrategy):
                 for decision_cls in self.decision_node_params.keys():
                     self.g.decision_node_instance[decision_cls] = decision_cls()
 
-        # if counter == 0:
-            # if self.test_mode:
-            #     self.re_eval_decision()
-            # else:
-            #     threading.Thread(target=self.re_eval_decision, daemon=True).start()
+        if counter == 0:
+            if self.test_mode:
+                self.re_eval_decision()
+            else:
+                threading.Thread(target=self.re_eval_decision, daemon=True).start()
 
     def computed_vote_value(self, vote_func):
         """
@@ -117,19 +117,14 @@ class DecisionStrategy(PositionRateManager, BaseStrategy):
             best_args, best_profit = self.best_args(evaluation_data, cls, **self.decision_node_params[cls])
             ins_map[cls] = cls(**best_args)
             best_profit_map[cls] = float(best_profit)
-        profit_sum = sum(best_profit_map.values())
-        profit_avg = profit_sum / len(best_profit_map)
-        shift = 0
-        if profit_min := min(best_profit_map.values()) < 0:
-            shift = -profit_min * 1.5
-            profit_sum = (profit_sum + shift) * len(best_profit_map)
+        profit_sum = sum([x for x in best_profit_map.values() if x > 0])
 
         for cls in best_profit_map:
-            profit = best_profit_map[cls]
-            best_profit_map[cls] = (profit + shift) / profit_sum
+            profit = max(0, best_profit_map[cls])
+            best_profit_map[cls] = 0 if profit == 0 else profit / profit_sum
         with self.g.lock:
             # 阈值刷新
-            self.g.threshold = 0.5 + max((0.5 - max(10 * profit_avg, 0)), 0)
+            # self.g.threshold = 0.5
             self.g.next_eval_counter = self.re_eval_internal
             self.g.weight_params = best_profit_map
         logger.info("标的%s重新评估决策节点参数及权重完成, 阈值:%s, 权重:%s, 计数器:%s",
@@ -139,24 +134,21 @@ class DecisionStrategy(PositionRateManager, BaseStrategy):
         keys = kwargs.keys()
         values = [kwargs[key] for key in keys]
         combinations = list(product(*values))
-        avg_profit = -1
         best_args = {}
         best_trade_count = 0
-        best_profit = 0
+        best_profit = -1
         for combination in combinations:
             eval_args = dict(zip(keys, combination))
             decision = decision_cls(**eval_args)
             trade_count, profit = decision.evaluation(copy.deepcopy(evaluation_data), self.evaluation_fee_rate)
             if trade_count == 0:
                 continue
-            avg = (profit - 1) / trade_count
-            if avg > avg_profit:
-                avg_profit = avg
+            if profit > best_profit:
                 best_args = eval_args
                 best_trade_count = trade_count
                 best_profit = profit
-                print("decision_cls:{}, trade_count={}, avg_profit:{}, args={}".format(decision_cls.__name__,
-                                                                                       trade_count, profit, eval_args))
+            logger.info("decision_cls:{}, trade_count={}, profit:{}, args={}"
+                        .format(decision_cls.__name__, trade_count, profit, eval_args))
         logger.info("decision_cls:{}, best_trade_count:{}, best_profit:{}, args={}"
                     .format(decision_cls.__name__, best_trade_count, best_profit - 1, best_args))
         return best_args, best_profit - 1
@@ -165,12 +157,12 @@ class DecisionStrategy(PositionRateManager, BaseStrategy):
 if __name__ == '__main__':
     # workflow = ViewWorkflow(None, "5m", 1710000000000, 1710604800000, "ZRXUSDT")
     # workflow = ViewWorkflow(None, "5m", 1675180800000, 1676390400000, "ZRXUSDT")
-    workflow = ViewWorkflow(None, "5m", 1707926400000, 1711641600000, "ZRXUSDT")
+    workflow = ViewWorkflow(None, "5m", 1705198187517, 1712974187517, "ZRXUSDT")
     data = workflow.get_data_g()
 
     strategy = DecisionStrategy()
     now = datetime.datetime.now()
-    strategy.best_args(data, OBVDecisionNode, fast_period=range(3, 15), slow_period=range(15, 40))
+    strategy.best_args(data, OBVDecisionNode, fast_period=range(3, 120), slow_period=range(15, 250))
     # best_trade_count:36, best_profit:2.578177995573759019278577644, args={'fast_period': 13, 'slow_period': 23}
     # strategy.best_args(MADecisionNode, fast_period=range(3, 15), slow_period=range(15, 40, 2))
     # best_trade_count:51, best_profit:1.805003968763135809955039614, args={'fast_period': 10, 'slow_period': 21}

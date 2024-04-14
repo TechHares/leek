@@ -93,7 +93,7 @@ class MADecisionNode(DecisionNode):
             return False
         if cur_data.close < cur_data.ma_fast_period:
             return False
-        if data[-3].ma_slow_period is None:  # 最近3天需要有数据
+        if len(data) < 3 or data[-3].ma_slow_period is None:  # 最近3天需要有数据
             return False
 
         # 1.快线连续拉升 2.慢线连续拉升 3.快线增幅逐渐增大
@@ -144,7 +144,7 @@ class MACDDecisionNode(DecisionNode):
 
     def _open_long(self, data) -> bool:
         cur_data = data[-1]
-        if cur_data.macd_m is None or data[-4].macd_m is None:
+        if cur_data.macd_m is None or len(data) < 4 or data[-4].macd_m is None:
             return False
 
         # diff线没有逐步扩大
@@ -232,7 +232,7 @@ class VolumeDecisionNode(DecisionNode):
         if cur_data.vol_slow_period is None:
             return False
 
-        if data[-3].vol_fast_period is None:  # 最近3天需要有数据
+        if len(data) < 3 or data[-3].vol_fast_period is None:  # 最近3天需要有数据
             return False
 
         # 快线连续拉升 快线>慢线
@@ -271,7 +271,7 @@ class BollDecisionNode(DecisionNode):
         if data[-1].boll_lower_band is None:
             return False
 
-        if data[-3].boll_lower_band is None:  # 最近3天需要有数据
+        if len(data) < 3 or data[-3].boll_lower_band is None:  # 最近3天需要有数据
             return False
 
         # 下轨拉升
@@ -335,8 +335,7 @@ class OBVDecisionNode(DecisionNode):
     OBV是通过将每天的成交量加减到一个累计总数上来计算的，价格上涨时的成交量为正值，价格下跌时的成交量为负值。OBV可以帮助识别资金流向。
     """
 
-    # def __init__(self, fast_period=5, slow_period=10):
-    def __init__(self, fast_period=12, slow_period=37):
+    def __init__(self, fast_period=5, slow_period=10):
         DecisionNode.__init__(self, max_length=slow_period)
         self.fast_period = fast_period
         self.slow_period = slow_period
@@ -428,7 +427,7 @@ class PVTDecisionNode(DecisionNode):
         if data[-1].pvt_slow_period is None:
             return False
 
-        if data[-3].pvt_slow_period is None:
+        if len(data) < 3 or data[-3].pvt_slow_period is None:
             return False
 
         return data[-1].pvt_fast_period > data[-1].pvt_slow_period and \

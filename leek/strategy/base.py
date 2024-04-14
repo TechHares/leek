@@ -125,6 +125,7 @@ class PositionManager:
         self.position_value = Decimal("0")  # 持仓价值
         self.fee = Decimal("0")  # 花费手续费
         self.quantity_map: Dict[str, Position] = {}
+        self.open_fail_set = set()
 
         self.__seq_id = 0
         self.post_constructor()
@@ -186,10 +187,14 @@ class PositionManager:
                       signal.side, signal.timestamp)
 
         if signal.signal_type == "CLOSE":
+            if signal.symbol in self.open_fail_set:
+                self.open_fail_set.remove(signal.symbol)
+                return
             order.sz = self.get_position(signal.symbol).sz
         else:
             amount = self.freeze(order_id, signal.position_rate)
             if amount <= 0:
+                self.open_fail_set.add(signal.symbol)
                 return
             order.amount = amount
 
@@ -368,7 +373,7 @@ class BaseStrategy(metaclass=ABCMeta):
         self.bus.publish(EventBus.TOPIC_STRATEGY_SIGNAL, position_signal)
 
     def have_position(self):
-        return self.position is not None
+        return self.position is not None or self.market_data.symbol in self.position_manager.open_fail_set
 
     def enough_amount(self):
         return self.position_manager.enough_amount()

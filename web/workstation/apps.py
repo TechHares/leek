@@ -8,11 +8,19 @@ from multiprocessing import Process
 from pathlib import Path
 from threading import Thread
 
+import psutil
 from django.apps import AppConfig
 
 sys.path.append(f'{Path(__file__).resolve().parent.parent.parent}')
 
 from leek.common import logger
+
+
+def is_worker_process():
+    if os.name == 'nt':
+        return len(psutil.Process(os.getpid()).parents()) > 4
+    else:
+        return os.getpgrp() == os.getpid() or os.getppid() == os.getpgrp()
 
 
 class WorkstationConfig(AppConfig):
@@ -25,8 +33,7 @@ class WorkstationConfig(AppConfig):
         if os.environ.get("DISABLE_WORKER") == "true":
             return
         logger.info("workstation ready")
-        logger.info(f"getpgrp={os.getpgrp()},getpid={os.getpid()},getppid={os.getppid()}")
-        if os.getpgrp() == os.getpid() or os.getppid() == os.getpgrp():
+        if is_worker_process():
             logger.info(f"启动任扫描线程")
             t = Thread(target=_scheduler, daemon=True)
             t.start()

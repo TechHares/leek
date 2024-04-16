@@ -192,6 +192,8 @@ class PositionManager:
                 return
             order.sz = self.get_position(signal.symbol).sz
         else:
+            if signal.symbol in self.open_fail_set:
+                return
             amount = self.freeze(order_id, signal.position_rate)
             if amount <= 0:
                 self.open_fail_set.add(signal.symbol)
@@ -215,7 +217,7 @@ class PositionManager:
         freeze_amount = min(decimal_quantize(rate / self.available_rate * self.available_amount, 2),
                             self.available_amount)
         if freeze_amount < PositionManager.MIN_POSITION * self.total_amount:
-            if rate < 1:
+            if rate < 0.95:
                 return self.freeze(order_id, min(1, rate / (self.available_amount / self.total_amount)))
             return Decimal(0)
         self.available_rate -= rate

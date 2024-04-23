@@ -6,7 +6,7 @@
 # @Software: PyCharm
 import decimal
 
-from leek.common import G, Calculator, logger, StateMachine
+from leek.common import G, logger, StateMachine
 from leek.strategy import *
 from leek.strategy.common import *
 from leek.strategy.common.strategy_common import PositionRateManager

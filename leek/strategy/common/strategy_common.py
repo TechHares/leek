@@ -6,7 +6,8 @@
 # @Software: PyCharm
 from decimal import Decimal
 
-from leek.common import G, Calculator
+from leek.common import G
+from leek.strategy.common.calculator import Calculator
 from leek.trade.trade import PositionSide
 
 """

@@ -7,7 +7,6 @@
 """
 公共工具包
 """
-from leek.common.calculator import Calculator
 from leek.common.log import logger, get_logger
 from leek.common.event import EventBus
 from leek.common import config
@@ -34,8 +33,11 @@ class G(object):
     def __json__(self):
         return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
 
+    def __str__(self):
+        return str(self.__json__())
 
-__all__ = ["EventBus", "logger", "get_logger", "config", "G", "IdGenerator", "Calculator", "StateMachine"]
+
+__all__ = ["EventBus", "logger", "get_logger", "config", "G", "IdGenerator", "StateMachine"]
 
 if __name__ == '__main__':
     g = G()

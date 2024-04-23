@@ -9,11 +9,10 @@ import inspect
 import signal
 from importlib import import_module
 
-from leek.common import EventBus, logger
+from leek.common import EventBus
 from leek.common.utils import get_all_base_classes, get_constructor_args
-from leek.data.data import DataSource, WSDataSource
+from leek.data.data import DataSource
 from leek.strategy import BaseStrategy
-from leek.strategy.common import Filter
 from leek.trade.trade import Trader
 
 

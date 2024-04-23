@@ -4,6 +4,7 @@
 # @Author  : shenglin.li
 # @File    : strategy_old.py
 # @Software: PyCharm
+import inspect
 import os
 import re
 import threading
@@ -13,7 +14,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Dict
 
-from leek.common import logger, G
+from leek.common import logger
+from leek.common import G
 from leek.common.event import EventBus
 from leek.common.utils import decimal_quantize, get_defined_classes, get_all_base_classes
 from leek.strategy.common import Filter
@@ -125,7 +127,6 @@ class PositionManager:
         self.position_value = Decimal("0")  # 持仓价值
         self.fee = Decimal("0")  # 花费手续费
         self.quantity_map: Dict[str, Position] = {}
-        self.open_fail_set = set()
 
         self.__seq_id = 0
         self.post_constructor()
@@ -187,16 +188,10 @@ class PositionManager:
                       signal.side, signal.timestamp)
 
         if signal.signal_type == "CLOSE":
-            if signal.symbol in self.open_fail_set:
-                self.open_fail_set.remove(signal.symbol)
-                return
             order.sz = self.get_position(signal.symbol).sz
         else:
-            if signal.symbol in self.open_fail_set:
-                return
             amount = self.freeze(order_id, signal.position_rate)
             if amount <= 0:
-                self.open_fail_set.add(signal.symbol)
                 return
             order.amount = amount
 
@@ -216,9 +211,9 @@ class PositionManager:
             return Decimal(0)
         freeze_amount = min(decimal_quantize(rate / self.available_rate * self.available_amount, 2),
                             self.available_amount)
+        if freeze_amount < PositionManager.MIN_POSITION * self.total_amount < self.available_amount:
+            freeze_amount = Decimal(self.available_amount)
         if freeze_amount < PositionManager.MIN_POSITION * self.total_amount:
-            if rate < 0.95:
-                return self.freeze(order_id, min(1, rate / (self.available_amount / self.total_amount)))
             return Decimal(0)
         self.available_rate -= rate
         self.available_amount -= freeze_amount
@@ -227,6 +222,7 @@ class PositionManager:
         self.freeze_amount += freeze_amount
 
         self.freeze_map[order_id] = [rate, freeze_amount]
+        logger.info(f"冻结: {order_id}, rate={rate}, amount={freeze_amount}")
         return freeze_amount
 
     @locked
@@ -238,7 +234,7 @@ class PositionManager:
         :return: 金额
         """
         if order_id not in self.freeze_map:
-            raise Exception("freeze ID Not Found")
+            raise Exception("freeze[%s] ID Not Found" % order_id)
         rate, amount = self.freeze_map[order_id]
         if amount < real_amount:
             raise Exception("real_amount is > amount")
@@ -307,7 +303,7 @@ class BaseStrategy(metaclass=ABCMeta):
         self.market_data = None  # 当前数据
 
         self.post_constructor()
-        self.test_mode = strategy_id == "T0"
+        self.test_mode = strategy_id in ["T0", "V0", "E0"]
 
     def post_constructor(self):
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA, self._wrap_handle)
@@ -375,7 +371,7 @@ class BaseStrategy(metaclass=ABCMeta):
         self.bus.publish(EventBus.TOPIC_STRATEGY_SIGNAL, position_signal)
 
     def have_position(self):
-        return self.position is not None or self.market_data.symbol in self.position_manager.open_fail_set
+        return self.position is not None
 
     def enough_amount(self):
         return self.position_manager.enough_amount()
@@ -386,8 +382,8 @@ class BaseStrategy(metaclass=ABCMeta):
         :return: 交易指令
         """
         position_signal = G()
-        position_signal.signal_name = "CLOSE_" + ("LONG" if self.position.direction == PositionSide.LONG else "SHORT")
         position_signal.signal_type = "CLOSE"
+        position_signal.signal_name = "CLOSE_" + ("LONG" if self.position.direction == PositionSide.LONG else "SHORT")
         position_signal.symbol = self.market_data.symbol
         position_signal.side = PositionSide.switch_side(self.position.direction)
         position_signal.position_rate = Decimal("1")
@@ -413,7 +409,7 @@ def get_all_strategies_cls_iter():
     base = BaseStrategy
     if __name__ == "__main__":
         base = get_defined_classes("leek.strategy.base", ["leek.strategy.base.Position"])[0]
-    for cls in [cls for cls in classes if issubclass(cls, base)]:
+    for cls in [cls for cls in classes if issubclass(cls, base) and not inspect.isabstract(cls)]:
         c = re.findall(r"^<(.*?) '(.*?)'>$", str(cls), re.S)[0][1]
         cls_idx = c.rindex(".")
         desc = (c[:cls_idx] + "|" + c[cls_idx + 1:], c[cls_idx + 1:])

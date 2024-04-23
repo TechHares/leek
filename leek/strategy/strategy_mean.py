@@ -5,8 +5,9 @@
 # @File    : strategy_macd.py
 # @Software: PyCharm
 
-from leek.common import Calculator, G
+from leek.common import G
 from leek.strategy import *
+from leek.strategy.common import Calculator
 from leek.strategy.common.strategy_common import PositionRateManager, CalculatorContainer
 from leek.trade.trade import PositionSide
 

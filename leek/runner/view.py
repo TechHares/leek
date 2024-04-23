@@ -27,6 +27,7 @@ class ViewWorkflow(BaseWorkflow):
         self.benchmark = symbol
 
         self.kline_data = []
+        self.kline_data_g = []
         self.open_long = []
         self.open_short = []
         self.close_long = []
@@ -60,17 +61,20 @@ class ViewWorkflow(BaseWorkflow):
             conn, cursor = self.data_source._ck_run()
         elif config.KLINE_DB_TYPE == "SQLITE":
             conn, cursor = self.data_source._sqlite_run()
-
-        return [G(symbol=row[1],
-                  timestamp=row[0],
-                  open=Decimal(row[2]),
-                  high=Decimal(row[3]),
-                  low=Decimal(row[4]),
-                  close=Decimal(row[5]),
-                  volume=Decimal(row[6]),
-                  amount=Decimal(row[7]),
-                  finish=1
-                  ).__json__() for row in cursor]
+        try:
+            return [G(symbol=row[1],
+                      timestamp=row[0],
+                      open=Decimal(row[2]),
+                      high=Decimal(row[3]),
+                      low=Decimal(row[4]),
+                      close=Decimal(row[5]),
+                      volume=Decimal(row[6]),
+                      amount=Decimal(row[7]),
+                      finish=1
+                      ).__json__() for row in cursor]
+        finally:
+            if conn:
+                conn.close()
 
     @cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=600))
     def get_data_g(self):
@@ -90,6 +94,7 @@ class ViewWorkflow(BaseWorkflow):
                      )
             js = data.__json__()
             self.kline_data.append(js)
+            self.kline_data_g.append(data)
             self.data_source._send_tick_data(data)
 
     def draw(self, fig=None, row=1, col=1, df=None):
@@ -145,6 +150,13 @@ class ViewWorkflow(BaseWorkflow):
             text="开空",
             marker=dict(color='red', size=4)
         ), row=row, col=col)
+        # 格式化图表
+        fig.update_layout(
+            title='K Line',
+            xaxis_title='Date',
+            yaxis_title='Price',
+            legend_orientation="h",
+        )
         return fig
 
 

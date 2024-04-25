@@ -21,7 +21,7 @@ CONFIG_PATH = Path(__file__).parent.parent.parent.resolve() / 'resources/config.
 class SimpleWorkflow(BaseWorkflow):
     def __init__(self, cfg_data_source, cfg_strategy, cfg_trader):
         BaseWorkflow.__init__(self, cfg_strategy["id"])
-        with open(f"{CONFIG_PATH}", "r") as f:
+        with open(f"{CONFIG_PATH}", "r", encoding="utf-8") as f:
             cfg = yaml.safe_load(f)
         self.alert_type = cfg["leek"]["alert_type"]
         self.alert_token = cfg["leek"]["alert_token"]

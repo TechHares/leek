@@ -13,12 +13,27 @@ from django.apps import AppConfig
 
 sys.path.append(f'{Path(__file__).resolve().parent.parent.parent}')
 
-from leek.common import logger
+from leek.common import logger, config
 
 
 def is_worker_process():
     if os.name == 'nt':
-        return len(psutil.Process(os.getpid()).parents()) > 4
+        p = os.path.join(config.DATA_DIR, "work")
+        if not os.path.exists(p):
+            with open(p, "w") as f:
+                f.write(str(os.getpid()))
+                return True
+        else:
+            with open(p, "r") as f:
+                first_line = f.readline().strip()
+            try:
+                process = psutil.Process(int(first_line))
+                if "python" in process.name():
+                    return False
+            except psutil.NoSuchProcess:
+                pass
+            os.remove(p)
+            return is_worker_process()
     else:
         return os.getpgrp() == os.getpid() or os.getppid() == os.getpgrp()
 

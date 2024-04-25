@@ -15,7 +15,7 @@ from pathlib import Path
 import cachetools
 import websocket
 
-from leek.common import EventBus, logger
+from leek.common import EventBus, logger, config
 from leek.common.utils import decimal_to_str, get_defined_classes
 
 
@@ -127,7 +127,7 @@ class WSDataSource(DataSource):
             on_error=self.__wrap(self.on_error),
             on_close=self.__wrap(self.on_close),
         )
-        self.ws.run_forever()
+        self.ws.run_forever(http_proxy_host=config.PROXY_HOST, http_proxy_port=config.PROXY_PORT, proxy_type="http")
 
     def __wrap(self, func):
         def wrapper(*args, **kwargs):

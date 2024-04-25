@@ -18,7 +18,7 @@ import websocket
 from cachetools import cached, TTLCache
 from okx.utils import sign
 
-from leek.common import logger, G
+from leek.common import logger, G, config
 from leek.common.utils import decimal_to_str, decimal_quantize
 from leek.trade.trade import Trader, Order, PositionSide as PS, OrderType as OT
 
@@ -117,7 +117,7 @@ class OkxWsTradeClient(threading.Thread):
             on_close=self.on_close,
             on_error=self.on_error,
         )
-        self.ws.run_forever()
+        self.ws.run_forever(http_proxy_host=config.PROXY_HOST, http_proxy_port=config.PROXY_PORT, proxy_type="http")
 
     def on_close(self, ws, close_status_code, close_msg):
         print(f"OkxWsTradeClient连接关闭: {self.domain}/{ws}, close_status_code={close_status_code}, close_msg={close_msg}")
@@ -184,11 +184,11 @@ class SwapOkxTrader(Trader):
 
         self.lever = int(leverage)
 
-        self.client = Trade.TradeAPI(api_key=api_key, api_secret_key=api_secret_key, passphrase=passphrase, flag=self.flag, debug=False)
+        self.client = Trade.TradeAPI(api_key=api_key, api_secret_key=api_secret_key, passphrase=passphrase, flag=self.flag, debug=False, proxy=config.PROXY)
         self.accountAPI = Account.AccountAPI(api_key=api_key, api_secret_key=api_secret_key, passphrase=passphrase,
-                                             domain=self.domain, flag=self.flag, debug=False)
+                                             domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
 
-        self.publicApi = PublicData.PublicAPI(domain=self.domain, flag=self.flag, debug=False)
+        self.publicApi = PublicData.PublicAPI(domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
         self.ws_client = OkxWsTradeClient(self.__trade_callback, api_key=api_key,
                                           api_secret_key=api_secret_key, passphrase=passphrase, domain=ws_domain)
         self.ws_client.start()

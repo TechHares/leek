@@ -4,6 +4,7 @@
 # @Author  : shenglin.li
 # @File    : config.py
 # @Software: PyCharm
+import os
 import re
 from pathlib import Path
 
@@ -37,6 +38,16 @@ KLINE_DB_PORT = int(kline_db.get("port", "9000"))
 KLINE_DB_USER = kline_db.get("user", "default")
 KLINE_DB_PASSWORD = kline_db.get("password", "")
 KLINE_DB_DATABASE = kline_db.get("database", "default")
+PROXY = os.getenv("leek.proxy")
+PROXY_HOST = None
+PROXY_PORT = None
+if PROXY:
+    arr = PROXY.split("//")
+    x = arr[0]
+    if len(arr) == 2:
+        x = arr[1]
+    PROXY_HOST, PROXY_PORT = arr[1].split(":")
 
 if __name__ == '__main__':
-    print(DATA_DIR)
+    print(PROXY_HOST)
+    print(PROXY_PORT)

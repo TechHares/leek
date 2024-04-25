@@ -5,13 +5,14 @@
 # @File    : data_okx.py
 # @Software: PyCharm
 import json
+import os
 import threading
 import time
 from decimal import Decimal
 
 from okx import MarketData
 
-from leek.common import logger, G, EventBus
+from leek.common import logger, G, EventBus, config
 from leek.data.data import WSDataSource, DataSource
 
 
@@ -98,7 +99,7 @@ class OkxMarketDataSource(DataSource):
             self.flag = "1"
         if work_flag == "2":
             self.domain = "https://aws.okx.com"
-        self.api = MarketData.MarketAPI(domain=self.domain, flag=self.flag, debug=False)
+        self.api = MarketData.MarketAPI(domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
         self.__run = True
 
     def _run(self):

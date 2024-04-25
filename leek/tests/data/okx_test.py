@@ -15,8 +15,10 @@ from leek.data.data_okx import OkxMarketDataSource, OkxKlineDataSource
 class TestBase(unittest.TestCase):
 
     def test_market(self):
-        source = OkxMarketDataSource("SWAP", 20)
-        DataSource.__init__(source, EventBus())
+        source = OkxMarketDataSource("SWAP", 20, "1")
+        bus = EventBus()
+        DataSource.__init__(source, bus)
+        bus.subscribe(EventBus.TOPIC_TICK_DATA, lambda x: print(x))
         source.start()
         print("shutdown")
         time.sleep(30)

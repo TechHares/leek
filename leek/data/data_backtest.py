@@ -14,6 +14,8 @@ from leek.data.data import DataSource
 
 
 class BacktestDataSource(DataSource):
+    verbose_name = "回测数据源"
+
     def __init__(self, interval: str, symbols: [], start_time: int, end_time: int, benchmark: str = None):
         self.keep_running = True
         self.interval = interval

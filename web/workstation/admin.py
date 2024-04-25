@@ -9,7 +9,9 @@ from django.urls import path
 from import_export.admin import ImportExportModelAdmin
 
 from leek.common.utils import all_constructor_args, get_cls
-from leek.strategy import get_all_strategies_cls_iter
+from leek.data.data import get_all_data_cls_list
+from leek.strategy import get_all_strategies_cls_list
+from leek.trade.trade import get_all_trader_cls_list
 from .models import TradeConfig, DataSourceConfig, StrategyConfig, TradeLog, Kline
 
 
@@ -32,7 +34,7 @@ class TradeConfigAdmin(admin.ModelAdmin):
 
     def formfield_for_choice_field(self, db_field, request, **kwargs):
         if db_field.name == 'trader_cls':
-            kwargs['choices'] = TradeConfig.TRADER_TYPE_CHOICE
+            kwargs['choices'] = get_all_trader_cls_list()
         return super().formfield_for_choice_field(db_field, request, **kwargs)
 
     class Media:
@@ -50,11 +52,12 @@ class TradeConfigAdmin(admin.ModelAdmin):
             trader_cls = request.POST.get('trader_cls', None)
             if trader_cls:
                 # 根据 trader_cls 返回相应的字段列表
-                pre = trader_cls.split('|')[1].lower()
+                pre = trader_cls.split('|')
                 fixed_fields = ['id', 'name', 'trader_cls', 'created_time']
+                args = all_constructor_args(get_cls(pre[0], pre[1]))
                 fields = [f.name for f in TradeConfig._meta.get_fields() if f.name not in fixed_fields]
-                fields_to_show = [f for f in fields if f.startswith(pre)]
-                fields_to_hide = [f for f in fields if not f.startswith(pre)]
+                fields_to_show = [f for f in fields if f in args]
+                fields_to_hide = [f for f in fields if f not in fields_to_show]
             else:
                 fields_to_show = []
                 fields_to_hide = []
@@ -82,7 +85,7 @@ class DataSourceConfigAdmin(admin.ModelAdmin):
 
     def formfield_for_choice_field(self, db_field, request, **kwargs):
         if db_field.name == 'data_cls':
-            kwargs['choices'] = DataSourceConfig.DATA_SOURCE_TYPE_CHOICE
+            kwargs['choices'] = get_all_data_cls_list()
         return super().formfield_for_choice_field(db_field, request, **kwargs)
 
     class Media:
@@ -100,14 +103,26 @@ class DataSourceConfigAdmin(admin.ModelAdmin):
             trader_cls = request.POST.get('data_cls', None)
             if trader_cls:
                 # 根据 trader_cls 返回相应的字段列表
-                pre = trader_cls.split('|')[1].lower()
+                pre = trader_cls.split('|')
                 fixed_fields = ['id', 'name', 'data_cls', 'created_time']
+                args = all_constructor_args(get_cls(pre[0], pre[1]))
                 fields = [f.name for f in DataSourceConfig._meta.get_fields() if f.name not in fixed_fields]
-                fields_to_show = [f for f in fields if f.startswith(pre)]
-                fields_to_hide = [f for f in fields if not f.startswith(pre)]
+                fields_to_show = [f for f in fields if f in args]
+                fields_to_hide = [f for f in fields if f not in fields_to_show]
+
             else:
                 fields_to_show = []
                 fields_to_hide = []
+            # if trader_cls:
+            #     # 根据 trader_cls 返回相应的字段列表
+            #     pre = trader_cls.split('|')[1].lower()
+            #     fixed_fields = ['id', 'name', 'data_cls', 'created_time']
+            #     fields = [f.name for f in DataSourceConfig._meta.get_fields() if f.name not in fixed_fields]
+            #     fields_to_show = [f for f in fields if f.startswith(pre)]
+            #     fields_to_hide = [f for f in fields if not f.startswith(pre)]
+            # else:
+            #     fields_to_show = []
+            #     fields_to_hide = []
             response_data = {
                 'fields_to_show': fields_to_show,
                 'fields_to_hide': fields_to_hide,
@@ -135,7 +150,7 @@ class StrategyConfigAdmin(admin.ModelAdmin):
 
     def formfield_for_choice_field(self, db_field, request, **kwargs):
         if db_field.name == 'strategy_cls':
-            kwargs['choices'] = get_all_strategies_cls_iter()
+            kwargs['choices'] = get_all_strategies_cls_list()
 
         if db_field.name == 'status':
             kwargs['choices'] = StrategyConfig.STATUS_CHOICE

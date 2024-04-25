@@ -4,15 +4,19 @@
 # @Author  : shenglin.li
 # @File    : data_binance_download.py
 # @Software: PyCharm
-
+import inspect
 import json
+import os
+import re
 import threading
 from abc import abstractmethod
+from pathlib import Path
 
+import cachetools
 import websocket
 
 from leek.common import EventBus, logger
-from leek.common.utils import decimal_to_str
+from leek.common.utils import decimal_to_str, get_defined_classes
 
 
 class DataSource(threading.Thread):
@@ -47,9 +51,9 @@ class WSDataSource(DataSource):
     WebSocket 数据源
     """
 
-    def __init__(self, url):
+    def __init__(self):
         self.ws = None
-        self.url = url
+        self.url = None
 
     def on_open(self, ws):
         """
@@ -138,3 +142,29 @@ class WSDataSource(DataSource):
     def shutdown(self):
         self.ws.keep_running = False
         self.ws.close()
+
+
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=600))
+def get_all_data_cls_list():
+    files = [f for f in os.listdir(Path(__file__).parent)
+             if f.endswith(".py") and f not in ["__init__.py", "data.py"]]
+    classes = []
+    for f in files:
+        classes.extend(get_defined_classes(f"leek.data.{f[:-3]}"))
+    base = DataSource
+    if __name__ == "__main__":
+        base = get_defined_classes("leek.data.data", ["leek.data.data.WSDataSource"])[0]
+    res = []
+    for cls in [cls for cls in classes if issubclass(cls, base) and not inspect.isabstract(cls)]:
+        c = re.findall(r"^<(.*?) '(.*?)'>$", str(cls), re.S)[0][1]
+        cls_idx = c.rindex(".")
+        desc = (c[:cls_idx] + "|" + c[cls_idx + 1:], c[cls_idx + 1:])
+        if hasattr(cls, "verbose_name"):
+            desc = (desc[0], cls.verbose_name)
+        res.append(desc)
+    return res
+
+
+if __name__ == "__main__":
+    for cls in get_all_data_cls_list():
+        print(cls)

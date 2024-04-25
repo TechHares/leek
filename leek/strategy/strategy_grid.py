@@ -66,7 +66,8 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
             if self.current_grid > 0:  # 有持仓
                 self.notify(f"SingleGridStrategy 价格{price}超出风控范围{self.min_price * (1 - self.risk_rate)}"
                             f"-{self.max_price * (1 + self.risk_rate)} 平仓")
-                self.close_position("网格风控", extend=0)
+                self.g.gird = 0
+                self.close_position("网格风控")
                 self.risk = True
                 return
 
@@ -107,13 +108,14 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         # si = "卖" if self.direction != order.side else "买"
         # print(f"网格数{self.current_grid} -> {dt_gird}, 资金: {self.available_amount} + {self.position_value} ="
         #       f" {self.available_amount + self.position_value} , {si} {order.amount}")
-        self.create_order(side, abs(self.current_grid - dt_gird) / self.grid, extend=dt_gird)
+        self.g.gird = dt_gird
+        self.create_order(side, abs(self.current_grid - dt_gird) / self.grid)
 
-    def handle_position(self, order: Order):
-        self.current_grid = order.extend
+    def handle_position(self, order):
+        self.current_grid = self.g.gird
         si = "卖" if self.side != order.side else "买"
         print(
-            f"网格购买成功 -> {order.extend}, 资金: {self.position_manager.available_amount} + {self.position_manager.position_value} ="
+            f"网格购买成功 -> {self.g.gird}, 资金: {self.position_manager.available_amount} + {self.position_manager.position_value} ="
             f" {self.position_manager.available_amount + self.position_manager.position_value} , {si} {order.amount}")
 
     def to_dict(self):

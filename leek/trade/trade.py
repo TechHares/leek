@@ -4,13 +4,20 @@
 # @Author  : shenglin.li
 # @File    : trade.py
 # @Software: PyCharm
+import inspect
+import os
+import re
 import time
 from datetime import datetime
 from abc import abstractmethod, ABCMeta
 from decimal import Decimal
 from enum import Enum
+from pathlib import Path
+
+import cachetools
 
 from leek.common import EventBus
+from leek.common.utils import get_defined_classes
 
 
 class PositionSide(Enum):
@@ -94,7 +101,7 @@ class Trader(metaclass=ABCMeta):
         """
         raise NotImplemented
 
-    def _trade_callback(self, order: Order):
+    def _trade_callback(self, order):
         """
         交易回调 反馈成交详细等信息
         :param order: 订单
@@ -104,6 +111,29 @@ class Trader(metaclass=ABCMeta):
 
     def shutdown(self):
         pass
+
+
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=600))
+def get_all_trader_cls_list():
+    files = [f for f in os.listdir(Path(__file__).parent)
+             if f.endswith(".py") and f not in ["__init__.py", "trade.py"]]
+    classes = []
+    for f in files:
+        classes.extend(get_defined_classes(f"leek.trade.{f[:-3]}"))
+    base = Trader
+    if __name__ == "__main__":
+        base = get_defined_classes("leek.trade.trade", ["leek.trade.trade.PositionSide",
+                                                        "leek.trade.trade.OrderType",
+                                                        "leek.trade.trade.Order"])[0]
+    res = []
+    for cls in [cls for cls in classes if issubclass(cls, base) and not inspect.isabstract(cls)]:
+        c = re.findall(r"^<(.*?) '(.*?)'>$", str(cls), re.S)[0][1]
+        cls_idx = c.rindex(".")
+        desc = (c[:cls_idx] + "|" + c[cls_idx + 1:], c[cls_idx + 1:])
+        if hasattr(cls, "verbose_name"):
+            desc = (desc[0], cls.verbose_name)
+        res.append(desc)
+    return res
 
 
 if __name__ == '__main__':

@@ -7,12 +7,13 @@
 import random
 from decimal import Decimal
 
-from leek.common import EventBus, get_logger
+from leek.common import EventBus, get_logger, G
 from leek.common.utils import decimal_quantize
 from leek.trade.trade import Trader, Order, OrderType, PositionSide
 
 
 class BacktestTrader(Trader):
+    verbose_name = "回测交易"
     def __init__(self, slippage: Decimal = 0.0, fee_type: int = 0, fee: Decimal = 0,
                  limit_order_execution_rate: int = 100, volume_limit: int = 4):
         """
@@ -41,7 +42,7 @@ class BacktestTrader(Trader):
 
         self.volume_limit = int(volume_limit)
 
-    def order(self, order: Order) -> Order:
+    def order(self, order: Order):
         price_n = abs(order.price.as_tuple().exponent) if order.price is not None else 6
         amount_n = abs(order.amount.as_tuple().exponent)
 
@@ -72,8 +73,23 @@ class BacktestTrader(Trader):
             order.fee = order.transaction_amount * self.fee
         elif self.fee_type == 3:
             order.fee = order.transaction_volume * self.fee
-        order.fee = - abs(order.fee)
-        self._trade_callback(order)
+        pos_trade = G()
+        pos_trade.order_id = order.order_id
+        pos_trade.transaction_price = order.price
+        pos_trade.lever = 1
+        pos_trade.fee = abs(order.fee)
+        pos_trade.pnl = 0
+        pos_trade.sz = order.transaction_volume
+        pos_trade.cancel_source = ""
+        pos_trade.symbol = order.symbol
+
+        pos_trade.ct_val = 1
+        pos_trade.transaction_volume = pos_trade.sz * pos_trade.ct_val
+        amt = decimal_quantize(pos_trade.transaction_volume * pos_trade.transaction_price, 8)
+        pos_trade.transaction_amount = abs(Decimal(amt))
+        pos_trade.side = order.side
+        self._trade_callback(pos_trade)
+
 
 if __name__ == '__main__':
     trader = BacktestTrader()

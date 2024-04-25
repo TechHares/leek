@@ -329,7 +329,7 @@ class BacktestWorkflow(BaseWorkflow):
         self.bus.subscribe(EventBus.TOPIC_POSITION_DATA, self.trader_to_strategy)
         # self.bus.subscribe(EventBus.TOPIC_NOTIFY, lambda msg: print(msg))
         self.bus.subscribe("ERROR", lambda e: self.shutdown)
-        self.bus.subscribe("position_update", self.position_update)
+        self.bus.subscribe(EventBus.TOPIC_POSITION_UPDATE, self.position_update)
 
         self.bus.subscribe("backtest_data_source_done", lambda x: self.queue.put("data_source_done"))
         self.bus.subscribe("backtest_data_source_process", lambda process_num: self.queue.put({
@@ -342,16 +342,16 @@ class BacktestWorkflow(BaseWorkflow):
             "data": 4
         })
 
-    def position_update(self, position, order):
+    def position_update(self, position, trade):
         if position:
-            if position.direction != order.side:
+            if position.direction != trade.side:
                 self.trade_count += 1
 
-            if (position.direction != order.side) \
+            if (position.direction != trade.side) \
                     and (
-                    (position.direction == PositionSide.LONG and order.transaction_price > (position.quantity_amount / position.quantity))
+                    (position.direction == PositionSide.LONG and trade.transaction_price > position.avg_price)
                     or
-                    (position.direction == PositionSide.SHORT and order.transaction_price < (position.quantity_amount / position.quantity))
+                    (position.direction == PositionSide.SHORT and trade.transaction_price < position.avg_price)
             ):
                 self.win_count += 1
 

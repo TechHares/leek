@@ -4,12 +4,14 @@
 # @Author  : shenglin.li
 # @File    : base_test.py
 # @Software: PyCharm
+import time
 import unittest
 from decimal import Decimal
 
 from leek.common import EventBus, G
 from leek.runner.view import ViewWorkflow
 from leek.strategy import BaseStrategy
+from leek.trade import SwapOkxTrader
 from leek.trade.trade import PositionSide, Trader
 from leek.trade.trade_backtest import BacktestTrader
 

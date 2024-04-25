@@ -14,6 +14,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Dict
 
+import cachetools
+
 from leek.common import logger
 from leek.common import G
 from leek.common.event import EventBus
@@ -31,39 +33,42 @@ class Position:
         self.symbol = symbol
         self.direction = direction  # 持仓仓位方向
 
-        self.quantity = Decimal("0")  # 持仓数量
         self.quantity_rate = Decimal("0")  # 投入仓位比例
         self.quantity_amount = Decimal("0")  # 花费本金/保证金
+
+        self.quantity = Decimal("0")  # 持仓数量
+        self.avg_price = Decimal("0")  # 持仓平均价
         self.fee = Decimal("0")  # 费用损耗
 
-        self.value = Decimal("0")  # 价值
+        self.value = Decimal("0")  # 仓位价值
         self.sz = 0
 
     def update_price(self, price: Decimal):
-        amount = self.quantity * price
         if self.direction == PositionSide.LONG:
-            self.value = amount
+            self.value = self.quantity_amount + (price - self.avg_price) * self.quantity
         else:
-            self.value = 2 * self.quantity_amount - amount
+            self.value = self.quantity_amount - (price - self.avg_price) * self.quantity
 
-    def update_filled_position(self, order: Order):
+    def update_filled_position(self, order):
         self.fee += abs(order.fee)
 
         if self.direction == order.side:
+            quantity_value = self.avg_price * self.quantity + order.transaction_volume * order.transaction_price
             self.sz += order.sz
             self.quantity += order.transaction_volume
+            self.avg_price = decimal_quantize(quantity_value/self.quantity, 8)
             self.quantity_amount += order.transaction_amount
             return_amount = order.transaction_amount
         else:
             if self.direction == PositionSide.LONG:
-                return_amount = order.transaction_amount
+                return_amount = order.transaction_volume / self.quantity * self.quantity_amount \
+                                + (order.transaction_price - self.avg_price) * order.transaction_volume
             else:
-                return_amount = 2 * self.quantity_amount * order.transaction_volume / self.quantity - order.transaction_amount
+                return_amount = order.transaction_volume / self.quantity * self.quantity_amount\
+                                + (self.avg_price - order.transaction_price) * order.transaction_volume
             self.sz -= order.sz
             self.quantity -= order.transaction_volume
             self.quantity_amount -= order.transaction_amount
-        # if self.quantity == 0:
-        #     logger.info(f"剩余利润：{-self.quantity_amount}")
         self.update_price(order.transaction_price)
         return return_amount
 
@@ -147,7 +152,7 @@ class PositionManager:
             self.position_value = sum([position.value for position in self.quantity_map.values()])
 
     @locked
-    def position_handle(self, order: Order):
+    def position_handle(self, order):
         """
         更新持仓
         :param order: 订单指令结果
@@ -157,7 +162,7 @@ class PositionManager:
             self.quantity_map[order.symbol] = Position(order.symbol, order.side)
 
         position = self.quantity_map[order.symbol]
-        self.bus.publish("position_update", position, order)
+        self.bus.publish(EventBus.TOPIC_POSITION_UPDATE, position, order)
 
         amt = position.update_filled_position(order)
         if position.direction == order.side:  # 开仓
@@ -176,6 +181,13 @@ class PositionManager:
         logger.info(f"资产({a})=可用({self.available_amount}) + 冻结({self.freeze_amount}) + 已用({self.used_amount}) +"
                     f" 浮盈({decimal_quantize(self.position_value - self.used_amount)}), 已花费手续费: {self.fee}")
 
+    def get_value(self):
+        """
+        返回当前价值
+        :return:
+        """
+        return Decimal(decimal_quantize(self.available_amount + self.freeze_amount + self.position_value))
+
     @locked
     def position_signal(self, signal):
         logger.info(f"处理策略信号: {signal.symbol}-{signal.signal_name}/{datetime.fromtimestamp(signal.timestamp / 1000)}"
@@ -188,7 +200,8 @@ class PositionManager:
                       signal.side, signal.timestamp)
 
         if signal.signal_type == "CLOSE":
-            order.sz = self.get_position(signal.symbol).sz
+            if self.get_position(signal.symbol).sz is not None:
+                order.sz = float(self.get_position(signal.symbol).sz)
         else:
             amount = self.freeze(order_id, signal.position_rate)
             if amount <= 0:
@@ -400,7 +413,8 @@ class BaseStrategy(metaclass=ABCMeta):
         return self.position.direction == PositionSide.LONG
 
 
-def get_all_strategies_cls_iter():
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=600))
+def get_all_strategies_cls_list():
     files = [f for f in os.listdir(Path(__file__).parent)
              if f.endswith(".py") and f not in ["__init__.py", "base.py"]]
     classes = []
@@ -409,17 +423,19 @@ def get_all_strategies_cls_iter():
     base = BaseStrategy
     if __name__ == "__main__":
         base = get_defined_classes("leek.strategy.base", ["leek.strategy.base.Position"])[0]
+    res = []
     for cls in [cls for cls in classes if issubclass(cls, base) and not inspect.isabstract(cls)]:
         c = re.findall(r"^<(.*?) '(.*?)'>$", str(cls), re.S)[0][1]
         cls_idx = c.rindex(".")
         desc = (c[:cls_idx] + "|" + c[cls_idx + 1:], c[cls_idx + 1:])
         if hasattr(cls, "verbose_name"):
             desc = (desc[0], cls.verbose_name)
-        yield desc
+        res.append(desc)
+    return res
 
 
 if __name__ == '__main__':
-    print([i for i in get_all_strategies_cls_iter()])
+    print([i for i in get_all_strategies_cls_list()])
     # position = Position("SDT", PositionSide.LONG)
     # print(json.dumps(position.to_dict()))
     #

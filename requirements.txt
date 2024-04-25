@@ -1,6 +1,6 @@
 cachetools==5.3.2
 pandas==2.2.0
-python_okx==0.2.7
+python_okx==0.2.8
 
 
 mock==5.1.0

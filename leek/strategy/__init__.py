@@ -4,7 +4,7 @@
 # @Author  : shenglin.li
 # @File    : __init__.py.py
 # @Software: PyCharm
-__all__ = ["BaseStrategy", "get_all_strategies_cls_iter"]
-from leek.strategy.base import BaseStrategy, get_all_strategies_cls_iter
+__all__ = ["BaseStrategy", "get_all_strategies_cls_list"]
+from leek.strategy.base import BaseStrategy, get_all_strategies_cls_list
 if __name__ == '__main__':
     pass

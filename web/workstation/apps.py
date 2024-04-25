@@ -44,8 +44,9 @@ def _scheduler():
     from .worker import run_scheduler
     ids = []
     while True:
+        time.sleep(20)
         queryset = StrategyConfig.objects.filter(status__in=(2, 3))
-        logger.info(f"扫描任务: %s", StrategyConfig.objects.filter(status__in=(2, 3)).count())
+        logger.debug(f"扫描任务: %s", StrategyConfig.objects.filter(status__in=(2, 3)).count())
         for strategy in queryset:
             if strategy.end_time is not None and datetime.timestamp(strategy.end_time) < datetime.now().timestamp():
                 strategy.status = 1
@@ -62,8 +63,6 @@ def _scheduler():
                 strategy.process_id = p.pid
                 strategy.status = 3
                 strategy.just_save()
-
-        time.sleep(20)
 
 
 def default(obj):

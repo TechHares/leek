@@ -13,7 +13,7 @@ from pathlib import Path
 import django
 from django.utils import timezone
 
-from leek.common import logger
+from leek.common import logger, EventBus
 from leek.runner.runner import BaseWorkflow
 from leek.runner.simple import SimpleWorkflow
 
@@ -26,13 +26,12 @@ class WorkerWorkflow(SimpleWorkflow):
         super()._init_config()
         self.strategy.set_dict_data(self.cfg_strategy["run_data"])
         BaseWorkflow.start(self)
-        self.bus.subscribe("POSITION_DATA", self.error_wrapper(self.save_trade_log))
+        self.bus.subscribe(EventBus.TOPIC_POSITION_DATA, self.error_wrapper(self.save_trade_log))
 
         try:
             while self.run_state:
                 # sleep到下一个整点
-                now = int(datetime.now().timestamp() / 60)  # 分钟时间戳
-                time.sleep(int(60 * (5 - (now % 5))))
+                time.sleep(int((1 - (time.time() / 3600) % 1) * 3600))
                 self.save_run_data()
         except KeyboardInterrupt:
             pass
@@ -44,29 +43,31 @@ class WorkerWorkflow(SimpleWorkflow):
         logger.debug(f"更新{self.job_id}, 运行数据: {strategy_config.run_data}")
         strategy_config.just_save()
 
-        value = self.strategy.position_value + self.strategy.available_amount + self.strategy.fee
+        value = self.strategy.position_manager.get_value()
         ProfitLog.objects.create(strategy_id=self.job_id, timestamp=int(time.time()),
-                                                value=value,
-                                                profit=value - self.strategy.total_amount,
-                                                fee=self.strategy.fee)
+                                 value=value,
+                                 profit=value - self.strategy.position_manager.total_amount,
+                                 fee=self.strategy.position_manager.position_value)
 
     def save_trade_log(self, data):
-        if data is None:
-            return
-        from .models import TradeLog
-        TradeLog.objects.create(order_id=data.order_id, strategy_id=data.strategy_id,
-                                               type=data.type.value,
-                                               symbol=data.symbol, price=data.price, amount=data.amount,
-                                               sz=data.sz, side=data.side.value,
-                                               timestamp=timezone.make_aware(datetime.fromtimestamp(
-                                                   data.order_time / 1000), timezone.get_default_timezone()),
-                                               transaction_volume=data.transaction_volume,
-                                               transaction_amount=data.transaction_amount,
-                                               transaction_price=data.transaction_price,
-                                               fee=data.fee,
-                                               avg_price=self.strategy.position_map[data.symbol].avg_price,
-                                               quantity=self.strategy.position_map[data.symbol].quantity)
-        self.save_run_data()
+        # todo 暂时不做， 直接看第三方
+        pass
+        # if data is None:
+        #     return
+        # from .models import TradeLog
+        # TradeLog.objects.create(order_id=data.order_id, strategy_id=data.strategy_id,
+        #                         type=data.type.value,
+        #                         symbol=data.symbol, price=data.price, amount=data.amount,
+        #                         sz=data.sz, side=data.side.value,
+        #                         timestamp=timezone.make_aware(datetime.fromtimestamp(
+        #                             data.order_time / 1000), timezone.get_default_timezone()),
+        #                         transaction_volume=data.transaction_volume,
+        #                         transaction_amount=data.transaction_amount,
+        #                         transaction_price=data.transaction_price,
+        #                         fee=data.fee,
+        #                         avg_price=self.strategy.position_map[data.symbol].avg_price,
+        #                         quantity=self.strategy.position_map[data.symbol].quantity)
+        # self.save_run_data()
 
 
 def run_scheduler(*arg):

@@ -9,63 +9,50 @@ from multiselectfield import MultiSelectField
 from leek.common import logger, config
 from clickhouse_backend import models as ck_models
 
-from leek.strategy import get_all_strategies_cls_iter
+from leek.data.data import get_all_data_cls_list
+from leek.strategy import get_all_strategies_cls_list
+from leek.trade.trade import get_all_trader_cls_list
 
 
 class TradeConfig(models.Model):
     id = models.AutoField(u'id', primary_key=True)
     name = models.CharField(u'名称', max_length=200, unique=True)
 
-    TRADER_TYPE_CHOICE = (
-        ("leek.trade.trade_backtest|BacktestTrader", u"虚拟交易(回测)"),
-        ("leek.trade.trade_okx|OkxTrader", u'OKX交易')
-    )
-    trader_cls = models.CharField(u'执行器类型', null=False, max_length=200, choices=TRADER_TYPE_CHOICE)
+    trader_cls = models.CharField(u'执行器类型', null=False, max_length=200, choices=get_all_trader_cls_list())
 
     # ====================================回测=================================================
 
-    backtesttrader_slippage = models.DecimalField(u'滑点幅度', max_digits=8, decimal_places=6, default="0")
+    slippage = models.DecimalField(u'滑点幅度', max_digits=8, decimal_places=6, default="0")
     FEE_TYPE_CHOICE = ((0, u'无费用'), (1, u'固定费用'), (2, u'成交额固定比例'), (3, u'单位成交固定费用'),)
-    backtesttrader_fee_type = models.IntegerField(u'费用收取方式', default=0, choices=FEE_TYPE_CHOICE)
-    backtesttrader_fee = models.DecimalField(u'费率', max_digits=8, decimal_places=6, default="0")
-    backtesttrader_min_fee = models.DecimalField(u'单笔最低收费', max_digits=8, decimal_places=6, default="0")
-    backtesttrader_limit_order_execution_rate = models.IntegerField(u'限价单成交率',
-                                                                    validators=[MinValueValidator(1),
-                                                                                MaxValueValidator(100)],
-                                                                    default=100)
-    backtesttrader_volume_limit = models.IntegerField(u'成交量小数保留位数',
-                                                      validators=[MinValueValidator(0), MaxValueValidator(18)],
-                                                      default=4)
+    fee_type = models.IntegerField(u'费用收取方式', default=0, choices=FEE_TYPE_CHOICE)
+    fee = models.DecimalField(u'费率', max_digits=8, decimal_places=6, default="0")
+    min_fee = models.DecimalField(u'单笔最低收费', max_digits=8, decimal_places=6, default="0")
+    limit_order_execution_rate = models.IntegerField(u'限价单成交率',
+                                                     validators=[MinValueValidator(1),
+                                                                 MaxValueValidator(100)],
+                                                     default=100)
+    volume_limit = models.IntegerField(u'成交量小数保留位数',
+                                       validators=[MinValueValidator(0), MaxValueValidator(18)],
+                                       default=4)
     # =====================================回测================================================
 
     # =====================================OKX================================================
-    okxtrader_api_key = models.CharField(u'API Key', max_length=200, default="", blank=True)
-    okxtrader_api_secret_key = models.CharField(u'Secret Key', max_length=200, default="", blank=True)
-    okxtrader_passphrase = models.CharField(u'密码', max_length=200, default="", blank=True)
-    okxtrader_leverage = models.CharField(u'杠杆倍数', max_length=200, default="", blank=True)
-    okxtrader_domain = models.CharField(u'交易Rest域名', max_length=200, default="", blank=True)
-    okxtrader_ws_domain = models.CharField(u'交易WebSocket域名', max_length=200, default="", blank=True)
-    okxtrader_pub_domain = models.CharField(u'公共数据域名', max_length=200, default="", blank=True)
-    okxtrader_acct_domain = models.CharField(u'账号操作域名', max_length=200, default="", blank=True)
+    api_key = models.CharField(u'API Key', max_length=200, default="", blank=True)
+    api_secret_key = models.CharField(u'Secret Key', max_length=200, default="", blank=True)
+    passphrase = models.CharField(u'密码', max_length=200, default="", blank=True)
+    leverage = models.IntegerField(u'杠杆倍数', default="3", blank=True)
     FLAG_CHOICE = (
         ("1", u"模拟盘"),
         ("0", u'实盘'),
+        ("2", u"实盘(AWS)"),
     )
-    okxtrader_flag = models.CharField(u'盘口', max_length=2, choices=FLAG_CHOICE, default="0")
-    INST_TYPE_CHOICE = (
-        ("SPOT", u"币币"),
-        ("MARGIN", u'币币杠杆'),
-        ("SWAP", u'永续合约'),
-        ("FUTURES", u'交割合约'),
-        ("OPTION", u'期权'),
-    )
-    okxtrader_inst_type = models.CharField(u'交易产品', default="SWAP", choices=INST_TYPE_CHOICE, max_length=20)
+    work_flag = models.CharField(u'盘口', max_length=2, choices=FLAG_CHOICE, default="0")
     TD_MODE_CHOICE = (
         ("isolated", u'逐仓'),
         ("cross", u"全仓"),
         ("cash", u'非保证金'),
     )
-    okxtrader_td_mode = models.CharField(u'交易模式', default="isolated", choices=TD_MODE_CHOICE, max_length=20)
+    td_mode = models.CharField(u'交易模式', default="isolated", choices=TD_MODE_CHOICE, max_length=20)
     # =====================================OKX================================================
 
     created_time = models.DateTimeField(u'创建时间', auto_now_add=True)
@@ -85,14 +72,10 @@ class DataSourceConfig(models.Model):
     id = models.AutoField(u'id', primary_key=True)
     name = models.CharField(u'名称', max_length=200, unique=True)
 
-    DATA_SOURCE_TYPE_CHOICE = (
-        ("leek.data.data_okx|OkxKlineDataSource", u"OKX行情"),
-        # ("leek.data.data_backtest|BacktestDataSource", u'回测数据源'),
-    )
-    data_cls = models.CharField(u'数据源', null=False, max_length=200, choices=DATA_SOURCE_TYPE_CHOICE)
+    data_cls = models.CharField(u'数据源', null=False, max_length=200, choices=get_all_data_cls_list())
 
+    wsurl = models.CharField(u'WebSocket 地址', max_length=200, default="", blank=True)
     # =====================================OKX================================================
-    okxklinedatasource_url = models.CharField(u'WebSocket 地址', max_length=200, default="", blank=True)
     CHANNEL_CHOICE = (
         ("1s", u"秒K"),
         ("1m", u"分钟K"),
@@ -104,9 +87,24 @@ class DataSourceConfig(models.Model):
         ("4H", u"4小时K"),
         ("1D", u"日K"),
     )
-    okxklinedatasource_channels = MultiSelectField(u'K线选择', max_length=20, default="",
-                                                   choices=CHANNEL_CHOICE, min_choices=1)
-    okxklinedatasource_symbols = models.TextField(u'InstId(多个逗号隔开)', default="")
+    channels = MultiSelectField(u'K线选择', max_length=20, default="", choices=CHANNEL_CHOICE, min_choices=1, blank=True)
+    symbols = models.TextField(u'InstId(多个逗号隔开)', default="", blank=True)
+
+    interval = models.IntegerField(u'行情刷新周期(秒)', default="300")
+    INST_TYPE_CHOICE = (
+        ("SPOT", u"币币"),
+        ("MARGIN", u'币币杠杆'),
+        ("SWAP", u'永续合约'),
+        ("FUTURES", u'交割合约'),
+        ("OPTION", u'期权'),
+    )
+    inst_type = models.CharField(u'交易产品', default="SWAP", choices=INST_TYPE_CHOICE, max_length=20)
+    FLAG_CHOICE = (
+        ("1", u"模拟盘"),
+        ("0", u'实盘'),
+        ("2", u"实盘(AWS)"),
+    )
+    work_flag = models.CharField(u'盘口', max_length=2, choices=FLAG_CHOICE, default="0")
     # =====================================OKX================================================
 
     created_time = models.DateTimeField(u'创建时间', auto_now_add=True)
@@ -132,7 +130,7 @@ class StrategyConfig(models.Model):
     total_amount = models.DecimalField(u'投入总资产', max_digits=36, decimal_places=12, default="1000")
 
     # 加载策略列表
-    strategy_cls = models.CharField(u'策略', null=False, max_length=200, choices=get_all_strategies_cls_iter(),
+    strategy_cls = models.CharField(u'策略', null=False, max_length=200, choices=get_all_strategies_cls_list(),
                                     default="")
     # =====================================单向单标的网格================================================
     symbol = models.CharField(u'标的物', max_length=200, default="", blank=True)

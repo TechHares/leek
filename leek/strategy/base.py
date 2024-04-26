@@ -70,6 +70,7 @@ class Position:
             self.quantity -= order.transaction_volume
             self.quantity_amount -= order.transaction_amount
         self.update_price(order.transaction_price)
+        # logger.info(f"仓位变动[{self.symbol}] {self.direction} {self.quantity} {self.avg_price} {self.value}")
         return return_amount
 
     def get_close_order(self, strategy_id, order_id, price: Decimal = None,
@@ -152,34 +153,39 @@ class PositionManager:
             self.position_value = sum([position.value for position in self.quantity_map.values()])
 
     @locked
-    def position_handle(self, order):
+    def position_handle(self, trade):
         """
         更新持仓
-        :param order: 订单指令结果
+        :param trade: 订单指令结果
         """
         # logger.info(f"持仓更新: {order}")
-        if order.symbol not in self.quantity_map:
-            self.quantity_map[order.symbol] = Position(order.symbol, order.side)
+        self.logger_print("仓位更新", trade)
+        if trade.symbol not in self.quantity_map:
+            self.quantity_map[trade.symbol] = Position(trade.symbol, trade.side)
 
-        position = self.quantity_map[order.symbol]
-        self.bus.publish(EventBus.TOPIC_POSITION_UPDATE, position, order)
+        position = self.quantity_map[trade.symbol]
+        self.bus.publish(EventBus.TOPIC_POSITION_UPDATE, position, trade)
 
-        amt = position.update_filled_position(order)
-        if position.direction == order.side:  # 开仓
-            rate = self.release_amount(order.order_id, amt)
+        amt = position.update_filled_position(trade)
+        if position.direction == trade.side:  # 开仓
+            rate = self.release_amount(trade.order_id, amt, trade.fee)
             position.quantity_rate += rate
         else:
-            self.release_position(position.quantity_rate, amt)
+            self.release_position(position.quantity_rate, amt, trade.fee)
 
         # 更新可用资金
         if position.quantity == 0:
-            del self.quantity_map[order.symbol]
-        self.position_value = sum([p.value for p in self.quantity_map.values()])
-        self.available_amount -= abs(order.fee)
-        self.fee += order.fee
+            del self.quantity_map[trade.symbol]
+        self.logger_print("仓位更新结束", trade)
+
+    def logger_print(self, mark, extend=None):
+        self.position_value = Decimal(sum([p.value for p in self.quantity_map.values()]))
         a = decimal_quantize(self.available_amount + self.freeze_amount + self.position_value)
-        logger.info(f"资产({a})=可用({self.available_amount}) + 冻结({self.freeze_amount}) + 已用({self.used_amount}) +"
-                    f" 浮盈({decimal_quantize(self.position_value - self.used_amount)}), 已花费手续费: {self.fee}")
+        logger.info(f"策略资产[{mark}]: {a}=可用({decimal_quantize(self.available_amount)}/{self.available_rate})"
+                    f" + 冻结({decimal_quantize(self.freeze_amount.quantize(2))} / {self.freeze_rate})"
+                    f" + 已用({decimal_quantize(self.used_amount)} / {self.used_rate})"
+                    f" + 市值({decimal_quantize(self.position_value)}), 已花费手续费: {self.fee}"
+                    f"  数据: {extend} ")
 
     def get_value(self):
         """
@@ -201,7 +207,7 @@ class PositionManager:
 
         if signal.signal_type == "CLOSE":
             if self.get_position(signal.symbol).sz is not None:
-                order.sz = float(self.get_position(signal.symbol).sz)
+                order.sz = self.get_position(signal.symbol).sz
         else:
             amount = self.freeze(order_id, signal.position_rate)
             if amount <= 0:
@@ -219,7 +225,7 @@ class PositionManager:
         :param rate: 冻结比例
         :return: 金额
         """
-        rate = min(rate, self.available_rate)
+        rate = decimal_quantize(min(rate, self.available_rate), 3)
         if rate < PositionManager.MIN_POSITION:
             return Decimal(0)
         freeze_amount = min(decimal_quantize(rate / self.available_rate * self.available_amount, 2),
@@ -235,22 +241,24 @@ class PositionManager:
         self.freeze_amount += freeze_amount
 
         self.freeze_map[order_id] = [rate, freeze_amount]
-        logger.info(f"冻结: {order_id}, rate={rate}, amount={freeze_amount}")
+        self.logger_print("冻结成功", (order_id, rate))
         return freeze_amount
 
     @locked
-    def release_amount(self, order_id, real_amount):
+    def release_amount(self, order_id, real_amount, fee=0):
         """
-        释放仓位
+        释放金额
+        :param fee: 手续费
         :param order_id: 冻结记录
         :param real_amount: 实际金额
         :return: 金额
         """
         if order_id not in self.freeze_map:
-            raise Exception("freeze[%s] ID Not Found" % order_id)
+            raise Exception(f"freeze[{order_id}] ID Not Found")
         rate, amount = self.freeze_map[order_id]
         if amount < real_amount:
-            raise Exception("real_amount is > amount")
+            self.available_amount += (amount - real_amount)
+            real_amount = amount
 
         self.freeze_rate -= rate
         self.freeze_amount -= amount
@@ -260,21 +268,28 @@ class PositionManager:
 
         self.available_amount += (amount - real_amount)
         del self.freeze_map[order_id]
+        self.available_amount -= abs(fee)
+        self.fee += fee
+        self.logger_print("释放金额", (order_id, real_amount, fee))
         return rate
 
     @locked
-    def release_position(self, rate, amount):
+    def release_position(self, rate, amount, fee=0):
         """
         释放仓位
+        :param fee: 手续费
         :param rate: 冻结比例
         :param amount: 金额
         :return: 金额
         """
+        self.available_amount -= abs(fee)
+        self.fee += fee
         self.used_amount *= (self.used_rate - rate) / self.used_rate
         self.used_rate -= rate
 
         self.available_rate += rate
         self.available_amount += amount
+        self.logger_print("释放仓位", (rate, amount, fee))
 
     def get_position(self, symbol) -> Position:
         if symbol in self.quantity_map:

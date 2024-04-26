@@ -74,14 +74,14 @@ class StopLoss(Filter):
     def pre(self, market_data: G, position) -> bool:
         if position is None:
             return True
-        rate = (position.quantity_amount - market_data.close * position.quantity) / position.quantity_amount
+        rate = (position.avg_price - market_data.close) / position.avg_price
         if position.direction == PositionSide.SHORT:
             rate *= -1
 
         if rate < -self.stop_loss_rate:  # 止盈止损
             self.close_position(memo=f"止盈平仓：阈值={self.stop_loss_rate} "
                                      f"触发价格={market_data.close}"
-                                     f" 平均持仓价={position.quantity_amount / market_data.close} 触发比例={rate}")
+                                     f" 平均持仓价={position.avg_price} 触发比例={rate}")
             return False
         return True
 
@@ -100,13 +100,13 @@ class TakeProfit(Filter):
     def pre(self, market_data: G, position) -> bool:
         if position is None:
             return True
-        rate = (position.quantity_amount - market_data.close * position.quantity) / position.quantity_amount
+        rate = (position.avg_price - market_data.close) / position.avg_price
         if position.direction == PositionSide.SHORT:
             rate *= -1
 
         if rate > self.take_profit_rate:  # 止盈
             self.close_position(memo=f"止盈平仓：阈值={self.take_profit_rate} "
-                                     f"触发价格={market_data.close} 平均持仓价={position.quantity_amount / position.quantity}"
+                                     f"触发价格={market_data.close} 平均持仓价={position.avg_price}"
                                      f" 触发比例={rate}")
             return False
         return True

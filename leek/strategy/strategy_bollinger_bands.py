@@ -81,11 +81,11 @@ class BollingerBandsStrategy(SymbolsFilter, CalculatorContainer, PositionRateMan
                 return
             if price > upper_band and self.can_short():
                 self.g.status = StateMachine("UP_UP", self._state_transitions)
-                logger.info(f"布林带开空：price={price}, upper_band={upper_band}, rolling_mean={rolling_mean}, lower_band={lower_band}")
+                logger.info(f"布林带开空[{self.market_data.symbol}]：price={price}, upper_band={upper_band}, rolling_mean={rolling_mean}, lower_band={lower_band}")
                 self.create_order(PositionSide.SHORT, position_rate=self.max_single_position, memo="布林带开空")
             elif price < lower_band and self.can_long():
                 self.g.status = StateMachine("DOWN_DOWN", self._state_transitions)
-                logger.info(f"布林带开多：price={price}, upper_band={upper_band}, rolling_mean={rolling_mean}, lower_band={lower_band}")
+                logger.info(f"布林带开多[{self.market_data.symbol}]：price={price}, upper_band={upper_band}, rolling_mean={rolling_mean}, lower_band={lower_band}")
                 self.create_order(PositionSide.LONG, position_rate=self.max_single_position, memo="布林带开多")
         else:
             if price > upper_band:
@@ -106,7 +106,7 @@ class BollingerBandsStrategy(SymbolsFilter, CalculatorContainer, PositionRateMan
                 if self.is_long_position():
                     self.create_order(PositionSide.LONG, position_rate=self.max_single_position, memo="布林带加仓")
                 else:
-                    logger.info(f"布林带加仓：price={price}, states={states}")
+                    logger.info(f"布林带加仓[{self.market_data.symbol}]：price={price}, states={states}")
                     self.close_position("布林带平仓")
                 return
 
@@ -116,7 +116,7 @@ class BollingerBandsStrategy(SymbolsFilter, CalculatorContainer, PositionRateMan
                 if self.is_long_position():
                     self.close_position("布林带平仓")
                 else:
-                    logger.info(f"布林带加仓：price={price}, states={states}")
+                    logger.info(f"布林带加仓[{self.market_data.symbol}]：price={price}, states={states}")
                     self.create_order(PositionSide.SHORT, position_rate=self.max_single_position, memo="布林带加仓")
 
 

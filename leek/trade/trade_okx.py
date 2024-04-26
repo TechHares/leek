@@ -32,7 +32,7 @@ class OkxWsTradeClient(threading.Thread):
 
     def __init__(self, callback, api_key="api_key", api_secret_key="api_secret_key",
                  passphrase="passphrase", domain="domain"):
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, daemon=True)
         self.api_key = api_key
         self.api_secret_key = api_secret_key
         self.passphrase = passphrase
@@ -41,6 +41,7 @@ class OkxWsTradeClient(threading.Thread):
         self.callback = callback
         self.login = False
         self.timer = None
+        self.keep_running = True
 
     def on_open(self, ws):
         timestamp = str(int(time.time()))
@@ -106,21 +107,31 @@ class OkxWsTradeClient(threading.Thread):
             logger.error(f"OkxWsTradeClient 消息处理异常: {e}", e)
 
     def on_error(self, ws, error):
+        logger.error(f"OkxWsTradeClient连接异常: {self.domain}, error={error}")
         ws.close()
-        logger.error(f"OkxWsTradeClient连接异常: {self.domain}/{ws}, error={error}", error)
+        self.on_close(ws, None, None)
 
     def run(self):
-        self.ws = websocket.WebSocketApp(
-            self.domain,
-            on_open=self.on_open,
-            on_message=self.on_message,
-            on_close=self.on_close,
-            on_error=self.on_error,
-        )
-        self.ws.run_forever(http_proxy_host=config.PROXY_HOST, http_proxy_port=config.PROXY_PORT, proxy_type="http")
+        if self.ws is None:
+            self.ws = websocket.WebSocketApp(
+                self.domain,
+                on_open=self.on_open,
+                on_message=self.on_message,
+                on_close=self.on_close,
+                on_error=self.on_error,
+            )
+        with LOCK:
+            if self.ws.keep_running:
+                return
+            self.login = False
+            self.ws.run_forever(http_proxy_host=config.PROXY_HOST, http_proxy_port=config.PROXY_PORT, proxy_type="http")
 
     def on_close(self, ws, close_status_code, close_msg):
-        print(f"OkxWsTradeClient连接关闭: {self.domain}/{ws}, close_status_code={close_status_code}, close_msg={close_msg}")
+        logger.error(f"OkxWsTradeClient连接关闭: {self.domain}, close_status_code={close_status_code}, close_msg={close_msg}")
+        if self.keep_running:
+            time.sleep(5)
+            logger.info("OkxWsTradeClient 重连 ... ...")
+            self.run()
 
     def send(self, data, login=True):
         while login and not self.login:
@@ -200,7 +211,7 @@ class SwapOkxTrader(Trader):
             "clOrdId": "%s" % order.order_id,
             "side": SwapOkxTrader.__Side_Map[order.side],
             "ordType": "limit",
-            "sz": self.__calculate_sz(order),
+            "sz": "%s" % self.__calculate_sz(order),
         }
         if order.price is not None:
             args["px"] = "%s" % order.price
@@ -256,14 +267,14 @@ class SwapOkxTrader(Trader):
         res = self.client.cancel_order(instId=symbol, clOrdId="%s" % order_id)
         logger.info(f"[{strategy} - 撤单], response: {res}")
 
-    def __calculate_sz(self, order: Order) -> float:
+    def __calculate_sz(self, order: Order):
         """
         计算下单数量 sz
         :param order: 订单
         :return: sz -> str
         """
         if order.sz:
-            return order.sz
+            return Decimal(order.sz)
         instrument = self.__get_instrument(order.symbol)
         if not instrument:
             raise RuntimeError("交易信息获取失败")
@@ -287,7 +298,7 @@ class SwapOkxTrader(Trader):
         else:
             max_lmt_sz = instrument["maxLmtSz"]  # 合约或现货限价单的单笔最大委托数量
             sz = min(sz, Decimal(max_lmt_sz))
-        return float(sz)
+        return Decimal(sz)
 
     @cached(cache=TTLCache(maxsize=20, ttl=600))
     def __get_instrument(self, symbol):
@@ -311,6 +322,7 @@ class SwapOkxTrader(Trader):
         return instrument
 
     def shutdown(self):
+        self.ws_client.keep_running = False
         if self.ws_client:
             if self.ws_client.ws:
                 self.ws_client.ws.keep_running = False

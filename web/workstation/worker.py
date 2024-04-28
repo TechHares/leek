@@ -69,6 +69,10 @@ class WorkerWorkflow(SimpleWorkflow):
         #                         quantity=self.strategy.position_map[data.symbol].quantity)
         # self.save_run_data()
 
+    def shutdown(self):
+        super().shutdown()
+        os.abort()
+
 
 def run_scheduler(*arg):
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "website.settings")

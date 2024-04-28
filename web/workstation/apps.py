@@ -57,16 +57,19 @@ class WorkstationConfig(AppConfig):
 def _scheduler():
     from .models import StrategyConfig
     from .worker import run_scheduler
-    ids = []
     while True:
         time.sleep(20)
         queryset = StrategyConfig.objects.filter(status__in=(2, 3))
         logger.debug(f"扫描任务: %s", StrategyConfig.objects.filter(status__in=(2, 3)).count())
         for strategy in queryset:
+            children = psutil.Process().children(recursive=True)
+            for x in children:
+                if x.status() == psutil.STATUS_ZOMBIE:
+                    x.kill()
+            ids = [x.pid for x in children if x.status() != psutil.STATUS_ZOMBIE and "python" in x.name()]
             if strategy.end_time is not None and datetime.timestamp(strategy.end_time) < datetime.now().timestamp():
                 strategy.status = 1
                 strategy.save()
-
             elif strategy.status == 2 or (strategy.process_id is None or strategy.process_id not in ids):
                 data = json.loads(
                     json.dumps([strategy.data_source.to_dict(), strategy.to_dict(), strategy.trade.to_dict()],

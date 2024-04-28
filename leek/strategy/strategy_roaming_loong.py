@@ -75,7 +75,7 @@ class AbcRoamingLoongStrategy(PositionRateManager, BaseStrategy, metaclass=ABCMe
         if self.have_position():  # 已有持仓
             self.close_handle(data)
         else:  # 未持有
-            if d.symbol in self._pool:  # 在操作范围
+            if d.symbol in self._pool and self.enough_amount():  # 在操作范围 且 还有钱
                 self.open_handle(data)
         with self._lock:
             g.next_refresh_counter -= 1
@@ -271,3 +271,10 @@ class RoamingLoong1Strategy(AbcRoamingLoongStrategy):
 
 if __name__ == '__main__':
     pass
+"""
+处理策略信号: RSRUSDT-CLOSE_LONG/2022-06-08 04:50:00 rate=1, cls=RoamingLoong1Strategy, price=0.00972: 
+[77233-Thread-9] 2024-04-28 16:29:57,866 [INFO]: 策略资产[仓位更新]: 1837.06=可用(103.31/0.100) + 冻结(0.00 / 0.000) + 已用(933.23 / 0.900) + 市值(1733.74), 已花费手续费: 0E-10  数据: {'transaction_price': Decimal('0.00972'), 'sz': Decimal('14311.129499'), 'cct': 1, 'transaction_volume': Decimal('14311.129499'), 'transaction_amount': Decimal('139.11'), 'fee': Decimal('0E-10'), 'order_id': 'T0SHORT1741', 'lever': 1, 'pnl': 0, 'cancel_source': '', 'symbol': 'RSRUSDT', 'ct_val': 1, 'side': <PositionSide.SHORT: 2>} 
+[77233-Thread-9] 2024-04-28 16:29:57,866 [INFO]: 策略资产[释放仓位]: 1801.72=可用(242.42/0.200) + 冻结(0.00 / 0.000) + 已用(829.54 / 0.800) + 市值(1559.29), 已花费手续费: 0E-10  数据: (Decimal('0.100'), Decimal('139.10417873303100'), Decimal('0E-10')) 
+[77233-Thread-9] 2024-04-28 16:29:57,866 [INFO]: 策略资产[仓位更新结束]: 1837.06=可用(242.42/0.200) + 冻结(0.00 / 0.000) + 已用(829.54 / 0.800) + 市值(1594.63), 已花费手续费: 0E-10  数据: {'transaction_price': Decimal('0.00972'), 'sz': Decimal('14311.129499'), 'cct': 1, 'transaction_volume': Decimal('14311.129499'), 'transaction_amount': Decimal('139.11'), 'fee': Decimal('0E-10'), 'order_id': 'T0SHORT1741', 'lever': 1, 'pnl': 0, 'cancel_source': '', 'symbol': 'RSRUSDT', 'ct_val': 1, 'side': <PositionSide.SHORT: 2>} 
+
+"""

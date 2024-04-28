@@ -17,6 +17,7 @@ class EventBus:
     TOPIC_POSITION_DATA = "POSITION_DATA"
     TOPIC_POSITION_UPDATE = "POSITION_UPDATE"
     TOPIC_NOTIFY = "NOTIFY"
+    TOPIC_RUNTIME_ERROR = "RUNTIME_ERROR"
 
     def __init__(self):
         self.handlers = {}
@@ -44,8 +45,8 @@ class EventBus:
                     handler(*args, **kwargs)
                 except Exception as e:
                     logger.error(f"topic[{topic}] 发布事件: {args} {kwargs} 处理失败:", e)
-                    if topic != "ERROR":
-                        self.publish("ERROR", e)
+                    if topic != EventBus.TOPIC_RUNTIME_ERROR:
+                        self.publish(EventBus.TOPIC_RUNTIME_ERROR, e)
 
 
 if __name__ == '__main__':

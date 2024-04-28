@@ -63,6 +63,7 @@ class BaseWorkflow(object):
         self.job_id = job_id
         self.bus: EventBus = EventBus()
         self.run_state = True
+        self.bus.subscribe(EventBus.TOPIC_RUNTIME_ERROR, lambda e: self.shutdown())
 
     def start(self):
         try:
@@ -114,9 +115,18 @@ class BaseWorkflow(object):
 
     def shutdown(self):
         self.run_state = False
-        self.data_source.shutdown()
-        self.strategy.shutdown()
-        self.trader.shutdown()
+        try:
+            self.data_source.shutdown()
+        except Exception:
+            pass
+        try:
+            self.strategy.shutdown()
+        except Exception:
+            pass
+        try:
+            self.trader.shutdown()
+        except Exception:
+            pass
 
 
 if __name__ == '__main__':

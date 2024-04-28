@@ -214,8 +214,11 @@ class StrategyConfig(models.Model):
             self, force_insert=False, force_update=False, using=None, update_fields=None
     ):
         if self.process_id and self.process_id > 0:
-            psutil.Process(self.process_id).terminate()
-            logger.info(f"策略{self.name}进程{self.process_id}已终止")
+            try:
+                psutil.Process(self.process_id).terminate()
+                logger.info(f"策略{self.name}进程{self.process_id}已终止")
+            except psutil.NoSuchProcess:
+                pass
             self.process_id = 0
         if self.status == 1 or self.run_data is None:
             self.run_data = {}

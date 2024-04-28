@@ -328,7 +328,7 @@ class BacktestWorkflow(BaseWorkflow):
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA, self.sync_data_to_ui)
         self.bus.subscribe(EventBus.TOPIC_POSITION_DATA, self.trader_to_strategy)
         # self.bus.subscribe(EventBus.TOPIC_NOTIFY, lambda msg: print(msg))
-        self.bus.subscribe("ERROR", lambda e: self.shutdown)
+        self.bus.subscribe(EventBus.TOPIC_RUNTIME_ERROR, lambda e: self.shutdown)
         self.bus.subscribe(EventBus.TOPIC_POSITION_UPDATE, self.position_update)
 
         self.bus.subscribe("backtest_data_source_done", lambda x: self.queue.put("data_source_done"))

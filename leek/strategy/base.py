@@ -41,9 +41,11 @@ class Position:
         self.fee = Decimal("0")  # 费用损耗
 
         self.value = Decimal("0")  # 仓位价值
+        self.cur_price = Decimal("0")  # 当前价格
         self.sz = 0
 
     def update_price(self, price: Decimal):
+        self.cur_price = price
         if self.direction == PositionSide.LONG:
             self.value = self.quantity_amount + (price - self.avg_price) * self.quantity
         else:
@@ -95,8 +97,10 @@ class Position:
         return order
 
     def __str__(self):
-        return f"Position(symbol={self.symbol}, direction={self.direction}, quantity={self.quantity}, " \
-               f"quantity_rate={self.quantity_rate}, value={self.value},quantity_amount={self.quantity_amount})"
+        return f"Position(symbol={self.symbol}, direction={self.direction},avg_price={self.avg_price}," \
+               f"quantity={self.quantity_rate},quantity_amount={self.quantity_amount}, " \
+               f"fee={self.fee}," \
+               f"quantity={self.quantity} sz={self.sz},cur_price={self.cur_price},value={self.value})"
 
 
 lock = threading.RLock()
@@ -159,11 +163,11 @@ class PositionManager:
         :param trade: 订单指令结果
         """
         # logger.info(f"持仓更新: {order}")
-        self.logger_print("仓位更新", trade)
         if trade.symbol not in self.quantity_map:
             self.quantity_map[trade.symbol] = Position(trade.symbol, trade.side)
 
         position = self.quantity_map[trade.symbol]
+        self.logger_print("仓位更新", (trade.__str__(), position.__str__()))
         self.bus.publish(EventBus.TOPIC_POSITION_UPDATE, position, trade)
 
         amt = position.update_filled_position(trade)
@@ -176,7 +180,7 @@ class PositionManager:
         # 更新可用资金
         if position.quantity == 0:
             del self.quantity_map[trade.symbol]
-        self.logger_print("仓位更新结束", trade)
+        self.logger_print("仓位更新结束", (trade.__str__(), position.__str__()))
 
     def logger_print(self, mark, extend=None):
         self.position_value = Decimal(sum([p.value for p in self.quantity_map.values()]))

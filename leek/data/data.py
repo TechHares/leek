@@ -56,6 +56,8 @@ class WSDataSource(DataSource):
             self.url = None
         self.ws = None
 
+        self.keep_running = True
+
     def on_open(self, ws):
         """
         当打开websocket时调用的回调对象。
@@ -110,8 +112,9 @@ class WSDataSource(DataSource):
             logger.info(f"WSDataSource连接关闭: {self.url}")
         else:
             logger.error(f"WSDataSource连接关闭: {self.url}, close_status_code={close_status_code}, {close_msg}")
-        if self.ws and self.ws.keep_running:
-            self.start()  # 重连
+
+        if self.keep_running:
+            self._run()  # 重连
 
     def send_to_ws(self, data):
         """
@@ -120,14 +123,15 @@ class WSDataSource(DataSource):
         self.ws.send(json.dumps(data, default=decimal_to_str))
 
     def _run(self):
-        self.ws = websocket.WebSocketApp(
-            self.url,
-            on_open=self.__wrap(self.on_open),
-            on_message=self.__wrap(self.on_message),
-            on_data=self.__wrap(self.on_data),
-            on_error=self.__wrap(self.on_error),
-            on_close=self.__wrap(self.on_close),
-        )
+        if self.ws is None:
+            self.ws = websocket.WebSocketApp(
+                self.url,
+                on_open=self.__wrap(self.on_open),
+                on_message=self.__wrap(self.on_message),
+                on_data=self.__wrap(self.on_data),
+                on_error=self.__wrap(self.on_error),
+                on_close=self.__wrap(self.on_close),
+            )
         self.ws.run_forever(http_proxy_host=config.PROXY_HOST, http_proxy_port=config.PROXY_PORT, proxy_type="http")
 
     def __wrap(self, func):
@@ -136,13 +140,14 @@ class WSDataSource(DataSource):
                 return func(*args, **kwargs)
             except Exception as e:
                 logger.error(f"WSDataSource异常: func={func}, error={e}", e)
-                self.shutdown()
+                self.bus.publish(EventBus.TOPIC_RUNTIME_ERROR, e)
 
         return wrapper
 
     def shutdown(self):
-        self.ws.keep_running = False
-        self.ws.close()
+        self.keep_running = False
+        if self.ws:
+            self.ws.close()
 
 
 @cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=600))

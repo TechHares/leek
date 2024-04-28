@@ -52,8 +52,9 @@ class WSDataSource(DataSource):
     """
 
     def __init__(self):
+        if not hasattr(self, "url"):
+            self.url = None
         self.ws = None
-        self.url = None
 
     def on_open(self, ws):
         """

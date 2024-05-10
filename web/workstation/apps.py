@@ -66,7 +66,7 @@ def _scheduler():
             for x in children:
                 if x.status() == psutil.STATUS_ZOMBIE:
                     x.kill()
-            ids = [x.pid for x in children if x.status() != psutil.STATUS_ZOMBIE and "python" in x.name()]
+            ids = [x.pid for x in children if x.status() != psutil.STATUS_ZOMBIE and "python" in x.name().lower()]
             if strategy.end_time is not None and datetime.timestamp(strategy.end_time) < datetime.now().timestamp():
                 strategy.status = 1
                 strategy.save()

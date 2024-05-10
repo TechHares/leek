@@ -18,7 +18,7 @@ __BASE_DIR = Path(__file__).resolve().parent.parent
 __RESOURCES_DIR = __BASE_DIR.parent / 'resources'
 
 __default_config_file = __RESOURCES_DIR / "config-default.yaml"
-__config_file = __RESOURCES_DIR / "config-default.yaml"
+__config_file = __RESOURCES_DIR / "config.yaml"
 if os.path.exists(__config_file):
     with open(__config_file, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)["leek"]

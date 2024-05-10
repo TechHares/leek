@@ -125,10 +125,6 @@ class OkxMarketDataSource(DataSource):
                                  )
                         self._send_tick_data(data)
 
-    def shutdown(self):
-        super().shutdown()
-        self.__run = False
-
 
 if __name__ == '__main__':
     pass

@@ -85,6 +85,9 @@ class DataSourceConfig(models.Model):
         ("30m", u"30分钟K"),
         ("1H", u"小时K"),
         ("4H", u"4小时K"),
+        ("6H", u"6小时K"),
+        ("8H", u"8小时K"),
+        ("12H", u"12小时K"),
         ("1D", u"日K"),
     )
     channels = MultiSelectField(u'K线选择', max_length=20, default="", choices=CHANNEL_CHOICE, min_choices=1, blank=True)
@@ -186,7 +189,16 @@ class StrategyConfig(models.Model):
         (8, u"avg(open+high+low+close)"),
     )
     price_type = models.IntegerField(u'Basic取值', default=1, choices=PRICE_TYPE_CHOICE)
-
+    open_channel = models.IntegerField(u'唐奇安通道周期(开仓)', default="20")
+    close_channel = models.IntegerField(u'唐奇安通道周期(平仓)', default="10")
+    true_range_window = models.IntegerField(u'波动率平滑周期', default="20")
+    expected_value = models.DecimalField(u'期望账户净值波动', max_digits=36, decimal_places=6, default=0.01)
+    add_position_rate = models.DecimalField(u'加仓阈值', max_digits=36, decimal_places=6, default=0.5)
+    close_position_rate = models.DecimalField(u'止损阈值', max_digits=36, decimal_places=6, default=2)
+    half_needle = models.BooleanField(u'唐奇安通道影线折半计算', default=True)
+    open_vhf_threshold = models.DecimalField(u'vhf开仓阈值(开仓)', max_digits=36, decimal_places=6, default=0.5)
+    close_vhf_threshold = models.DecimalField(u'vhf平仓阈值(平仓)', max_digits=36, decimal_places=6, default=0.0)
+    take_profit_period = models.IntegerField(u'vmma计算周期(平仓)', default="10")
     data_source = models.ForeignKey(DataSourceConfig, on_delete=models.PROTECT, verbose_name=u'数据源')
     trade = models.ForeignKey(TradeConfig, on_delete=models.PROTECT, verbose_name=u'交易器')
     STATUS_CHOICE = (

@@ -10,6 +10,7 @@ import cachetools
 
 from leek.common import EventBus, config, G
 from leek.data import BacktestDataSource, DataSource
+from leek.data.data_backtest import StockBacktestDataSource
 from leek.runner.runner import BaseWorkflow
 from leek.strategy import BaseStrategy
 from leek.trade import Trader
@@ -18,13 +19,14 @@ import pandas as pd
 
 
 class ViewWorkflow(BaseWorkflow):
-    def __init__(self, strategy, interval: str, start_time: int, end_time: int, symbol):
+    def __init__(self, strategy, interval: str, start_time: int, end_time: int, symbol, data_source_type=0):
         BaseWorkflow.__init__(self, "V0")
         self.interval = interval
         self.strategy = strategy
         self.start_time = start_time
         self.end_time = end_time
         self.benchmark = symbol
+        self.data_source_type = data_source_type
 
         self.kline_data = []
         self.kline_data_g = []
@@ -54,6 +56,16 @@ class ViewWorkflow(BaseWorkflow):
 
     @cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=600))
     def get_data(self):
+        if self.data_source_type == 1:
+            data = []
+            self.data_source = StockBacktestDataSource()
+            bus = EventBus()
+            DataSource.__init__(self.data_source, bus)
+            BacktestDataSource.__init__(self.data_source, self.interval, [], self.start_time, self.end_time, self.benchmark)
+            bus.subscribe(EventBus.TOPIC_TICK_DATA, lambda x: data.append(x.__json__()))
+            self.data_source._run()
+            self.data_source.bus = self.bus
+            return data
         self.data_source = BacktestDataSource(self.interval, [], self.start_time, self.end_time, self.benchmark)
         DataSource.__init__(self.data_source, self.bus)
         conn, cursor = None, None
@@ -81,17 +93,7 @@ class ViewWorkflow(BaseWorkflow):
         return [G(**row) for row in self.get_data()]
 
     def handle_data(self):
-        for row in self.get_data():
-            data = G(symbol=row["symbol"],
-                     timestamp=row["timestamp"],
-                     open=row["open"],
-                     high=row["high"],
-                     low=row["low"],
-                     close=row["close"],
-                     volume=row["volume"],
-                     amount=row["amount"],
-                     finish=1
-                     )
+        for data in self.get_data_g():
             js = data.__json__()
             self.kline_data.append(js)
             self.kline_data_g.append(data)

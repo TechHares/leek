@@ -6,6 +6,7 @@
 # @Software: PyCharm
 import os
 import re
+from decimal import Decimal
 from pathlib import Path
 
 import yaml
@@ -15,8 +16,15 @@ import yaml
 """
 __BASE_DIR = Path(__file__).resolve().parent.parent
 __RESOURCES_DIR = __BASE_DIR.parent / 'resources'
-with open(__RESOURCES_DIR / "config.yaml", "r", encoding="utf-8") as f:
-    cfg = yaml.safe_load(f)["leek"]
+
+__default_config_file = __RESOURCES_DIR / "config-default.yaml"
+__config_file = __RESOURCES_DIR / "config-default.yaml"
+if os.path.exists(__config_file):
+    with open(__config_file, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)["leek"]
+else:
+    with open(__default_config_file, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)["leek"]
 
 
 def __build_path(path):
@@ -38,6 +46,9 @@ KLINE_DB_PORT = int(kline_db.get("port", "9000"))
 KLINE_DB_USER = kline_db.get("user", "default")
 KLINE_DB_PASSWORD = kline_db.get("password", "")
 KLINE_DB_DATABASE = kline_db.get("database", "default")
+MIN_POSITION = Decimal(cfg.get("position").get("min_rate"))
+ROLLING_POSITION = bool(cfg.get("position").get("rolling_position"))
+
 PROXY = os.getenv("leek.proxy")
 PROXY_HOST = None
 PROXY_PORT = None
@@ -50,4 +61,5 @@ if PROXY:
 
 if __name__ == '__main__':
     print(PROXY_HOST)
-    print(PROXY_PORT)
+    print(MIN_POSITION)
+    print(ROLLING_POSITION)

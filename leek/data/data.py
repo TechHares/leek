@@ -27,6 +27,7 @@ class DataSource(threading.Thread):
     def __init__(self, bus: EventBus):
         threading.Thread.__init__(self, daemon=True)
         self.bus = bus
+        self.keep_running = True
 
     def _send_tick_data(self, data):
         self.bus.publish(EventBus.TOPIC_TICK_DATA, data)
@@ -43,7 +44,7 @@ class DataSource(threading.Thread):
         """
         关闭钩子
         """
-        pass
+        self.keep_running = False
 
 
 class WSDataSource(DataSource):
@@ -55,8 +56,6 @@ class WSDataSource(DataSource):
         if not hasattr(self, "url"):
             self.url = None
         self.ws = None
-
-        self.keep_running = True
 
     def on_open(self, ws):
         """
@@ -145,7 +144,7 @@ class WSDataSource(DataSource):
         return wrapper
 
     def shutdown(self):
-        self.keep_running = False
+        super().shutdown()
         if self.ws:
             self.ws.close()
 

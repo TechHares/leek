@@ -33,7 +33,7 @@ PACK_INTERVAL = "monthly"  # daily/monthly
 
 def download_binance_kline(start_date, end_date, symbols=None, intervals=None, skip=0):
     if intervals is None:
-        intervals = ["1h", "4h", "1m", "3m", "5m", "15m", "30m", "1d"]
+        intervals = ["1h", "4h", "6h", "8h", "12h", "1m", "3m", "5m", "15m", "30m", "1d"]
     if symbols is None or len(symbols) == 0:
         get = requests.post(
             "https://www.binance.com/bapi/bigdata/v1/public/bigdata/finance/exchange/listDownloadOptions",
@@ -188,7 +188,7 @@ if __name__ == '__main__':
     parser.add_argument('--start', type=str, default=datetime.datetime.now().strftime("%Y-%m-%d"))
     parser.add_argument('--end', type=str, default=datetime.datetime.now().strftime("%Y-%m-%d"))
     parser.add_argument('--symbols', type=lambda x: x.split(','), default=[])
-    parser.add_argument('--interval', type=lambda x: x.split(','), default=["1h", "4h", "1m", "3m", "5m", "15m", "30m", "1d"])
+    parser.add_argument('--interval', type=lambda x: x.split(','), default=["1h", "4h", "6h", "8h", "12h", "1m", "3m", "5m", "15m", "30m", "1d"])
     parser.add_argument('--skip', type=int, default=0)
     args = parser.parse_args()
     print("    pack:", args.pack)

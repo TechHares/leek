@@ -16,7 +16,7 @@ from typing import Dict
 
 import cachetools
 
-from leek.common import logger
+from leek.common import logger, config
 from leek.common import G
 from leek.common.event import EventBus
 from leek.common.utils import decimal_quantize, get_defined_classes, get_all_base_classes
@@ -118,7 +118,7 @@ class PositionManager:
     """
     仓位管理
     """
-    MIN_POSITION = Decimal("0.05")
+    MIN_POSITION = config.MIN_POSITION
 
     def __init__(self, bus: EventBus, total_amount: Decimal):
         self.bus = bus  # 总投入
@@ -232,8 +232,11 @@ class PositionManager:
         rate = decimal_quantize(min(rate, self.available_rate), 3)
         if rate < PositionManager.MIN_POSITION:
             return Decimal(0)
-        freeze_amount = min(decimal_quantize(rate / self.available_rate * self.available_amount, 2),
-                            self.available_amount)
+        if config.ROLLING_POSITION:
+            freeze_amount = min(decimal_quantize(rate / self.available_rate * self.available_amount, 2), self.available_amount)
+        else:
+            freeze_amount = min(decimal_quantize(rate * self.total_amount, 2), self.available_amount)
+
         if freeze_amount < PositionManager.MIN_POSITION * self.total_amount < self.available_amount:
             freeze_amount = Decimal(self.available_amount)
         if freeze_amount < PositionManager.MIN_POSITION * self.total_amount:

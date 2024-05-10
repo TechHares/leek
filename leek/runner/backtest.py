@@ -426,7 +426,7 @@ class BacktestWorkflow(BaseWorkflow):
                 if not isinstance(statistics[k], str):
                     statistics[k] = "%.4f" % statistics[k]
             statistics["trade_signal"] = "%s/%s" % (self.long_single, self.short_single)  # 交易信号(多/空)
-            statistics["winning_percentage"] = (self.win_count / self.trade_count) if self.trade_count > 0 else 0  # 胜率
+            statistics["winning_percentage"] = "%.4f" % ((self.win_count / self.trade_count) if self.trade_count > 0 else 0)  # 胜率
             statistics["average_trade_pl"] = "%.4f" % (((self.strategy.position_manager.position_value +
                                                          self.strategy.position_manager.available_amount -
                                                         self.strategy.position_manager.total_amount) / self.trade_count)

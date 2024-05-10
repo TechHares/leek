@@ -19,3 +19,5 @@ tqdm==4.66.2
 # export HDF5_DIR=/opt/homebrew/opt/hdf5/
 tables~=3.9.2
 plotly~=5.19.0
+joblib>=1.2.0
+efinance~=0.5.2

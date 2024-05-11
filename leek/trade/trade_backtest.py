@@ -52,7 +52,7 @@ class BacktestTrader(Trader):
 
         #  2. 计算成交量
         if order.sz is None:
-            pos_trade.sz = Decimal(decimal_quantize(order.amount / pos_trade.transaction_price, 6))
+            pos_trade.sz = decimal_quantize(order.amount / pos_trade.transaction_price, 6)
         else:
             pos_trade.sz = Decimal(order.sz)
         pos_trade.cct = 1
@@ -75,7 +75,7 @@ class BacktestTrader(Trader):
         elif self.fee_type == 3:
             fee = pos_trade.transaction_volume * self.fee
 
-        pos_trade.fee = abs(Decimal(decimal_quantize(fee, 10, 1)))
+        pos_trade.fee = abs(decimal_quantize(fee, 10, 1))
         pos_trade.order_id = order.order_id
         pos_trade.lever = 1
         pos_trade.pnl = 0

@@ -473,7 +473,11 @@ class SMIIODecisionNode(DecisionNode):
         data[-1].smiio_fast_pc = fast_alpha * data[-1].smiio_diff + (1 - fast_alpha) * data[-2].smiio_fast_pc
         slow_alpha = Decimal(2 / (self.slow_period + 1))
         data[-1].smiio_slow_pc = slow_alpha * data[-1].smiio_diff + (1 - slow_alpha) * data[-2].smiio_slow_pc
-
+        if data[-1].smiio_slow_pc == 0:
+            data[-1].smiio_erg = 0
+            data[-1].smiio_sig = 0
+            data[-1].smiio_osc = 0
+            return
         # Indicator
         data[-1].smiio_erg = int((data[-1].smiio_fast_pc - data[-1].smiio_slow_pc) / data[-1].smiio_slow_pc * 100)
         # Signal

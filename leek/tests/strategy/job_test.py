@@ -4,35 +4,97 @@
 # @Author  : shenglin.li
 # @File    : job_test.py
 # @Software: PyCharm
-from datetime import datetime
+import copy
+import csv
+import json
+from decimal import Decimal
+from itertools import product
 
+import numpy as np
+import pandas as pd
 from joblib import Parallel, delayed
 
+from leek.common.utils import decimal_quantize
 from leek.runner.view import ViewWorkflow
-from leek.strategy.common.decision import SMIIODecisionNode, PVTDecisionNode, STDecisionNode
-from leek.strategy.strategy_voting import DecisionStrategy
+from leek.strategy.common.decision import OBVDecisionNode, PVTDecisionNode, STDecisionNode, MADecisionNode, \
+    MACDDecisionNode, VolumeDecisionNode, SMIIODecisionNode
 
 
-def my_batch_function(batch):
-    # 处理整个批次的数据
-    return [item * item for item in batch]
+def best_args(evaluation_data, decision_cls, **kwargs):
+    keys = kwargs.keys()
+    values = [kwargs[key] for key in keys]
+    combinations = list(product(*values))
+    r = []
+    for combination in combinations:
+        eval_args = dict(zip(keys, combination))
+        decision = decision_cls(**eval_args)
+        trade_count, profit = decision.evaluation(copy.deepcopy(evaluation_data), Decimal("0.0005"))
+        r.append((trade_count, eval_args, str(decimal_quantize(profit, 6))))
+    return r
 
-# 假设我们有一个大的数据列表
-data = list(range(100))
+def compute_task(tsk):
+    data, number, moving_period = tsk
+    return best_args(data, SMIIODecisionNode, fast_period=[number], slow_period=range(max(15, number), 155), sigma_period=[moving_period])
 
-# 将数据分成小批次
-batch_size = 10
-batches = [data[i:i + batch_size] for i in range(0, len(data), batch_size)]
 
-# 使用Joblib并行执行批次函数
-results = Parallel(n_jobs=-1)(delayed(my_batch_function)(batch) for batch in batches)
+def computed(file, moving_period):
+    workflow = ViewWorkflow(None, "5m", 1705198187517, 1712974187517, "ZRXUSDT")
+    d = workflow.get_data_g()
+    tasks = [(d, i, moving_period) for i in range(3, 62)]
+    results = Parallel(n_jobs=-1)(delayed(compute_task)(task) for task in tasks)
+
+    with open(file, "w") as f:
+        w = csv.DictWriter(f, fieldnames=["fast_period", "slow_period", "trade_count", "profit"], lineterminator='\n')
+        r = [{
+            "fast_period": x[1]["fast_period"],
+            "slow_period": x[1]["slow_period"],
+            "trade_count": x[0],
+            "profit": x[2]
+        } for xs in results for x in xs]
+        print(len(r))
+        w.writeheader()
+        w.writerows(r)
+
 
 if __name__ == '__main__':
-    workflow = ViewWorkflow(None, "15m", 1709827200000, 1710518400000, "ZRXUSDT")
-    data = workflow.get_data_g()
+    for i in range(3, 25):
+        print("smiio", i)
+        computed(f"smiio_{i}.csv", i)
+    # import matplotlib
+    # matplotlib.use('TkAgg')
+    # import matplotlib.pyplot as plt
+    # from mpl_toolkits.mplot3d import Axes3D
+    # from scipy.interpolate import griddata
+    # df = pd.read_csv("ma.csv")
+    #
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    #
+    # # 从DataFrame中提取X、Y、Z坐标数据
+    # x = df['fast_period']
+    # y = df['slow_period']
+    # z = df['profit']
+    #
+    # xgrid = np.linspace(min(x), max(x), 100)
+    # ygrid = np.linspace(min(y), max(y), 100)
+    #
+    # # 使用np.meshgrid生成网格矩阵
+    # X, Y = np.meshgrid(xgrid, ygrid)
+    #
+    # # 使用griddata进行插值
+    # Z = griddata((x, y), z, (X, Y), method='cubic')
+    #
+    # # 绘制三维散点图
+    # ax.plot_surface(X, Y, Z, cmap='viridis')
+    #
+    # # 设置坐标轴标签
+    # ax.set_xlabel('fast_period')
+    # ax.set_ylabel('slow_period')
+    # ax.set_zlabel('profit')
 
-    strategy = DecisionStrategy()
-    now = datetime.now()
-    # strategy.best_args(data, SMIIODecisionNode, fast_period=range(3, 15), slow_period=range(15, 40), sigma_period=range(3, 10))
-    # strategy.best_args(data, PVTDecisionNode, fast_period=range(3, 15), slow_period=range(15, 40, 2))
-    strategy.best_args(data, STDecisionNode, period=range(10, 26), factory=range(1, 5))
+    # 显示图形
+    plt.savefig("ma.png")
+    plt.show()
+
+    print(df)
+

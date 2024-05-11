@@ -196,7 +196,7 @@ class PositionManager:
         返回当前价值
         :return:
         """
-        return Decimal(decimal_quantize(self.available_amount + self.freeze_amount + self.position_value))
+        return decimal_quantize(self.available_amount + self.freeze_amount + self.position_value)
 
     @locked
     def position_signal(self, signal):

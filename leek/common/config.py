@@ -48,6 +48,9 @@ KLINE_DB_PASSWORD = kline_db.get("password", "")
 KLINE_DB_DATABASE = kline_db.get("database", "default")
 MIN_POSITION = Decimal(cfg.get("position").get("min_rate"))
 ROLLING_POSITION = bool(cfg.get("position").get("rolling_position"))
+BACKTEST_EMULATION = bool(cfg.get("backtest").get("emulation"))
+BACKTEST_TARGET_INTERVAL = cfg.get("backtest").get("target_interval")
+BACKTEST_EMULATION_INTERVAL = cfg.get("backtest").get("emulation_interval")
 
 PROXY = os.getenv("leek.proxy")
 PROXY_HOST = None
@@ -59,6 +62,8 @@ if PROXY:
         x = arr[1]
     PROXY_HOST, PROXY_PORT = arr[1].split(":")
 
+if BACKTEST_EMULATION and BACKTEST_TARGET_INTERVAL == BACKTEST_EMULATION_INTERVAL:
+    raise Exception("target_interval and emulation_interval must be different")
 if __name__ == '__main__':
     print(PROXY_HOST)
     print(MIN_POSITION)

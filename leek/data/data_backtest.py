@@ -23,7 +23,7 @@ class BacktestDataSource(DataSource):
     verbose_name = "回测数据源"
 
     def __init__(self, interval: str, symbols: [], start_time: int, end_time: int, benchmark: str = None):
-        self.interval = interval
+        self.interval = interval.lower()
         self.symbols = symbols
         if benchmark and benchmark not in self.symbols:
             self.symbols.append(benchmark)
@@ -43,27 +43,50 @@ class BacktestDataSource(DataSource):
             args["password"] = config.KLINE_DB_PASSWORD
         client = Client(**args)
         sql = f"select count(*) from workstation_kline" \
-              f" where interval='{self.interval.lower()}' and timestamp >= {self.start_time} and timestamp <= " \
+              f" where interval in [{self._emulation_interval()}] and timestamp >= {self.start_time} and timestamp <= " \
               f"{self.end_time} and symbol in (%s)" % \
               (",".join(["'%s'" % symbol for symbol in self.symbols]))
         self.count = client.execute(query=sql)[0][0]
 
-        sql = sql.replace("count(*)", "timestamp,symbol,open,high,low,close,volume,amount")
-        sql += " order by timestamp"
+        sql = sql.replace("count(*)", "timestamp,symbol,open,high,low,close,volume,amount,interval,"
+                                      "timestamp + multiIf(interval='1m', 60000, interval='3m', 180000, interval='5m',"
+                                      "300000, interval='15m', 900000, interval='30m', 1800000, interval='1h', 3600000,"
+                                      "interval='4h', 14400000, interval='6h', 21600000, interval='8h', 28800000,"
+                                      " interval='12h', 43200000, interval='1d', 86400000, 0) end_timestamp")
+        sql += " order by end_timestamp"
         cursor = client.execute_iter(sql)
         return None, cursor
+
+    def _emulation_interval(self):
+        if config.BACKTEST_EMULATION and self.interval == config.BACKTEST_TARGET_INTERVAL:
+            return "'%s', '%s'" % (self.interval, config.BACKTEST_EMULATION_INTERVAL)
+        return "'%s'" % self.interval
 
     def _sqlite_run(self):
         conn = sqlite3.connect(config.KLINE_DB_PATH)
         cursor = conn.cursor()
         sql = f"select count(*) from workstation_kline" \
-              f" where interval='{self.interval.lower()}' and timestamp >= {self.start_time} and timestamp <= " \
+              f" where interval in ({self._emulation_interval()}) and timestamp >= {self.start_time} and timestamp <= " \
               f"{self.end_time} and symbol in (%s) order by timestamp" % \
               (",".join(["'%s'" % symbol for symbol in self.symbols]))
         cursor.execute(sql)
         self.count = cursor.fetchone()[0]
 
-        sql = sql.replace("count(*)", "timestamp,symbol,open,high,low,close,volume,amount")
+        sql = sql.replace("count(*)", "timestamp,symbol,open,high,low,close,volume,amount,interval, timestamp + CASE "
+                                      " WHEN interval='1m' THEN 60000"
+                                      " WHEN interval='3m' THEN 180000"
+                                      " WHEN interval='5m' THEN 300000"
+                                      " WHEN interval='15m' THEN 900000"
+                                      " WHEN interval='30m' THEN 1800000"
+                                      " WHEN interval='1h' THEN 3600000"
+                                      " WHEN interval='4h' THEN 14400000"
+                                      " WHEN interval='6h' THEN 21600000"
+                                      " WHEN interval='8h' THEN 28800000"
+                                      " WHEN interval='12h' THEN 43200000"
+                                      " WHEN interval='1d' THEN 86400000"
+                                      " ELSE 0"
+                                      " END"
+                                      " end_timestamp")
         cursor.execute(sql)
 
         def generator():
@@ -73,6 +96,26 @@ class BacktestDataSource(DataSource):
             cursor.close()
 
         return conn, generator()
+
+    def get_all_symbol(self):
+        sql = "select distinct symbol from workstation_kline"
+        if config.KLINE_DB_TYPE == "CLICKHOUSE":
+            from clickhouse_driver import Client
+            args = {
+                "host": config.KLINE_DB_HOST,
+                "port": config.KLINE_DB_PORT,
+                "database": config.KLINE_DB_DATABASE,
+                "user": config.KLINE_DB_USER,
+            }
+            if config.KLINE_DB_PASSWORD and config.KLINE_DB_PASSWORD != "":
+                args["password"] = config.KLINE_DB_PASSWORD
+            client = Client(**args)
+            res = client.execute(sql)
+            return [a[0] for a in res]
+        elif config.KLINE_DB_TYPE == "SQLITE":
+            conn = sqlite3.connect(config.KLINE_DB_PATH)
+            cursor = conn.cursor()
+            return [a[0] for a in cursor.fetchall()]
 
     def _run(self):
         try:
@@ -95,6 +138,7 @@ class BacktestDataSource(DataSource):
                     batch = []
 
             ts = 0
+            emulation_map = {}
             for row in cursor:
                 if not self.keep_running:
                     break
@@ -106,21 +150,29 @@ class BacktestDataSource(DataSource):
                 if not self.keep_running:
                     logger.info("回测数据源已关闭")
                     break
-
                 if ts != row[0]:
                     send_data()
                     ts = row[0]
-
-                batch.append(G(symbol=row[1],
-                               timestamp=row[0],
-                               open=Decimal(row[2]),
-                               high=Decimal(row[3]),
-                               low=Decimal(row[4]),
-                               close=Decimal(row[5]),
-                               volume=Decimal(row[6]),
-                               amount=Decimal(row[7]),
-                               finish=1
-                               ))
+                ticket = G(symbol=row[1], timestamp=row[0], open=Decimal(row[2]), high=Decimal(row[3]),
+                           low=Decimal(row[4]), close=Decimal(row[5]), volume=Decimal(row[6]), amount=Decimal(row[7]),
+                           interval=row[8], finish=1 if row[8] == config.BACKTEST_TARGET_INTERVAL else 0)
+                if config.BACKTEST_EMULATION and self.interval == config.BACKTEST_TARGET_INTERVAL:
+                    if self.interval == ticket.interval:  # K线
+                        if ticket.symbol in emulation_map:
+                            del emulation_map[ticket.symbol]
+                    else:
+                        if ticket.symbol not in emulation_map:
+                            emulation_map[ticket.symbol] = G(**ticket.__json__())
+                        else:
+                            t = emulation_map[ticket.symbol]
+                            t.close = ticket.close
+                            t.high = max(t.high, ticket.high)
+                            t.low = min(t.low, ticket.low)
+                            t.volume += ticket.volume
+                            t.amount += ticket.amount
+                            t.timestamp = ticket.timestamp
+                            ticket = G(**t.__json__())
+                batch.append(ticket)
 
             cursor.close()
             send_data()
@@ -195,11 +247,13 @@ class StockBacktestDataSource(BacktestDataSource):
 
 if __name__ == '__main__':
     # select * from workstation_kline where `symbol`="ETHUSDT"  and timestamp between 1703132100000 and 1703337300000 and interval='15m'
-    source = BacktestDataSource("15m", ["ETHUSDT"], 1703132100000, 1703337300000)
+    source = BacktestDataSource("4h", ["ETHUSDT"], 1703132100000, 1703337300000)
     bus = EventBus()
     data = []
     bus.subscribe(EventBus.TOPIC_TICK_DATA, lambda x: data.append(x.__json__()))
     DataSource.__init__(source, bus)
     source._run()
-    print(json.dumps(data, default=decimal_to_str))
+    for d in data:
+        print(d["symbol"], datetime.fromtimestamp(d["timestamp"]/1000).strftime("%Y-%m-%d %H:%M"), d["interval"], d["close"], d["volume"], d["amount"])
+    # print(json.dumps(data, default=decimal_to_str))
     # source.shutdown()

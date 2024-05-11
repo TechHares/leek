@@ -8,8 +8,10 @@ from collections import deque
 from decimal import Decimal
 
 from leek.strategy import BaseStrategy
+from leek.strategy.common import StopLoss
 from leek.strategy.common.calculator import calculate_donchian_channel
 from leek.strategy.common.strategy_common import PositionDirectionManager, PositionRateManager
+from leek.strategy.common.strategy_filter import JustFinishKData, FallbackTakeProfit
 from leek.trade.trade import PositionSide
 
 """
@@ -17,7 +19,7 @@ from leek.trade.trade import PositionSide
 """
 
 
-class DowV1Strategy(PositionRateManager, PositionDirectionManager, BaseStrategy):
+class DowV1Strategy(JustFinishKData, PositionRateManager, PositionDirectionManager, StopLoss, BaseStrategy):
     verbose_name = "道氏理论(donchian channel+Lma)"
     """
     目标主要是在第二种中期趋势走势中获利，把顺长期趋势的中期行情定义为顺势，把逆长期趋势的中期行情定义为整理
@@ -56,7 +58,7 @@ class DowV1Strategy(PositionRateManager, PositionDirectionManager, BaseStrategy)
     """
 
     def __init__(self, open_channel=20, close_channel=10, long_period=120, win_loss_target="2.0", half_needle=False,
-                 trade_type=0):
+                 trade_type=0, fallback_percentage="0.05"):
         """
         :param open_channel: 唐奇安通道周期(开仓)
         :param close_channel: 唐奇安通道周期(平仓)
@@ -64,12 +66,14 @@ class DowV1Strategy(PositionRateManager, PositionDirectionManager, BaseStrategy)
         :param win_loss_target: 反转交易预期盈亏比
         :param half_needle: 影线折半处理
         :param trade_type: 交易类型 0 全部 1 顺势 2 反转
+        :param fallback_percentage: 回撤止盈的比例
         """
         self.long_period = int(long_period)
         self.open_channel = int(open_channel)
         self.close_channel = int(close_channel)
 
         self.win_loss_target = Decimal(win_loss_target)
+        self.fallback_percentage = Decimal(fallback_percentage)
         x = str(half_needle).lower()
         self.half_needle = x in ["true", 'on', 'open', '1']
 
@@ -100,12 +104,15 @@ class DowV1Strategy(PositionRateManager, PositionDirectionManager, BaseStrategy)
         return data[-2] if len(data) > 1 else None
 
     def handle(self):
+        if self.market_data.finish == 0:
+            return
         pre = self._calculate()
         if pre is None:
             return
 
         price = self.market_data.close
         if self.have_position():
+            self.g.position_open_price_high = max(self.g.position_open_price_high, price)
             if self.g.can_add:  # 整理期开仓，突破加仓判断
                 if self.is_long_position() and price > pre.lma:
                     self.g.can_add = None
@@ -118,12 +125,19 @@ class DowV1Strategy(PositionRateManager, PositionDirectionManager, BaseStrategy)
             if self.is_long_position():
                 if pre.close_channel_lower and price < pre.close_channel_lower:  # 平多
                     self.close_position("平多")
+                    return
+                if price / self.g.position_open_price_high < 1 - self.fallback_percentage:
+                    self.close_position("回落平多")
             else:
                 if pre.close_channel_up and price > pre.close_channel_up:  # 平空
                     self.close_position("平空")
+                    return
+                if self.g.position_open_price_high / price < 1 - self.fallback_percentage:
+                    self.close_position("回升平空")
         else:
             if pre.open_channel_up is None or pre.lma is None:
                 return
+            self.g.position_open_price_high = price
             high = self.market_data.high if not self.half_needle else (self.market_data.high + max(self.market_data.open, price)) / 2
             if high > pre.open_channel_up and self.can_long():  # 做多判断
                 if price < pre.lma and self.trade_type in [0, 2] and self._win_great_than_loss(price, pre, pre.close_channel_lower):  # 反转

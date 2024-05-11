@@ -8,6 +8,10 @@ leek:
   position:
     min_rate: "0.05"       # 最小下单仓位
     rolling_position: true # 是否滚动仓位
+  backtest:
+    emulation: false       # 回测数据仿真，开启后会使用小级别数据穿插在K线中
+    emulation_interval: 1m # 仿真填充K线
+    target_interval: 4h    # 需仿真K线
   data_db:
     type: sqlite           # sqlite sqlite/clickhouse
     path: data/data.db     # sqlite文件位置

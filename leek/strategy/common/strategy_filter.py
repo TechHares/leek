@@ -79,7 +79,7 @@ class StopLoss(Filter):
             rate *= -1
 
         if rate < -self.stop_loss_rate:  # 止盈止损
-            self.close_position(memo=f"止盈平仓：阈值={self.stop_loss_rate} "
+            self.close_position(memo=f"止损平仓：阈值={self.stop_loss_rate} "
                                      f"触发价格={market_data.close}"
                                      f" 平均持仓价={position.avg_price} 触发比例={rate}")
             return False
@@ -147,6 +147,23 @@ class FallbackTakeProfit(Filter):
                                      f"最高价={g.high} 触发比例={rate}")
             return False
         return True
+
+
+class JustFinishKData(Filter):
+    """
+    仅使用已完成的K线数据
+    """
+
+    def __init__(self, just_finish_k=False):
+        """
+
+        :param just_finish_k: 仅使用完成的K线数据
+        """
+        x = str(just_finish_k).lower()
+        self.all_k = x not in ["true", 'on', 'open', '1']
+
+    def pre(self, market_data: G, position) -> bool:
+        return self.all_k or market_data.finish == 1
 
 
 class AtrStopLoss(CalculatorContainer, Filter):

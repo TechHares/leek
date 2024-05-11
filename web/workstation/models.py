@@ -166,6 +166,7 @@ class StrategyConfig(models.Model):
     take_profit_rate = models.DecimalField(u'止盈比例', max_digits=36, decimal_places=6, default=0.2)
     fallback_percentage = models.DecimalField(u'回落止盈比例', max_digits=36, decimal_places=6,
                                               default=0.05)
+    just_finish_k = models.BooleanField(u'仅使用已完成K线数据', default=True)
     max_single_position = models.DecimalField(u'单个标的最大仓位占比', max_digits=36, decimal_places=6,
                                               default=0.2)
     stop_loss_rate = models.DecimalField(u'止损比例', max_digits=36, decimal_places=6, default=0.005)

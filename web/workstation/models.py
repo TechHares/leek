@@ -199,6 +199,13 @@ class StrategyConfig(models.Model):
     open_vhf_threshold = models.DecimalField(u'vhf开仓阈值(开仓)', max_digits=36, decimal_places=6, default=0.5)
     close_vhf_threshold = models.DecimalField(u'vhf平仓阈值(平仓)', max_digits=36, decimal_places=6, default=0.0)
     take_profit_period = models.IntegerField(u'vmma计算周期(平仓)', default="10")
+    TRADE_TYPE_CHOICE = (
+        (0, u"顺势|反转"),
+        (1, u"顺势"),
+        (2, u"反转"),
+    )
+    trade_type = models.IntegerField(u'参与交易类型', default=0, choices=TRADE_TYPE_CHOICE)
+    win_loss_target = models.DecimalField(u'反转交易预期盈亏比', max_digits=36, decimal_places=6, default=2.0)
     data_source = models.ForeignKey(DataSourceConfig, on_delete=models.PROTECT, verbose_name=u'数据源')
     trade = models.ForeignKey(TradeConfig, on_delete=models.PROTECT, verbose_name=u'交易器')
     STATUS_CHOICE = (

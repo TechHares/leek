@@ -9,6 +9,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from leek.strategy import BaseStrategy
+from leek.strategy.common.calculator import calculate_donchian_channel
 from leek.strategy.common.strategy_common import PositionDirectionManager, PositionRateManager
 from leek.trade.trade import PositionSide
 
@@ -54,6 +55,9 @@ class TurtleTradingStrategy(PositionRateManager, PositionDirectionManager, BaseS
         self.add_position_rate = Decimal(add_position_rate)
         self.close_position_rate = Decimal(close_position_rate)
 
+    def _needle(self):
+        return False
+
     def handle(self):
         pre = self._calculate()
         if pre is None:
@@ -89,11 +93,6 @@ class TurtleTradingStrategy(PositionRateManager, PositionDirectionManager, BaseS
             if self.market_data.close < pre.open_channel_lower and self.can_short():
                 self._add_position(PositionSide.SHORT)
 
-    def _calculate_channel(self, data, window):
-        up = max([d.high for d in data[-window:]])
-        lower = min([d.low for d in data[-window:]])
-        return up, lower
-
     def _calculate(self):
         if self.g.q is None:
             self.g.q = deque(maxlen=max(self.open_channel, self.close_channel, self.true_range_window))
@@ -106,9 +105,9 @@ class TurtleTradingStrategy(PositionRateManager, PositionDirectionManager, BaseS
         self.g.q.append(self.market_data)
         data = list(self.g.q)
         if len(data) >= self.open_channel:
-            data[-1].open_channel_up, data[-1].open_channel_lower = self._calculate_channel(data, self.open_channel)
+            data[-1].open_channel_up, data[-1].open_channel_lower = calculate_donchian_channel(data, self.open_channel, self._needle())
         if len(data) >= self.close_channel:
-            data[-1].close_channel_up, data[-1].close_channel_lower = self._calculate_channel(data, self.close_channel)
+            data[-1].close_channel_up, data[-1].close_channel_lower = calculate_donchian_channel(data, self.close_channel, self._needle())
 
         if len(data) > 1:
             data[-1].tr = max(data[-1].high - data[-1].low, abs(data[-1].high - data[-2].close), abs(data[-2].close - data[-1].low))
@@ -164,12 +163,8 @@ class TurtleTrading1Strategy(TurtleTradingStrategy):
         x = str(half_needle).lower()
         self.half_needle = x in ["true", 'on', 'open', '1']
 
-    def _calculate_channel(self, data, window):
-        if not self.half_needle:
-            return super()._calculate_channel(data, window)
-        up = max([(d.high + max(d.close, d.open))/2 for d in data[-window:]])
-        lower = min([(d.low + min(d.close, d.open))/2 for d in data[-window:]])
-        return up, lower
+    def _needle(self):
+        return self.half_needle
 
 
 class TurtleTrading2Strategy(TurtleTrading1Strategy):

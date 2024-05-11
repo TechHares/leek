@@ -138,6 +138,23 @@ class Calculator(object):
         return df.tail(period)["ama"].tolist()
 
 
+def calculate_donchian_channel(data, window, half_needle=False):
+    """
+    唐奇安通道 上下轨计算
+    :param data: 数据
+    :param window: 回看窗口
+    :param half_needle: 影线折半处理
+    :return: 上轨，下轨
+    """
+    if not half_needle:
+        up = max([d.high for d in data[-window:]])
+        lower = min([d.low for d in data[-window:]])
+    else:
+        up = max([(d.high + max(d.close, d.open)) / 2 for d in data[-window:]])
+        lower = min([(d.low + min(d.close, d.open)) / 2 for d in data[-window:]])
+    return up, lower
+
+
 if __name__ == '__main__':
     # pass
     import pandas as pd

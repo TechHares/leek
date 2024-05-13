@@ -28,9 +28,20 @@ class DataSource(threading.Thread):
         threading.Thread.__init__(self, daemon=True)
         self.bus = bus
         self.keep_running = True
+        self.post_constructor()
+
+    def post_constructor(self):
+        def data_init_hook(params):
+            res = self.data_init_hook(params)
+            self.bus.publish(EventBus.TOPIC_TICK_DATA_INIT, res)
+
+        self.bus.subscribe(EventBus.TOPIC_TICK_DATA_INIT_PARAMS, data_init_hook)
 
     def _send_tick_data(self, data):
         self.bus.publish(EventBus.TOPIC_TICK_DATA, data)
+
+    def data_init_hook(self, params) -> list:
+        pass
 
     @abstractmethod
     def _run(self):

@@ -60,7 +60,7 @@ def decimal_quantize(d, n=2, rounding=2):
 
 def decimal_to_str(obj):
     if isinstance(obj, Decimal):
-        return float(obj)
+        return "%s" % obj
     raise TypeError
 
 

@@ -36,6 +36,7 @@ def _init_model(ins_cfg, excludes=[]):
         if ignore.count(True):
             continue
         _invoke_init(instance, c, ins_cfg["config"])
+    _invoke_init(instance, cls, parameter_map)
     return instance
 
 

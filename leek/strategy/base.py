@@ -8,6 +8,7 @@ import inspect
 import os
 import re
 import threading
+import time
 from abc import abstractmethod, ABCMeta
 from datetime import datetime
 from decimal import Decimal
@@ -58,7 +59,7 @@ class Position:
             quantity_value = self.avg_price * self.quantity + order.transaction_volume * order.transaction_price
             self.sz += order.sz
             self.quantity += order.transaction_volume
-            self.avg_price = decimal_quantize(quantity_value/self.quantity, 8)
+            self.avg_price = decimal_quantize(quantity_value / self.quantity, 8)
             self.quantity_amount += order.transaction_amount
             return_amount = order.transaction_amount
         else:
@@ -66,7 +67,7 @@ class Position:
                 return_amount = order.transaction_volume / self.quantity * self.quantity_amount \
                                 + (order.transaction_price - self.avg_price) * order.transaction_volume
             else:
-                return_amount = order.transaction_volume / self.quantity * self.quantity_amount\
+                return_amount = order.transaction_volume / self.quantity * self.quantity_amount \
                                 + (self.avg_price - order.transaction_price) * order.transaction_volume
             self.sz -= order.sz
             self.quantity -= order.transaction_volume
@@ -233,7 +234,8 @@ class PositionManager:
         if rate < PositionManager.MIN_POSITION:
             return Decimal(0)
         if config.ROLLING_POSITION:
-            freeze_amount = min(decimal_quantize(rate / self.available_rate * self.available_amount, 2), self.available_amount)
+            freeze_amount = min(decimal_quantize(rate / self.available_rate * self.available_amount, 2),
+                                self.available_amount)
         else:
             freeze_amount = min(decimal_quantize(rate * self.total_amount, 2), self.available_amount)
 
@@ -339,23 +341,46 @@ class BaseStrategy(metaclass=ABCMeta):
 
         self.post_constructor()
         self.test_mode = strategy_id in ["T0", "V0", "E0"]
+        self.data_init_status = 0
+
+    def _data_init(self, market_datas: list):
+        pass
+
+    def data_init_params(self, market_data):
+        pass
 
     def post_constructor(self):
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA, self._wrap_handle)
 
+        def data_init(market_datas: list):
+            self._data_init(market_datas)
+            self.data_init_status = 2
+
+        self.bus.subscribe(EventBus.TOPIC_TICK_DATA_INIT, data_init)
+
     def _wrap_handle(self, market_data: G):
-        self.market_data = market_data
         if market_data.symbol not in self.__g_map:
             self.__g_map[market_data.symbol] = G()
         self.g = self.__g_map[market_data.symbol]
         self.position = self.position_manager.get_position(symbol=market_data.symbol)
 
+        while not self.test_mode and self.data_init_status != 2:
+            if self.data_init_status == 0:
+                params = self.data_init_params(market_data)
+                self.data_init_status = 1
+                if params:
+                    self.bus.publish(EventBus.TOPIC_TICK_DATA_INIT_PARAMS, params)
+            else:
+                time.sleep(0.1)
+        self.market_data = market_data
+
         classes = get_all_base_classes(self.__class__)
+        res = []
         for bcls in classes:
             if issubclass(bcls, Filter):
-                if not bcls.pre(self, market_data, self.position):
-                    return
-        self.handle()
+                res.append(bcls.pre(self, market_data, self.position))
+        if len(res) == 0 or all(res):
+            self.handle()
 
     @abstractmethod
     def handle(self):

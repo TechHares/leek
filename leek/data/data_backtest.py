@@ -172,6 +172,7 @@ class BacktestDataSource(DataSource):
                             t.amount += ticket.amount
                             t.timestamp = ticket.timestamp
                             ticket = G(**t.__json__())
+                ticket.interval = self.interval
                 batch.append(ticket)
 
             cursor.close()

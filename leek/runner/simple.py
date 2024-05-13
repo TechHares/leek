@@ -10,21 +10,16 @@ from pathlib import Path
 
 import yaml
 
+from leek.common import notify
 from leek.common.event import EventBus
 from leek.common.log import logger
 from leek.runner.runner import BaseWorkflow
-from leek.runner.notify import send_to_dingding, send_to_console
-
-CONFIG_PATH = Path(__file__).parent.parent.parent.resolve() / 'resources/config-default.yaml'
+from leek.common.notify import send_to_dingding, send_to_console
 
 
 class SimpleWorkflow(BaseWorkflow):
     def __init__(self, cfg_data_source, cfg_strategy, cfg_trader):
         BaseWorkflow.__init__(self, cfg_strategy["id"])
-        with open(f"{CONFIG_PATH}", "r", encoding="utf-8") as f:
-            cfg = yaml.safe_load(f)
-        self.alert_type = cfg["leek"]["alert_type"]
-        self.alert_token = cfg["leek"]["alert_token"]
         self.cfg_data_source = cfg_data_source
         self.cfg_strategy = cfg_strategy
         self.cfg_trader = cfg_trader
@@ -40,15 +35,8 @@ class SimpleWorkflow(BaseWorkflow):
                                              self.cfg_trader))
         logger.info(f"交易执行器配置完成: {self.cfg_trader}")
 
-        self.bus.subscribe(EventBus.TOPIC_NOTIFY, self.alert)
+        self.bus.subscribe(EventBus.TOPIC_NOTIFY, notify.alert)
         logger.info(f"策略通知配置完成")
-
-    def alert(self, msg):
-        logger.debug(f"通知信息：{msg}")
-        if self.alert_type == "dingding":
-            send_to_dingding(self.alert_token, msg)
-        if self.alert_type == "console":
-            send_to_console(msg)
 
     def error_wrapper(self, func):
         try:

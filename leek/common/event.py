@@ -12,6 +12,8 @@ class EventBus:
     事件总线
     """
     TOPIC_TICK_DATA = "TICK_DATA"
+    TOPIC_TICK_DATA_INIT = "TICK_DATA_INIT"
+    TOPIC_TICK_DATA_INIT_PARAMS = "TICK_DATA_INIT_PARAMS"
     TOPIC_STRATEGY_SIGNAL = "STRATEGY_SIGNAL"
     TOPIC_ORDER_DATA = "ORDER_DATA"
     TOPIC_POSITION_DATA = "POSITION_DATA"
@@ -38,7 +40,7 @@ class EventBus:
                     logger.info(f"topic[{topic}] 取消订阅: {func}")
 
     def publish(self, topic: str, *args, **kwargs):
-        logger.debug(f"topic[{topic}] 发布事件: {args} {kwargs}")
+        logger.info(f"topic[{topic}] 发布事件: {args} {kwargs}")
         if topic in self.handlers:
             for handler in self.handlers[topic]:
                 try:

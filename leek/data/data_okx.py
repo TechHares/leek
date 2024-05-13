@@ -5,14 +5,13 @@
 # @File    : data_okx.py
 # @Software: PyCharm
 import json
-import os
 import threading
 import time
 from decimal import Decimal
 
 from okx import MarketData
 
-from leek.common import logger, G, EventBus, config
+from leek.common import logger, G, config
 from leek.data.data import WSDataSource, DataSource
 
 
@@ -25,6 +24,12 @@ class OkxKlineDataSource(WSDataSource):
             ws_domain = "wss://wspap.okx.com:8443/ws/v5/business?brokerId=9999"
         if work_flag == "2":
             ws_domain = "wss://wsaws.okx.com:8443/ws/v5/business"
+        self.domain = "https://www.okx.com"
+        self.flag = "0"
+        if work_flag == "1":
+            self.flag = "1"
+        if work_flag == "2":
+            self.domain = "https://aws.okx.com"
         WSDataSource.__init__(self)
         self.url = ws_domain
         self.channels = []
@@ -35,6 +40,36 @@ class OkxKlineDataSource(WSDataSource):
                     "instId": symbol
                 })
         self.timer = None
+
+    def data_init_hook(self, params) -> list:
+        if params is None:
+            return []
+        api = MarketData.MarketAPI(domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
+        symbol = params[0]
+        interval = params[1].replace("h", "H").replace("w", "W").replace("d", "D")
+        limit = min(100, params[2])
+        ts = int(time.time() * 1000)
+        res = []
+        while len(res) < params[2]:
+            candlesticks = api.get_history_candlesticks(instId=symbol, bar=interval, limit=limit, after=ts)
+            for row in candlesticks["data"]:
+                data = G(symbol=params[0],
+                         interval=params[1],
+                         timestamp=int(row[0]),
+                         open=Decimal(row[1]),
+                         high=Decimal(row[2]),
+                         low=Decimal(row[3]),
+                         close=Decimal(row[4]),
+                         volume=Decimal(row[5]),
+                         amount=Decimal(row[7]),
+                         finish=int(row[8])
+                         )
+                ts = int(row[0]) - 1
+                res.append(data)
+
+        res = res[:params[2]]
+        res.reverse()
+        return res
 
     def ping(self):
         if self.ws.keep_running:

@@ -103,9 +103,15 @@ class DowV1Strategy(JustFinishKData, PositionRateManager, PositionDirectionManag
             data[-1].lma = sum([x.close for x in data[-self.long_period:]]) / self.long_period
         return data[-2] if len(data) > 1 else None
 
+    def data_init_params(self, market_data):
+        return market_data.symbol, market_data.interval, 120
+
+    def _data_init(self, market_datas: list):
+        for market_data in market_datas:
+            self.market_data = market_data
+            self._calculate()
+
     def handle(self):
-        if self.market_data.finish == 0:
-            return
         pre = self._calculate()
         if pre is None:
             return

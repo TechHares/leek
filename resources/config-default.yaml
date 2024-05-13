@@ -6,6 +6,7 @@ leek:
   allowed_domains:         # web允许访问的域名
     - "*"
   position:
+    order_alert: false     # 开单通知
     min_rate: "0.05"       # 最小下单仓位
     rolling_position: true # 是否滚动仓位
   backtest:

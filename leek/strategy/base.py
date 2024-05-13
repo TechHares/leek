@@ -17,7 +17,7 @@ from typing import Dict
 
 import cachetools
 
-from leek.common import logger, config
+from leek.common import logger, config, notify
 from leek.common import G
 from leek.common.event import EventBus
 from leek.common.utils import decimal_quantize, get_defined_classes, get_all_base_classes
@@ -357,6 +357,12 @@ class BaseStrategy(metaclass=ABCMeta):
             self.data_init_status = 2
 
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA_INIT, data_init)
+
+        if config.ORDER_ALERT:
+            print("asdaasas")
+            print("asdaasas")
+            print("asdaasas")
+            self.bus.subscribe(EventBus.TOPIC_ORDER_DATA, lambda o: notify.alert(o.__str__()))
 
     def _wrap_handle(self, market_data: G):
         if market_data.symbol not in self.__g_map:

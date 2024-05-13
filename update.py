@@ -4,18 +4,24 @@
 # @Author  : shenglin.li
 # @File    : app.py
 # @Software: PyCharm
-import subprocess
 import sys
 
+
+def execute_cmd(cmd):
+    import subprocess
+    process = subprocess.Popen(cmd.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                               bufsize=1, universal_newlines=True)
+    while True:
+        output = process.stdout.readline()
+        if output == '' and process.poll() is not None:
+            break
+        if output:
+            print(output.strip())
+
+
 # 执行安装依赖包命令
-pip_command = sys.executable + ' -m pip install -r requirements.txt'
-result = subprocess.run(pip_command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-stdout = result.stdout.decode()
-stderr = result.stderr.decode()
-if result.returncode == 0:
-    print("Output:\n", stdout)
-else:
-    print("Error:\n", stderr)
+pip_install_command = sys.executable + ' -m pip install -r requirements.txt'
+execute_cmd(pip_install_command)
 
 
 def update(args):

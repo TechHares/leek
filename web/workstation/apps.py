@@ -17,7 +17,7 @@ from leek.common import logger, config
 
 
 def is_worker_process():
-    if os.name == 'nt':
+    if os.name == 'nt' or os.name == 'posix':
         p = os.path.join(config.DATA_DIR, "work")
         if not os.path.exists(p):
             with open(p, "w") as f:
@@ -28,7 +28,7 @@ def is_worker_process():
                 first_line = f.readline().strip()
             try:
                 process = psutil.Process(int(first_line))
-                if "python" in process.name():
+                if "python" in process.name().lower():
                     return False
             except psutil.NoSuchProcess:
                 pass

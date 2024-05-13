@@ -1,1 +1,1 @@
-nohup python3.9 main.py > console.log 2>&1 &
+nohup python3.9 main.py >> console.log 2>&1 &

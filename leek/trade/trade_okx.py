@@ -195,7 +195,7 @@ class SwapOkxTrader(Trader):
 
         self.lever = int(leverage)
 
-        self.client = Trade.TradeAPI(api_key=api_key, api_secret_key=api_secret_key, passphrase=passphrase, flag=self.flag, debug=False, proxy=config.PROXY)
+        self.client = Trade.TradeAPI(domain=self.domain, api_key=api_key, api_secret_key=api_secret_key, passphrase=passphrase, flag=self.flag, debug=False, proxy=config.PROXY)
         self.accountAPI = Account.AccountAPI(api_key=api_key, api_secret_key=api_secret_key, passphrase=passphrase,
                                              domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
 

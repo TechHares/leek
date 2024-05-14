@@ -10,6 +10,7 @@ import datetime
 import json
 import shutil
 import sys
+import time
 from decimal import Decimal
 from pathlib import Path
 import os
@@ -41,7 +42,7 @@ def download_okx_kline(start_date, end_date, symbols=None, intervals=None, skip=
             for ticker in tickers["data"]:
                 if ticker["instId"].endswith("-USDT-" + inst_type):
                     symbols.append(ticker["instId"])
-    bar = tqdm.tqdm(total=len(symbols), desc="OKX行情数据")
+    bar = tqdm.tqdm(total=len(symbols), desc="OKX数据")
     print(symbols)
     for symbol in symbols:
         bar.update(1)
@@ -65,15 +66,15 @@ def __download_okx_kline(symbol, start_date, end_date, intervals, bar=None):
         "12H": 1200,
         "1D": 2400,
     }
-    tf = lambda x: datetime.datetime.fromtimestamp(x/1000).strftime('%Y-%m-%d %H:%M')
+    tf = lambda x: datetime.datetime.fromtimestamp(x / 1000).strftime('%Y-%m-%d %H:%M')
     for interval in intervals:
         start_ts = int(datetime.datetime.strptime(start_date, '%Y-%m-%d').timestamp() * 1000)
         while start_ts < end_ts:
             n = start_ts + int(hour * multi[interval])
             if bar:
                 bar.set_postfix_str(f"{symbol} {interval} {tf(start_ts)} {tf(n)}")
-            candlesticks = api.get_history_candlesticks(symbol, before="%s" % (start_ts - 1), after="%s" % n,
-                                                        bar=interval)
+
+            candlesticks = get_data(symbol, interval, start_ts, n)
             if candlesticks and candlesticks["code"] == "0":
                 rows = candlesticks["data"]
                 rows.reverse()
@@ -82,6 +83,18 @@ def __download_okx_kline(symbol, start_date, end_date, intervals, bar=None):
                 print(candlesticks)
                 exit(1)
             start_ts = n
+
+
+def get_data(symbol, interval, start_ts, n, t=5):
+    try:
+        return api.get_history_candlesticks(symbol, before="%s" % (start_ts - 1), after="%s" % n,
+                                            bar=interval)
+    except Exception as e:
+        if t > 0:
+            time.sleep(0.5)
+            return get_data(symbol, interval, start_ts, n, t - 1)
+        else:
+            raise e
 
 
 def save_data(symbol, interval, rows):
@@ -115,7 +128,7 @@ if __name__ == '__main__':
     parser.add_argument('--inst_type', type=str, default="SWAP")
     parser.add_argument('--symbols', type=lambda x: x.split(','), default=[])
     parser.add_argument('--interval', type=lambda x: x.split(','),
-                        default=["1H", "4H", "6H", "8H", "12H", "1m", "3m", "5m", "15m", "30m", "1D"])
+                        default=["1H", "4H", "6H", "12H", "1m", "3m", "5m", "15m", "30m", "1D"])
     parser.add_argument('--skip', type=int, default=0)
     args = parser.parse_args()
     print("    start:", args.start)
@@ -125,5 +138,6 @@ if __name__ == '__main__':
     print(" interval:", args.interval)
     print("     skip:", args.skip)
 
-    download_okx_kline(args.start, args.end, symbols=args.symbols, intervals=args.interval, skip=args.skip, inst_type=args.inst_type)
+    download_okx_kline(args.start, args.end, symbols=args.symbols, intervals=args.interval, skip=args.skip,
+                       inst_type=args.inst_type)
     # python script_okx_data_download.py --start=2024-03-01 --end=2024-04-02 --interval=5m --skip=7

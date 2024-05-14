@@ -4,8 +4,11 @@
 # @Author  : shenglin.li
 # @File    : symbol_choose_test.py
 # @Software: PyCharm
+import copy
 import json
 import unittest
+
+from joblib import Parallel, delayed
 
 from leek.common.utils import decimal_quantize
 from leek.data import BacktestDataSource
@@ -61,16 +64,25 @@ class TestSymbolChoose(unittest.TestCase):
 
     def test_dow1(self):
         profit = {}
-        for symbol in self.symbols:
-            self.data["datasource"]["benchmark"] = symbol
-            self.data["datasource"]["symbols"][0] = symbol
-            workflow = BacktestWorkflow(self.data)
+
+        def run(args):
+            x, d = args
+            workflow = BacktestWorkflow(d)
             workflow.start()
             workflow.data_source.join()
             p = workflow.strategy.position_manager
             a = decimal_quantize(p.available_amount + p.freeze_amount + p.position_value)
-            profit[symbol] = a
-            print(a)
+            return x, a
+
+        ws = []
+        for symbol in self.symbols:
+            self.data["datasource"]["benchmark"] = symbol
+            self.data["datasource"]["symbols"][0] = symbol
+            ws.append((symbol, copy.deepcopy(self.data)))
+        results = Parallel(n_jobs=-1)(delayed(run)(task) for task in ws)
+        print(results)
+
+        print(sorted(results, key=lambda x: x[1], reverse=True)[:10])
 
 
 if __name__ == '__main__':

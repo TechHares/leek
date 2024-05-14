@@ -53,7 +53,7 @@ BACKTEST_EMULATION = bool(cfg.get("backtest").get("emulation"))
 BACKTEST_TARGET_INTERVAL = cfg.get("backtest").get("target_interval")
 BACKTEST_EMULATION_INTERVAL = cfg.get("backtest").get("emulation_interval")
 
-PROXY = os.getenv("leek.proxy")
+PROXY = cfg.get("proxy", None)
 PROXY_HOST = None
 PROXY_PORT = None
 if PROXY:
@@ -66,6 +66,7 @@ if PROXY:
 if BACKTEST_EMULATION and BACKTEST_TARGET_INTERVAL == BACKTEST_EMULATION_INTERVAL:
     raise Exception("target_interval and emulation_interval must be different")
 if __name__ == '__main__':
+    print(PROXY)
     print(PROXY_HOST)
     print(MIN_POSITION)
     print(ROLLING_POSITION)

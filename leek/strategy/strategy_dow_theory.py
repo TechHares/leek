@@ -104,7 +104,11 @@ class DowV1Strategy(JustFinishKData, PositionRateManager, PositionDirectionManag
         return data[-2] if len(data) > 1 else None
 
     def data_init_params(self, market_data):
-        return market_data.symbol, market_data.interval, 120
+        return {
+            "symbol": market_data.symbol,
+            "interval": market_data.interval,
+            "size": max(self.open_channel, self.close_channel, self.long_period)
+        }
 
     def _data_init(self, market_datas: list):
         for market_data in market_datas:

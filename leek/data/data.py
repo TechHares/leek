@@ -33,7 +33,7 @@ class DataSource(threading.Thread):
     def post_constructor(self):
         def data_init_hook(params):
             res = self.data_init_hook(params)
-            self.bus.publish(EventBus.TOPIC_TICK_DATA_INIT, res)
+            self.bus.publish(EventBus.TOPIC_TICK_DATA_INIT, params["symbol"], res)
 
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA_INIT_PARAMS, data_init_hook)
 
@@ -142,6 +142,7 @@ class WSDataSource(DataSource):
                 on_error=self.__wrap(self.on_error),
                 on_close=self.__wrap(self.on_close),
             )
+        logger.info("WSDataSource连接。。。")
         self.ws.run_forever(http_proxy_host=config.PROXY_HOST, http_proxy_port=config.PROXY_PORT, proxy_type="http")
 
     def __wrap(self, func):

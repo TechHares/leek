@@ -341,7 +341,6 @@ class BaseStrategy(metaclass=ABCMeta):
 
         self.post_constructor()
         self.test_mode = strategy_id in ["T0", "V0", "E0"]
-        self.data_init_status = 0
 
     def _data_init(self, market_datas: list):
         pass
@@ -352,28 +351,25 @@ class BaseStrategy(metaclass=ABCMeta):
     def post_constructor(self):
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA, self._wrap_handle)
 
-        def data_init(market_datas: list):
+        def data_init(symbol, market_datas: list):
             self._data_init(market_datas)
-            self.data_init_status = 2
+            self.__g_map[symbol].data_init_status = 2
 
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA_INIT, data_init)
 
         if config.ORDER_ALERT:
-            print("asdaasas")
-            print("asdaasas")
-            print("asdaasas")
             self.bus.subscribe(EventBus.TOPIC_ORDER_DATA, lambda o: notify.alert(o.__str__()))
 
     def _wrap_handle(self, market_data: G):
         if market_data.symbol not in self.__g_map:
-            self.__g_map[market_data.symbol] = G()
+            self.__g_map[market_data.symbol] = G(data_init_status=0)
         self.g = self.__g_map[market_data.symbol]
         self.position = self.position_manager.get_position(symbol=market_data.symbol)
 
-        while not self.test_mode and self.data_init_status != 2:
-            if self.data_init_status == 0:
+        while not self.test_mode and self.g.data_init_status != 2:
+            if self.g.data_init_status == 0:
                 params = self.data_init_params(market_data)
-                self.data_init_status = 1
+                self.g.data_init_status = 1
                 if params:
                     self.bus.publish(EventBus.TOPIC_TICK_DATA_INIT_PARAMS, params)
             else:

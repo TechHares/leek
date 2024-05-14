@@ -12,6 +12,7 @@ from decimal import Decimal
 from okx import MarketData
 
 from leek.common import logger, G, config
+from leek.common.utils import decimal_to_str
 from leek.data.data import WSDataSource, DataSource
 
 
@@ -42,19 +43,20 @@ class OkxKlineDataSource(WSDataSource):
         self.timer = None
 
     def data_init_hook(self, params) -> list:
+        logger.info("OkxKlineDataSource 初始化：%s" % json.dumps(params, default=decimal_to_str))
         if params is None:
             return []
         api = MarketData.MarketAPI(domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
-        symbol = params[0]
-        interval = params[1].replace("h", "H").replace("w", "W").replace("d", "D")
-        limit = min(100, params[2])
+        symbol = params["symbol"]
+        interval = params["interval"].replace("h", "H").replace("w", "W").replace("d", "D")
+        limit = min(100, params["size"])
         ts = int(time.time() * 1000)
         res = []
-        while len(res) < params[2]:
+        while len(res) < params["size"]:
             candlesticks = api.get_history_candlesticks(instId=symbol, bar=interval, limit=limit, after=ts)
             for row in candlesticks["data"]:
-                data = G(symbol=params[0],
-                         interval=params[1],
+                data = G(symbol=params["symbol"],
+                         interval=params["interval"],
                          timestamp=int(row[0]),
                          open=Decimal(row[1]),
                          high=Decimal(row[2]),
@@ -67,7 +69,7 @@ class OkxKlineDataSource(WSDataSource):
                 ts = int(row[0]) - 1
                 res.append(data)
 
-        res = res[:params[2]]
+        res = res[:params["size"]]
         res.reverse()
         return res
 
@@ -88,7 +90,7 @@ class OkxKlineDataSource(WSDataSource):
         msg = json.loads(message)
         if "event" in msg and (msg["event"] == "subscribe" or msg["event"] == "unsubscribe"):
             return
-        logger.info(f"OKX数据源：{msg}")
+        logger.debug(f"OKX数据源：{msg}")
         interval = msg["arg"]["channel"].replace("candle", "")
         symbol = msg["arg"]["instId"]
         if msg["data"]:

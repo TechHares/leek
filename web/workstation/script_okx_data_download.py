@@ -51,8 +51,6 @@ def download_okx_kline(start_date, end_date, symbols=None, intervals=None, skip=
 
 
 def __download_okx_kline(symbol, start_date, end_date, intervals, bar=None):
-    from leek.common import config
-    start_ts = int(datetime.datetime.strptime(start_date, '%Y-%m-%d').timestamp() * 1000)
     end_ts = int(datetime.datetime.strptime(end_date, '%Y-%m-%d').timestamp() * 1000) + 24 * 60 * 60 * 1000
     hour = 60 * 60 * 1000
     multi = {
@@ -69,6 +67,7 @@ def __download_okx_kline(symbol, start_date, end_date, intervals, bar=None):
     }
     tf = lambda x: datetime.datetime.fromtimestamp(x/1000).strftime('%Y-%m-%d %H:%M')
     for interval in intervals:
+        start_ts = int(datetime.datetime.strptime(start_date, '%Y-%m-%d').timestamp() * 1000)
         while start_ts < end_ts:
             n = start_ts + int(hour * multi[interval])
             if bar:
@@ -126,7 +125,5 @@ if __name__ == '__main__':
     print(" interval:", args.interval)
     print("     skip:", args.skip)
 
-    download_okx_kline("2024-05-04", "2024-05-05", symbols=["FIL-USDT-SWAP"], intervals=["1m"], skip=args.skip,
-                       inst_type=args.inst_type)
-    # download_okx_kline(args.start, args.end, symbols=args.symbols, intervals=args.interval, skip=args.skip, inst_type=args.inst_type)
-    # python script_binance_data_download.py --start=2024-03-01 --end=2024-04-02 --interval=5m --skip=7
+    download_okx_kline(args.start, args.end, symbols=args.symbols, intervals=args.interval, skip=args.skip, inst_type=args.inst_type)
+    # python script_okx_data_download.py --start=2024-03-01 --end=2024-04-02 --interval=5m --skip=7

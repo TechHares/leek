@@ -68,27 +68,43 @@ def __download_okx_kline(symbol, start_date, end_date, intervals, bar=None):
     }
     tf = lambda x: datetime.datetime.fromtimestamp(x / 1000).strftime('%Y-%m-%d %H:%M')
     for interval in intervals:
-        start_ts = int(datetime.datetime.strptime(start_date, '%Y-%m-%d').timestamp() * 1000)
+        start_ts = find_real_start_ts(symbol, interval,
+                                      int(datetime.datetime.strptime(start_date, '%Y-%m-%d').timestamp() * 1000),
+                                      end_ts)
         while start_ts < end_ts:
             n = start_ts + int(hour * multi[interval])
             if bar:
                 bar.set_postfix_str(f"{symbol} {interval} {tf(start_ts)} {tf(n)}")
 
-            candlesticks = get_data(symbol, interval, start_ts, n)
-            if candlesticks and candlesticks["code"] == "0":
-                rows = candlesticks["data"]
-                rows.reverse()
-                save_data(symbol, interval, rows)
-            else:
-                print(candlesticks)
-                exit(1)
+            rows = get_data(symbol, interval, start_ts, n)
+            rows.reverse()
+            save_data(symbol, interval, rows)
             start_ts = n
+
+
+def find_real_start_ts(symbol, interval, start_ts, end_ts):
+    max_find = 16
+    left, right = start_ts, end_ts
+    while max_find > 0 and left < right:
+        max_find -= 1
+        middle = int((left + right) / 2)
+        rows = get_data(symbol, interval, start_ts, middle)
+        if len(rows) == 0:
+            left = middle
+        elif len(rows) == 100:
+            right = middle
+        else:
+            break
+    return left
 
 
 def get_data(symbol, interval, start_ts, n, t=5):
     try:
-        return api.get_history_candlesticks(symbol, before="%s" % (start_ts - 1), after="%s" % n,
-                                            bar=interval)
+        candlesticks = api.get_history_candlesticks(symbol, before="%s" % (start_ts - 1), after="%s" % n,
+                                                    bar=interval)
+        if candlesticks is None or candlesticks["code"] != "0":
+            raise Exception(candlesticks["msg"] if candlesticks else candlesticks)
+        return candlesticks["data"]
     except Exception as e:
         if t > 0:
             time.sleep(0.5)

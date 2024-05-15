@@ -15,11 +15,11 @@ from leek.common.utils import decimal_to_str
 def send_to_dingding(content):
     requests.post("https://oapi.dingtalk.com/robot/send?access_token=" + ALERT_TOKEN,
                   headers={"Content-Type": "application/json"},
-                  data=json.dumps({"msgtype": "text", "text": {"content": "ERROR:" + content}}, default=decimal_to_str))
+                  data=json.dumps({"msgtype": "text", "text": {"content": "leek:" + content}}, default=decimal_to_str))
 
 
 def send_to_console(content):
-    print("Alert:", content)
+    print("leek:", content)
 
 
 def alert(msg):

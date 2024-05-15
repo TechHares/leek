@@ -100,6 +100,7 @@ class OkxWsTradeClient(threading.Thread):
                             pnl=d["pnl"],  # 收益，适用于有成交的平仓订单，其他情况均为0
                             cancel_source=d["cancelSource"],  # 取消原因
                             symbol=d["instId"],
+                            pos_side=d["posSide"],
                         ).__json__()
                         self.callback(order_result)
 
@@ -172,6 +173,11 @@ class SwapOkxTrader(Trader):
         PS.SHORT: "sell",
     }
 
+    __Pos_Side_Map = {
+        PS.LONG: "long",
+        PS.SHORT: "short",
+    }
+
     __Inst_Type_SPOT = "SPOT"
     __Inst_Type_MARGIN = "MARGIN"
     __Inst_Type_SWAP = "SWAP"
@@ -195,11 +201,11 @@ class SwapOkxTrader(Trader):
 
         self.lever = int(leverage)
 
-        self.client = Trade.TradeAPI(api_key=api_key, api_secret_key=api_secret_key, passphrase=passphrase, flag=self.flag, debug=False, proxy=config.PROXY)
-        self.accountAPI = Account.AccountAPI(api_key=api_key, api_secret_key=api_secret_key, passphrase=passphrase,
-                                             domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
+        self.client = Trade.TradeAPI(domain=self.domain, api_key=api_key, api_secret_key=api_secret_key, passphrase=passphrase, flag=self.flag, debug=False, proxy=config.PROXY)
+        self.account = Account.AccountAPI(api_key=api_key, api_secret_key=api_secret_key, passphrase=passphrase,
+                                          domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
 
-        self.publicApi = PublicData.PublicAPI(domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
+        self.public_client = PublicData.PublicAPI(domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
         self.ws_client = OkxWsTradeClient(self.__trade_callback, api_key=api_key,
                                           api_secret_key=api_secret_key, passphrase=passphrase, domain=ws_domain)
         self.ws_client.start()
@@ -210,6 +216,7 @@ class SwapOkxTrader(Trader):
             "instId": order.symbol,
             "clOrdId": "%s" % order.order_id,
             "side": SwapOkxTrader.__Side_Map[order.side],
+            "posSide": SwapOkxTrader.__Pos_Side_Map[order.side],
             "ordType": "limit",
             "sz": "%s" % self.__calculate_sz(order),
         }
@@ -247,7 +254,7 @@ class SwapOkxTrader(Trader):
         pos_trade.cancel_source = data["cancel_source"]
         pos_trade.symbol = data["symbol"]
 
-        instrument = self.__get_instrument(data["symbol"])
+        instrument = self.__get_instrument(data["symbol"], data["pos_side"])
         if not instrument:
             raise RuntimeError("交易信息获取失败")
 
@@ -275,13 +282,13 @@ class SwapOkxTrader(Trader):
         """
         if order.sz:
             return Decimal(order.sz)
-        instrument = self.__get_instrument(order.symbol)
+        instrument = self.__get_instrument(order.symbol, SwapOkxTrader.__Pos_Side_Map[order.side])
         if not instrument:
             raise RuntimeError("交易信息获取失败")
 
         ct_val = instrument["ctVal"]  # 合约面值
         if not order.price:
-            res = trader.publicApi.get_mark_price("SWAP", instId=order.symbol)
+            res = trader.public_client.get_mark_price("SWAP", instId=order.symbol)
             order.price = Decimal(res["data"][0]["markPx"])
         num = order.amount * self.lever / (order.price * Decimal(ct_val))
 
@@ -301,14 +308,16 @@ class SwapOkxTrader(Trader):
         return Decimal(sz)
 
     @cached(cache=TTLCache(maxsize=20, ttl=600))
-    def __get_instrument(self, symbol):
+    def __get_instrument(self, symbol, posSide):
         """
         获取交易产品基础信息
         :param symbol:
         :return:
         """
-        self.accountAPI.set_leverage(lever="%s" % self.lever, mgnMode=self.td_mode, instId=symbol)
-        instruments = self.publicApi.get_instruments(instType="SWAP", instId=symbol)
+        res = self.account.set_leverage(lever="%s" % self.lever, mgnMode=self.td_mode, instId=symbol, posSide=posSide)
+        if res and res["code"] != "0":
+            logger.error(f"设置杠杆失败:{res['msg'] if res else res}")
+        instruments = self.public_client.get_instruments(instType="SWAP", instId=symbol)
         if not instruments:
             return None
 
@@ -348,9 +357,10 @@ class SwapOkxTrader(Trader):
 
 if __name__ == '__main__':
     trader = SwapOkxTrader("", "",
-                 "", work_flag="1")
-
-    trader.order(Order("T0", "TOLONG1", OT.MarketOrder, "DOGE-USDT-SWAP", Decimal(100), side=PS.SHORT))
-
-    time.sleep(100)
-    trader.shutdown()
+                 "", work_flag="2")
+    leverage = trader.account.set_leverage(lever="3", mgnMode="isolated", instId="FIL-USDT-SWAP", posSide="short")
+    print(leverage)
+    # trader.order(Order("T0", "TOLONG1", OT.MarketOrder, "DOGE-USDT-SWAP", Decimal(100), side=PS.SHORT))
+    #
+    # time.sleep(100)
+    # trader.shutdown()

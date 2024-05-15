@@ -141,6 +141,7 @@ class PositionManager:
 
         self.__seq_id = 0
         self.post_constructor()
+        self.signal_processing_map = {}
 
     def post_constructor(self):
         """
@@ -181,6 +182,7 @@ class PositionManager:
         # 更新可用资金
         if position.quantity == 0:
             del self.quantity_map[trade.symbol]
+        del self.signal_processing_map[trade.symbol]
         self.logger_print("仓位更新结束", (trade.__str__(), position.__str__()))
 
     def logger_print(self, mark, extend=None):
@@ -201,11 +203,18 @@ class PositionManager:
 
     @locked
     def position_signal(self, signal):
+        if signal.symbol in self.signal_processing_map:
+            logger.info(f"标的有信号正在处理，忽略: 正在处理订单{self.signal_processing_map[signal.symbol]} => {signal.symbol}"
+                        f"-{signal.signal_name}/{datetime.fromtimestamp(signal.timestamp / 1000)}"
+                        f" rate={signal.position_rate}, cls={signal.creator.__name__},"
+                        f" price={signal.price}: {signal.memo}")
+            return
         logger.info(f"处理策略信号: {signal.symbol}-{signal.signal_name}/{datetime.fromtimestamp(signal.timestamp / 1000)}"
                     f" rate={signal.position_rate}, cls={signal.creator.__name__}, price={signal.price}: {signal.memo}")
 
         self.__seq_id += 1
         order_id = f"{signal.strategy_id}{'LONG' if signal.side == PositionSide.LONG else 'SHORT'}{self.__seq_id}"
+        self.signal_processing_map[signal.symbol] = order_id
 
         order = Order(signal.strategy_id, order_id, OT.MarketOrder, signal.symbol, Decimal(0), signal.price,
                       signal.side, signal.timestamp)
@@ -424,7 +433,7 @@ class BaseStrategy(metaclass=ABCMeta):
         position_signal.price = self.market_data.close
         position_signal.side = side
         position_signal.timestamp = self.market_data.timestamp
-        position_signal.position_rate = Decimal(position_rate)
+        position_signal.position_rate = Decimal("%s" % position_rate)
         position_signal.creator = self.__class__
         position_signal.strategy_id = self.__strategy_id
         position_signal.memo = memo

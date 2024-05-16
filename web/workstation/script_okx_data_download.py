@@ -76,7 +76,7 @@ def __download_okx_kline(symbol, start_date, end_date, intervals, bar=None):
             if bar:
                 bar.set_postfix_str(f"{symbol} {interval} {tf(start_ts)} {tf(n)}")
 
-            rows = get_data(symbol, interval, start_ts, n)
+            rows = get_data(symbol, interval, start_ts, n, bar=bar)
             rows.reverse()
             save_data(symbol, interval, rows)
             start_ts = n
@@ -90,7 +90,7 @@ def find_real_start_ts(symbol, interval, start_ts, end_ts, step):
     while max_find > 0 and left < right:
         max_find -= 1
         middle = int((left + right) / 2)
-        rows = get_data(symbol, interval, start_ts, middle)
+        rows = get_data(symbol, interval, left, middle)
         if len(rows) == 0:
             left = middle
         elif len(rows) == 100:
@@ -100,11 +100,14 @@ def find_real_start_ts(symbol, interval, start_ts, end_ts, step):
     return left
 
 
-def get_data(symbol, interval, start_ts, n, t=5):
+def get_data(symbol, interval, start_ts, n, t=5, bar=None):
     try:
         candlesticks = api.get_history_candlesticks(symbol, before="%s" % (start_ts - 1), after="%s" % n,
                                                     bar=interval)
         if candlesticks is None or candlesticks["code"] != "0":
+            if candlesticks:
+                if bar:
+                    bar.set_postfix_str(f"{symbol} {interval} {candlesticks['msg']}")
             raise Exception(candlesticks["msg"] if candlesticks else candlesticks)
         return candlesticks["data"]
     except Exception as e:

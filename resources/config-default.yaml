@@ -3,7 +3,7 @@ leek:
   download_dir: download   # 下载数据目录
   alert_type: console      # 通知方式
   alert_token: xxx         # 通知token
-  proxy: "http://127.0.0.1:11680"                  # 网络代理
+  proxy:                   # 网络代理
   allowed_domains:         # web允许访问的域名
     - "*"
   position:

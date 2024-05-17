@@ -5,18 +5,14 @@
 # @File    : script_binance_data_download.py
 # @Software: PyCharm
 import argparse
-import csv
 import datetime
-import json
-import shutil
+import os
 import sys
 import time
 from decimal import Decimal
 from pathlib import Path
-import os
 
 import django
-import requests
 import tqdm
 from okx import MarketData
 
@@ -135,12 +131,80 @@ def save_data(symbol, interval, rows):
     Kline.objects.bulk_create(datas)
 
 
+def generate_kline_from_1m(start_date, end_date):
+    from django.db import connections
+    with connections["data"].cursor() as cursor:
+        cursor.execute("select distinct symbol from workstation_kline")
+        rows = cursor.fetchall()
+        symbols = [row[0] for row in rows]
+    print(symbols)
+    print(len(symbols))
+    bar = tqdm.tqdm(total=len(symbols), desc="OKX数据数据生成")
+    for symbol in symbols:
+        bar.update(1)
+        __generate_kline_from_1m(symbol, start_date, end_date)
+
+
+def kline_handler(interval_ts, interval, from_interval_ts=60 * 1000):
+    from .models import Kline
+    k = None
+
+    def handle(kline):
+        nonlocal k
+        if k is None:
+            if kline.timestamp % interval_ts == 0:
+                k = Kline(
+                    id=generator.next(),
+                    interval=interval,
+                    timestamp=kline.timestamp,
+                    symbol=kline.symbol,
+                    open=kline.open,
+                    high=kline.high,
+                    low=kline.low,
+                    close=kline.close,
+                    volume=kline.volume,
+                    amount=kline.amount,
+                )
+        else:
+            k.high = max(kline.high, k.high)
+            k.low = min(k.low, kline.low)
+            k.close = kline.close
+            k.volume += kline.volume
+            k.amount += kline.amount
+            if (kline.timestamp + from_interval_ts) % interval_ts == 0:
+                tmp = k
+                k = None
+                return tmp
+
+    return handle
+
+
+def __generate_kline_from_1m(symbol, start_date, end_date):
+    _3m = kline_handler(3 * 60 * 1000, "3m")
+    _5m = kline_handler(5 * 60 * 1000, "5m")
+    _15m = kline_handler(15 * 60 * 1000, "15m")
+    _30m = kline_handler(30 * 60 * 1000, "30m")
+    _1H = kline_handler(60 * 60 * 1000, "1h")
+    _4H = kline_handler(4 * 60 * 60 * 1000, "4h")
+    hs = [_3m, _5m, _15m, _30m, _1H, _4H]
+    from .models import Kline
+    start_ts = int(datetime.datetime.strptime(start_date, '%Y-%m-%d').timestamp() * 1000)
+    end_ts = int(datetime.datetime.strptime(end_date, '%Y-%m-%d').timestamp() * 1000) + 24 * 60 * 60 * 1000
+    datas = Kline.objects.filter(symbol=symbol, interval="1m", timestamp__gte=start_ts, timestamp__lte=end_ts).order_by("timestamp")
+    res = []
+    for data in datas:
+        for h in hs:
+            if (d := h(data)) is not None:
+                res.append(d)
+    Kline.objects.bulk_create(res)
+
+
 if __name__ == '__main__':
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "website.settings")
     os.environ.setdefault("DISABLE_WORKER", "true")
     django.setup()
     __package__ = "workstation"
-
+    # generate_kline_from_1m("2024-03-01", "2024-03-05")
     parser = argparse.ArgumentParser(description='OKX行情下载参数')
 
     # 定义期望接收的参数
@@ -161,4 +225,5 @@ if __name__ == '__main__':
 
     download_okx_kline(args.start, args.end, symbols=args.symbols, intervals=args.interval, skip=args.skip,
                        inst_type=args.inst_type)
+
     # python script_okx_data_download.py --start=2024-03-01 --end=2024-04-02 --interval=5m --skip=7

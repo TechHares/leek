@@ -67,8 +67,9 @@ def __download_okx_kline(symbol, start_date, end_date, intervals, bar=None):
         start_ts = find_real_start_ts(symbol, interval,
                                       int(datetime.datetime.strptime(start_date, '%Y-%m-%d').timestamp() * 1000),
                                       end_ts, int(hour * multi[interval]))
+
         while start_ts < end_ts:
-            n = start_ts + int(hour * multi[interval])
+            n = min(start_ts + int(hour * multi[interval]), end_ts)
             if bar:
                 bar.set_postfix_str(f"{symbol} {interval} {tf(start_ts)} {tf(n)}")
 

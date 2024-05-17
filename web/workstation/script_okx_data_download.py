@@ -138,11 +138,10 @@ def generate_kline_from_1m(start_date, end_date):
         rows = cursor.fetchall()
         symbols = [row[0] for row in rows]
     print(symbols)
-    print(len(symbols))
     bar = tqdm.tqdm(total=len(symbols), desc="OKX数据数据生成")
     for symbol in symbols:
         bar.update(1)
-        __generate_kline_from_1m(symbol, start_date, end_date)
+        __generate_kline_from_1m(symbol, start_date, end_date, bar)
 
 
 def kline_handler(interval_ts, interval, from_interval_ts=60 * 1000):
@@ -179,23 +178,29 @@ def kline_handler(interval_ts, interval, from_interval_ts=60 * 1000):
     return handle
 
 
-def __generate_kline_from_1m(symbol, start_date, end_date):
+def __generate_kline_from_1m(symbol, start_date, end_date, bar=None):
     _3m = kline_handler(3 * 60 * 1000, "3m")
     _5m = kline_handler(5 * 60 * 1000, "5m")
     _15m = kline_handler(15 * 60 * 1000, "15m")
     _30m = kline_handler(30 * 60 * 1000, "30m")
     _1H = kline_handler(60 * 60 * 1000, "1h")
     _4H = kline_handler(4 * 60 * 60 * 1000, "4h")
-    hs = [_3m, _5m, _15m, _30m, _1H, _4H]
+    _8H = kline_handler(8 * 60 * 60 * 1000, "8h")
+    hs = [_3m, _5m, _15m, _30m, _1H, _4H, _8H]
     from .models import Kline
     start_ts = int(datetime.datetime.strptime(start_date, '%Y-%m-%d').timestamp() * 1000)
     end_ts = int(datetime.datetime.strptime(end_date, '%Y-%m-%d').timestamp() * 1000) + 24 * 60 * 60 * 1000
     datas = Kline.objects.filter(symbol=symbol, interval="1m", timestamp__gte=start_ts, timestamp__lte=end_ts).order_by("timestamp")
     res = []
+    i = 0
+    l = len(datas)
     for data in datas:
+        i += 1
         for h in hs:
             if (d := h(data)) is not None:
                 res.append(d)
+        if bar and i % 1000 == 0:
+            bar.set_postfix_str(f"{i}/{l}")
     Kline.objects.bulk_create(res)
 
 
@@ -204,7 +209,7 @@ if __name__ == '__main__':
     os.environ.setdefault("DISABLE_WORKER", "true")
     django.setup()
     __package__ = "workstation"
-    # generate_kline_from_1m("2024-03-01", "2024-03-05")
+
     parser = argparse.ArgumentParser(description='OKX行情下载参数')
 
     # 定义期望接收的参数
@@ -223,6 +228,7 @@ if __name__ == '__main__':
     print(" interval:", args.interval)
     print("     skip:", args.skip)
 
+    # generate_kline_from_1m(args.start, args.end)
     download_okx_kline(args.start, args.end, symbols=args.symbols, intervals=args.interval, skip=args.skip,
                        inst_type=args.inst_type)
 

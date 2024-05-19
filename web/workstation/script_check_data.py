@@ -82,22 +82,32 @@ def check_symbol(symbol, start_ts, end_ts, intervals, bar=None):
                 continue
             if len(valid_data) != config_interval[interval] // config_interval["1m"]:
                 print(f"{symbol} {interval} {tf(data.timestamp)} 长度不正确")
-            if data.open != valid_data[0].open:
+            if compare_fail(data.open, valid_data[0].open):
                 print(f"{symbol} {interval} {tf(data.timestamp)} open {data.open} != {valid_data[0].open}")
-            if data.close != valid_data[-1].close:
+            if compare_fail(data.close, valid_data[-1].close):
                 print(f"{symbol} {interval} {tf(data.timestamp)} close {data.close} != {valid_data[-1].close}")
-            if data.high != max([d.high for d in valid_data]):
+            if compare_fail(data.high, max([d.high for d in valid_data])):
                 print(f"{symbol} {interval} {tf(data.timestamp)} high {data.high} != {max([d.high for d in valid_data])}")
-            if data.low != min([d.low for d in valid_data]):
+            if compare_fail(data.low, min([d.low for d in valid_data])):
                 print(f"{symbol} {interval} {tf(data.timestamp)} low {data.low} != {min([d.low for d in valid_data])}")
 
             vol = sum([d.volume for d in valid_data])
-            if (vol == 0 and data.volume != 0) or (vol > 0 and abs(1 - data.volume / vol) > 0.0005):
+            if compare_fail(data.volume, vol):
                 print(f"{symbol} {interval} {tf(data.timestamp)} volume {data.volume} != {vol}")
 
             amt = sum([d.amount for d in valid_data])
-            if (amt == 0 and data.amount != amt) or (amt > 0 and abs(1 - data.amount / amt) > 0.0005):
+            if compare_fail(data.amount, amt):
                 print(f"{symbol} {interval} {tf(data.timestamp)} amount {data.amount} != {amt}")
+
+
+def compare_fail(a, b):
+    if a == b:
+        return False
+
+    if b is None or b == 0:
+        return True
+
+    return abs(1 - a / b) < 0.01
 
 
 def find_aggregate_bar(data, start_ts, end_ts):

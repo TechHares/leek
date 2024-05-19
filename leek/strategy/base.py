@@ -214,7 +214,6 @@ class PositionManager:
 
         self.__seq_id += 1
         order_id = f"{signal.strategy_id}{'LONG' if signal.side == PositionSide.LONG else 'SHORT'}{self.__seq_id}"
-        self.signal_processing_map[signal.symbol] = order_id
 
         order = Order(signal.strategy_id, order_id, OT.MarketOrder, signal.symbol, Decimal(0), signal.price,
                       signal.side, signal.timestamp)
@@ -229,6 +228,7 @@ class PositionManager:
             order.amount = amount
 
         order.extend = signal.extend
+        self.signal_processing_map[signal.symbol] = order_id
         self.bus.publish(EventBus.TOPIC_ORDER_DATA, order)
 
     @locked

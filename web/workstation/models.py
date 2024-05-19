@@ -233,14 +233,15 @@ class StrategyConfig(models.Model):
     def save(
             self, force_insert=False, force_update=False, using=None, update_fields=None
     ):
-        st = StrategyConfig.objects.get(id=self.id)
-        if st.process_id and st.process_id > 0:
-            try:
-                psutil.Process(st.process_id).terminate()
-                logger.info(f"策略{self.name}进程{st.process_id}已终止")
-            except psutil.NoSuchProcess:
-                pass
-            self.process_id = 0
+        if self.id and self.id > 0:
+            st = StrategyConfig.objects.get(id=self.id)
+            if st.process_id and st.process_id > 0:
+                try:
+                    psutil.Process(st.process_id).terminate()
+                    logger.info(f"策略{self.name}进程{st.process_id}已终止")
+                except psutil.NoSuchProcess:
+                    pass
+                self.process_id = 0
         if self.status == 1 or self.run_data is None:
             self.run_data = {}
         super().save(force_insert, force_update, using, update_fields)

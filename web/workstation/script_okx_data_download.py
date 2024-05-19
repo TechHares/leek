@@ -5,6 +5,7 @@
 # @File    : script_binance_data_download.py
 # @Software: PyCharm
 import argparse
+import csv
 import datetime
 import os
 import sys
@@ -28,7 +29,7 @@ generator = IdGenerator(1)
 api = MarketData.MarketAPI(domain="https://aws.okx.com", flag="0", debug=False, proxy=config.PROXY)
 
 
-def download_okx_kline(start_date, end_date, symbols=None, intervals=None, skip=0, inst_type="SWAP"):
+def download_okx_kline(start_date, end_date, symbols=None, intervals=None, skip=0, inst_type="SWAP", save_to="DB"):
     if intervals is None:
         intervals = ["1H", "4H", "6H", "12H", "1m", "3m", "5m", "15m", "30m", "1D"]
     if symbols is None or len(symbols) == 0:
@@ -44,10 +45,10 @@ def download_okx_kline(start_date, end_date, symbols=None, intervals=None, skip=
         bar.update(1)
         if bar.n < skip:
             continue
-        __download_okx_kline(symbol, start_date, end_date, intervals, bar)
+        __download_okx_kline(symbol, start_date, end_date, intervals, save_to.lower(), bar)
 
 
-def __download_okx_kline(symbol, start_date, end_date, intervals, bar=None):
+def __download_okx_kline(symbol, start_date, end_date, intervals, save_to, bar=None):
     end_ts = int(datetime.datetime.strptime(end_date, '%Y-%m-%d').timestamp() * 1000) + 24 * 60 * 60 * 1000
     hour = 60 * 60 * 1000
     multi = {
@@ -75,7 +76,10 @@ def __download_okx_kline(symbol, start_date, end_date, intervals, bar=None):
 
             rows = get_data(symbol, interval, start_ts, n, bar=bar)
             rows.reverse()
-            save_data(symbol, interval, rows)
+            if save_to == "db":
+                save_data(symbol, interval, rows)
+            if save_to == "file":
+                save_data_to_file(symbol, interval, rows)
             start_ts = n
 
 
@@ -130,6 +134,52 @@ def save_data(symbol, interval, rows):
         amount=Decimal(row[7]),
     ) for row in rows if int(row[8]) == 1]
     Kline.objects.bulk_create(datas)
+
+
+def save_data_to_file(symbol, interval, rows):
+    datas = [{
+        "timestamp": row[0],
+        "open": row[1],
+        "high": row[2],
+        "low": row[3],
+        "close": row[4],
+        "volume": row[5],
+        "amount": row[7],
+    } for row in rows if int(row[8]) == 1]
+    p = os.path.join(config.DOWNLOAD_DIR, "okx")
+    if not os.path.exists(p):
+        os.makedirs(p)
+    filename = f"{p}/{symbol}-{interval}.csv"
+    with open(filename, "a", newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=["timestamp", "open", "high", "low", "close", "volume", "amount"])
+        # 写入表头（如果文件是新创建的）
+        if os.path.getsize(filename) == 0:
+            writer.writeheader()
+        writer.writerows(datas)
+
+
+def save_csv_to_db():
+    from .models import Kline
+    dir = os.path.join(config.DOWNLOAD_DIR, "okx")
+    file_names = os.listdir(dir)
+    print(file_names)
+    for file_name in file_names:
+        with open(os.path.join(dir, file_name), "r") as f:
+            reader = csv.DictReader(f)
+            datas = [Kline(
+                id=generator.next(),
+                interval="1m",
+                timestamp=int(row["timestamp"]),
+                symbol=file_name[:file_name.rindex("-")],
+                open=Decimal(row["open"]),
+                high=Decimal(row["high"]),
+                low=Decimal(row["low"]),
+                close=Decimal(row["close"]),
+                volume=Decimal(row["volume"]),
+                amount=Decimal(row["amount"]),
+            ) for row in reader]
+            Kline.objects.bulk_create(datas)
+        print(file_name, "finish")
 
 
 def generate_kline_from_1m(start_date, end_date):
@@ -191,7 +241,8 @@ def __generate_kline_from_1m(symbol, start_date, end_date, bar=None):
     from .models import Kline
     start_ts = int(datetime.datetime.strptime(start_date, '%Y-%m-%d').timestamp() * 1000)
     end_ts = int(datetime.datetime.strptime(end_date, '%Y-%m-%d').timestamp() * 1000) + 24 * 60 * 60 * 1000
-    datas = Kline.objects.filter(symbol=symbol, interval="1m", timestamp__gte=start_ts, timestamp__lte=end_ts).order_by("timestamp")
+    datas = Kline.objects.filter(symbol=symbol, interval="1m", timestamp__gte=start_ts, timestamp__lte=end_ts).order_by(
+        "timestamp")
     res = []
     i = 0
     l = len(datas)
@@ -217,6 +268,7 @@ if __name__ == '__main__':
     parser.add_argument('--start', type=str, default=datetime.datetime.now().strftime("%Y-%m-%d"))
     parser.add_argument('--end', type=str, default=datetime.datetime.now().strftime("%Y-%m-%d"))
     parser.add_argument('--inst_type', type=str, default="SWAP")
+    parser.add_argument('--save_to', type=str, default="DB")
     parser.add_argument('--symbols', type=lambda x: x.split(','), default=[])
     parser.add_argument('--interval', type=lambda x: x.split(','),
                         default=["1H", "4H", "6H", "12H", "1m", "3m", "5m", "15m", "30m", "1D"])
@@ -228,9 +280,10 @@ if __name__ == '__main__':
     print("  symbols:", args.symbols)
     print(" interval:", args.interval)
     print("     skip:", args.skip)
+    print("  save_to:", args.save_to)
 
     # generate_kline_from_1m(args.start, args.end)
     download_okx_kline(args.start, args.end, symbols=args.symbols, intervals=args.interval, skip=args.skip,
-                       inst_type=args.inst_type)
+                       inst_type=args.inst_type, save_to=args.save_to)
 
     # python script_okx_data_download.py --start=2024-03-01 --end=2024-04-02 --interval=5m --skip=7

@@ -22,6 +22,20 @@ if root in sys.path:
 sys.path.append(f'{Path(__file__).resolve().parent.parent}')
 sys.path.append(f'{root}')
 
+tf = lambda x: datetime.datetime.fromtimestamp(x / 1000).strftime('%Y-%m-%d %H:%M')
+config_interval = {
+    "1m": 60 * 1000,
+    "3m": 3 * 60 * 1000,
+    "5m": 5 * 60 * 1000,
+    "15m": 15 * 60 * 1000,
+    "30m": 30 * 60 * 1000,
+    "1h": 60 * 60 * 1000,
+    "4h": 4 * 60 * 60 * 1000,
+    "6h": 6 * 60 * 60 * 1000,
+    "12h": 12 * 60 * 60 * 1000,
+    "1d": 24 * 60 * 60 * 1000,
+}
+
 
 def check_kline(start_date, end_date, symbols=None, intervals=None, skip=0):
     if intervals is None:
@@ -38,7 +52,8 @@ def check_kline(start_date, end_date, symbols=None, intervals=None, skip=0):
     start_ts = int(datetime.datetime.strptime(start_date, '%Y-%m-%d').timestamp() * 1000)
     print(start_ts, end_ts)
     n = 100 * 24 * 60 * 60 * 1000
-    time_intervals = [[start_ts + n * i, min(start_ts + n * i + n, end_ts)] for i in range((end_ts - start_ts)//n + 1)]
+    time_intervals = [[start_ts + n * i, min(start_ts + n * i + n, end_ts)] for i in
+                      range((end_ts - start_ts) // n + 1)]
     tf = lambda x: datetime.datetime.fromtimestamp(x / 1000).strftime('%Y-%m-%d %H:%M')
     bar = tqdm.tqdm(total=len(symbols) * len(intervals) * len(time_intervals), desc="数据校验")
     for time_interval in time_intervals:
@@ -50,20 +65,6 @@ def check_kline(start_date, end_date, symbols=None, intervals=None, skip=0):
 
 
 def check_symbol(symbol, start_ts, end_ts, intervals, bar=None):
-
-    tf = lambda x: datetime.datetime.fromtimestamp(x / 1000).strftime('%Y-%m-%d %H:%M')
-    config_interval = {
-        "1m": 60 * 1000,
-        "3m": 3 * 60 * 1000,
-        "5m": 5 * 60 * 1000,
-        "15m": 15 * 60 * 1000,
-        "30m": 30 * 60 * 1000,
-        "1h": 60 * 60 * 1000,
-        "4h": 4 * 60 * 60 * 1000,
-        "6h": 6 * 60 * 60 * 1000,
-        "12h": 12 * 60 * 60 * 1000,
-        "1d": 24 * 60 * 60 * 1000,
-    }
     from .models import Kline
     datas = Kline.objects.filter(symbol=symbol, interval="1m", timestamp__gte=start_ts, timestamp__lt=end_ts).order_by(
         "timestamp")
@@ -87,7 +88,8 @@ def check_symbol(symbol, start_ts, end_ts, intervals, bar=None):
             if compare_fail(data.close, valid_data[-1].close):
                 print(f"{symbol} {interval} {tf(data.timestamp)} close {data.close} != {valid_data[-1].close}")
             if compare_fail(data.high, max([d.high for d in valid_data])):
-                print(f"{symbol} {interval} {tf(data.timestamp)} high {data.high} != {max([d.high for d in valid_data])}")
+                print(
+                    f"{symbol} {interval} {tf(data.timestamp)} high {data.high} != {max([d.high for d in valid_data])}")
             if compare_fail(data.low, min([d.low for d in valid_data])):
                 print(f"{symbol} {interval} {tf(data.timestamp)} low {data.low} != {min([d.low for d in valid_data])}")
 
@@ -130,6 +132,15 @@ def binary_search(sorted_list, target):
             right = mid - 1
     return -1
 
+
+"""
+-- ck简单校验K线数量
+with tsp as(SELECT arrayElement(array1, number) AS interval, arrayElement(array2, number) AS deta_ts FROM (select ['1m', '3m', '5m', '15m', '30m', '1h', '4h', '6h', '12h', '1d'] array1,[60000,180000,900000,1800000,3600000,14400000,21600000,28800000,43200000,86400000] array2) a CROSS JOIN numbers(1, 10) AS n),
+r as (select symbol,interval,min(timestamp) start,max(timestamp) end, count(*) act from  workstation_kline group by symbol,interval),
+b as (select symbol, r.interval, toDateTime(start/1000, 3),toDateTime(end/1000, 3), act, toInt64((end-start) / deta_ts) exp from r,tsp where r.interval=tsp.interval)
+
+select * from b where act!= exp+1 
+"""
 
 if __name__ == '__main__':
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "website.settings")

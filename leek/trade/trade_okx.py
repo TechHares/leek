@@ -235,6 +235,24 @@ class SwapOkxTrader(Trader):
         #     ]
         # })
         logger.info(f"[{order.strategy_id} - 下单], response: {res}")
+        if res["code"] != "0":
+            logger.error(f"下单失败: {json.dumps(res)}")
+            pos_trade = G()
+            pos_trade.order_id = order.order_id
+            pos_trade.transaction_price = 0
+            pos_trade.lever = self.lever
+            pos_trade.fee = 0
+            pos_trade.pnl = 0
+            pos_trade.sz = 0
+            pos_trade.cancel_source = 0
+            pos_trade.symbol = order.symbol
+            pos_trade.ct_val = 0
+
+            pos_trade.transaction_volume = 0
+            pos_trade.transaction_amount =0
+            pos_trade.side = order.side
+            logger.info(f"OKX交易回调：{pos_trade}")
+            self._trade_callback(pos_trade)
         # return order
 
     def __trade_callback(self, data):

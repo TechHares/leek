@@ -95,6 +95,7 @@ class Position:
         order = Order(strategy_id, order_id, order_type, self.symbol, self.value,
                       price, PositionSide.switch_side(self.direction))
         order.sz = self.sz
+        order.pos_type = self.direction
         return order
 
     def __str__(self):
@@ -219,6 +220,7 @@ class PositionManager:
                       signal.side, signal.timestamp)
 
         if signal.signal_type == "CLOSE":
+            order.pos_type = PositionSide.switch_side(signal.side)
             if self.get_position(signal.symbol).sz is not None:
                 order.sz = self.get_position(signal.symbol).sz
         else:

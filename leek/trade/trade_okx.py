@@ -216,7 +216,7 @@ class SwapOkxTrader(Trader):
             "instId": order.symbol,
             "clOrdId": "%s" % order.order_id,
             "side": SwapOkxTrader.__Side_Map[order.side],
-            "posSide": SwapOkxTrader.__Pos_Side_Map[order.side],
+            "posSide": SwapOkxTrader.__Pos_Side_Map[order.pos_type],
             "ordType": "limit",
             "sz": "%s" % self.__calculate_sz(order),
         }

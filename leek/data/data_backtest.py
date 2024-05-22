@@ -155,7 +155,7 @@ class BacktestDataSource(DataSource):
                     ts = row[0]
                 ticket = G(symbol=row[1], timestamp=row[0], open=Decimal(row[2]), high=Decimal(row[3]),
                            low=Decimal(row[4]), close=Decimal(row[5]), volume=Decimal(row[6]), amount=Decimal(row[7]),
-                           interval=row[8], finish=1 if row[8] == config.BACKTEST_TARGET_INTERVAL else 0)
+                           interval=row[8], finish=1 if not config.BACKTEST_EMULATION or row[8] == config.BACKTEST_TARGET_INTERVAL else 0)
                 if config.BACKTEST_EMULATION and self.interval == config.BACKTEST_TARGET_INTERVAL:
                     if self.interval == ticket.interval:  # K线
                         if ticket.symbol in emulation_map:

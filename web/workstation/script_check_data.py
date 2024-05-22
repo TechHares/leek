@@ -106,10 +106,10 @@ def compare_fail(a, b):
     if a == b:
         return False
 
-    if b is None or b == 0:
+    if b is None or a is None or b == 0:
         return True
 
-    return abs(1 - a / b) < 0.01
+    return abs(1 - a / b) > 0.02
 
 
 def find_aggregate_bar(data, start_ts, end_ts):
@@ -135,9 +135,9 @@ def binary_search(sorted_list, target):
 
 """
 -- ck简单校验K线数量
-with tsp as(SELECT arrayElement(array1, number) AS interval, arrayElement(array2, number) AS deta_ts FROM (select ['1m', '3m', '5m', '15m', '30m', '1h', '4h', '6h', '12h', '1d'] array1,[60000,180000,900000,1800000,3600000,14400000,21600000,28800000,43200000,86400000] array2) a CROSS JOIN numbers(1, 10) AS n),
+with tsp as(SELECT arrayElement(array1, number) AS interval, arrayElement(array2, number) AS deta_ts FROM (select ['1m', '3m', '5m', '15m', '30m', '1h', '4h', '6h', '8h', '12h', '1d'] array1,[60000,180000,300000,900000,1800000,3600000,14400000,21600000,28800000,43200000,86400000] array2) a CROSS JOIN numbers(1, 11) AS n),
 r as (select symbol,interval,min(timestamp) start,max(timestamp) end, count(*) act from  workstation_kline group by symbol,interval),
-b as (select symbol, r.interval, toDateTime(start/1000, 3),toDateTime(end/1000, 3), act, toInt64((end-start) / deta_ts) exp from r,tsp where r.interval=tsp.interval)
+b as (select symbol, r.interval, toDateTime(start/1000, 3),toDateTime(end/1000, 3), act, toInt64((end-start) / deta_ts) exp,deta_ts from r,tsp where r.interval=tsp.interval)
 
 select * from b where act!= exp+1 
 """
@@ -166,4 +166,4 @@ if __name__ == '__main__':
 
     check_kline(args.start, args.end, symbols=args.symbols, intervals=args.interval, skip=args.skip)
 
-    # python script_okx_data_download.py --start=2024-03-01 --end=2024-04-02 --interval=5m --skip=7
+    # python script_check_data.py --start=2024-03-01 --end=2024-04-02 --interval=5m --skip=7

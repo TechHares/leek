@@ -52,12 +52,11 @@ class TestSymbolChoose(unittest.TestCase):
             "datasource": {
                 "isIndeterminateSymbols": "true",
                 "checkAllSymbols": "false",
-                "interval": "4H",
+                "interval": "1h",
                 "symbols": ["FILUSDT"],
                 "benchmark": "FILUSDT",
-                "daterange": [1557760900479, 1715440900479],
-                "start_time": 1557760900479,
-                "end_time": 1715440900479
+                "start_time": 1714657956000,
+                "end_time": 1716385959000
             }
         }
         self.symbols = BacktestDataSource("4h", [], 0, 0, "x").get_all_symbol()
@@ -82,9 +81,9 @@ class TestSymbolChoose(unittest.TestCase):
         results = Parallel(n_jobs=-1)(delayed(run)(task) for task in ws)
         print(results)
 
-        print(sorted(results, key=lambda x: x[1], reverse=True)[:10])
-
+        r = sorted(results, key=lambda x: x[1], reverse=True)[:10]
+        print(r)
+        print(",".join([x[0] for x in d if x[1] > 1000]))
 
 if __name__ == '__main__':
     unittest.main()
-    #

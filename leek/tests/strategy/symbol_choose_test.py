@@ -83,7 +83,7 @@ class TestSymbolChoose(unittest.TestCase):
 
         r = sorted(results, key=lambda x: x[1], reverse=True)[:10]
         print(r)
-        print(",".join([x[0] for x in d if x[1] > 1000]))
+        print(",".join([x[0] for x in r if x[1] > 1000]))
 
 if __name__ == '__main__':
     unittest.main()

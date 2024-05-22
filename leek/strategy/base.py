@@ -95,6 +95,7 @@ class Position:
         order = Order(strategy_id, order_id, order_type, self.symbol, self.value,
                       price, PositionSide.switch_side(self.direction))
         order.sz = self.sz
+        order.pos_type = self.direction
         return order
 
     def __str__(self):
@@ -171,12 +172,14 @@ class PositionManager:
         position = self.quantity_map[trade.symbol]
         self.logger_print("仓位更新", (trade.__str__(), position.__str__()))
         self.bus.publish(EventBus.TOPIC_POSITION_UPDATE, position, trade)
-
-        amt = position.update_filled_position(trade)
+        if trade.transaction_volume == 0:
+            amt = 0
+        else:
+            amt = position.update_filled_position(trade)
         if position.direction == trade.side:  # 开仓
             rate = self.release_amount(trade.order_id, amt, trade.fee)
             position.quantity_rate += rate
-        else:
+        elif trade.transaction_volume > 0:
             self.release_position(position.quantity_rate, amt, trade.fee)
 
         # 更新可用资金
@@ -219,6 +222,7 @@ class PositionManager:
                       signal.side, signal.timestamp)
 
         if signal.signal_type == "CLOSE":
+            order.pos_type = PositionSide.switch_side(signal.side)
             if self.get_position(signal.symbol).sz is not None:
                 order.sz = self.get_position(signal.symbol).sz
         else:

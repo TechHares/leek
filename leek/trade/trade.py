@@ -62,6 +62,7 @@ class Order:
         self.order_time = order_time  # 时间
         if self.order_time is None:
             self.order_time = int(time.time()*1000)
+        self.pos_type = side
 
         self.sz = None  # 实际需交易数量，如amount与实际挂单之间有运算，传此值不转化直接使用
         self.cct = None  # sz 对应面值

@@ -48,12 +48,12 @@ class TestSymbolChoose(unittest.TestCase):
             "direction": "4",
             "n1": 4,
             "n2": 4,
-            "n3": 6,
+            "n3": 4,
             "atr_coefficient": "1.3",
             "stop_loss_rate": "0.02",
 
-        }, "15m", "2024-05-21", "2024-05-24")
-
+        }, "1h", "2024-01-01", "2024-05-24")
+        # FRONT-USDT-SWAP,TURBO-USDT-SWAP,LPT-USDT-SWAP,CORE-USDT-SWAP,ID-USDT-SWAP,PEOPLE-USDT-SWAP,TRB-USDT-SWAP,FET-USDT-SWAP,BIGTIME-USDT-SWAP,SUSHI-USDT-SWAP
         workflow.start()
 
 

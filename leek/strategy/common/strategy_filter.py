@@ -9,6 +9,7 @@ from collections import deque
 from decimal import Decimal
 
 from leek.common import G, logger
+from leek.common.utils import decimal_quantize
 from leek.strategy.common.strategy_common import CalculatorContainer
 from leek.trade.trade import PositionSide
 
@@ -206,7 +207,7 @@ class DynamicRiskControl(Filter):
         :param atr_coefficient: atr系数， 根据风险偏好，越大止损范围越大
         :param stop_loss_rate: 止损比例
         """
-        self.atr_stop_loss_coefficient = Decimal(atr_coefficient)  # 动态
+        self.atr_stop_loss_coefficient = decimal_quantize(Decimal(atr_coefficient), 3)  # 动态
         self.stop_loss_rate = Decimal(stop_loss_rate)  # 动态
 
         self.tr_window = 13
@@ -241,13 +242,13 @@ class DynamicRiskControl(Filter):
                                           market_data.close * (1 - self.stop_loss_rate))
             return True
 
-        if position.direction == PositionSide.SHORT and market_data.close > ctx.stop_loss_price:
+        if position.direction == PositionSide.SHORT and self.short_risk(market_data, ctx, atr):
             ctx.risk_control = True
             self.close_position(memo=f"动态平仓：系数={self.atr_stop_loss_coefficient} 退出价={ctx.stop_loss_price}"
                                      f"触发价格={market_data.close} 平均持仓价={position.avg_price}"
                                      f" 差价={position.avg_price-market_data.close}")
             return False
-        if position.direction == PositionSide.LONG and market_data.close < ctx.stop_loss_price:
+        if position.direction == PositionSide.LONG and self.long_risk(market_data, ctx, atr):
             ctx.risk_control = True
             self.close_position(memo=f"动态平仓：系数={self.atr_stop_loss_coefficient} 退出价={ctx.stop_loss_price}"
                                      f"触发价格={market_data.close} 平均持仓价={position.avg_price}"
@@ -269,9 +270,33 @@ class DynamicRiskControl(Filter):
 
         return True
 
+    @staticmethod
+    def long_risk(market_data, ctx, atr):
+        if market_data.close < ctx.stop_loss_price:
+            return True
 
+        if market_data.finish == 0:
+            return False
 
+        needle = market_data.high - market_data.close  # 阴线实体部分也计入
+        if needle < atr:  # 短阴线不处理
+            return False
 
+        return needle > 3 * abs(market_data.open - market_data.close)
+
+    @staticmethod
+    def short_risk(market_data, ctx, atr):
+        if market_data.close > ctx.stop_loss_price:
+            return True
+
+        if market_data.finish == 0:
+            return False
+
+        needle = market_data.close - market_data.low  # 阴线实体部分也计入
+        if needle < atr:  # 短阴线不处理
+            return False
+
+        return needle > 3 * abs(market_data.open - market_data.close)
 
 
 PRE_STRATEGY_LIST = [SymbolsFilter, SymbolFilter, StopLoss, TakeProfit, FallbackTakeProfit]

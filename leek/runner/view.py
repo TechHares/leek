@@ -9,6 +9,7 @@ from decimal import Decimal
 import cachetools
 
 from leek.common import EventBus, config, G
+from leek.common.utils import DateTime
 from leek.data import BacktestDataSource, DataSource
 from leek.data.data_backtest import StockBacktestDataSource
 from leek.runner.runner import BaseWorkflow
@@ -19,16 +20,19 @@ import pandas as pd
 
 
 class ViewWorkflow(BaseWorkflow):
-    def __init__(self, strategy, interval: str, start_time: int, end_time: int, symbol, data_source_type=0):
+    def __init__(self, strategy, interval: str, start_time, end_time, symbol, data_source_type=0):
         BaseWorkflow.__init__(self, "V0")
         self.interval = interval
         self.strategy = strategy
+        if isinstance(start_time, str):
+            start_time = DateTime.to_timestamp(start_time)
+        if isinstance(end_time, str):
+            end_time = DateTime.to_timestamp(end_time)
         self.start_time = start_time
         self.end_time = end_time
         self.benchmark = symbol
         self.data_source_type = data_source_type
 
-        self.kline_data = []
         self.kline_data_g = []
         self.open_long = []
         self.open_short = []
@@ -55,56 +59,36 @@ class ViewWorkflow(BaseWorkflow):
             self.close_short.append(sig.timestamp)
 
     @cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=600))
-    def get_data(self):
+    def get_data(self, benchmark: str):
+        data = []
+        bus = EventBus()
         if self.data_source_type == 1:
-            data = []
             self.data_source = StockBacktestDataSource()
-            bus = EventBus()
             DataSource.__init__(self.data_source, bus)
-            BacktestDataSource.__init__(self.data_source, self.interval, [], self.start_time, self.end_time, self.benchmark)
-            bus.subscribe(EventBus.TOPIC_TICK_DATA, lambda x: data.append(x.__json__()))
-            self.data_source._run()
-            self.data_source.bus = self.bus
-            return data
-        self.data_source = BacktestDataSource(self.interval, [], self.start_time, self.end_time, self.benchmark)
-        DataSource.__init__(self.data_source, self.bus)
-        conn, cursor = None, None
-        if config.KLINE_DB_TYPE == "CLICKHOUSE":
-            conn, cursor = self.data_source._ck_run()
-        elif config.KLINE_DB_TYPE == "SQLITE":
-            conn, cursor = self.data_source._sqlite_run()
-        try:
-            return [G(symbol=row[1],
-                      timestamp=row[0],
-                      open=Decimal(row[2]),
-                      high=Decimal(row[3]),
-                      low=Decimal(row[4]),
-                      close=Decimal(row[5]),
-                      volume=Decimal(row[6]),
-                      amount=Decimal(row[7]),
-                      finish=1
-                      ).__json__() for row in cursor]
-        finally:
-            if conn:
-                conn.close()
+            BacktestDataSource.__init__(self.data_source, self.interval, [], self.start_time, self.end_time, benchmark)
+        else:
+            self.data_source = BacktestDataSource(self.interval, [], self.start_time, self.end_time, benchmark)
+            DataSource.__init__(self.data_source, bus)
 
-    @cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=600))
-    def get_data_g(self):
-        return [G(**row) for row in self.get_data()]
+        bus.subscribe(EventBus.TOPIC_TICK_DATA, lambda x: data.append(x))
+        self.data_source._run()
+        self.data_source.bus = self.bus
+        return data
+
 
     def handle_data(self):
-        for data in self.get_data_g():
-            js = data.__json__()
-            self.kline_data.append(js)
-            self.kline_data_g.append(data)
+        for data in self.get_data(self.benchmark):
+            if data.finish == 1:
+                self.kline_data_g.append(data)
             self.data_source._send_tick_data(data)
+            data.balance = self.strategy.position_manager.get_value()
 
     def draw(self, fig=None, row=1, col=1, df=None):
         import plotly.graph_objs as go
         from plotly.subplots import make_subplots
 
         if df is None:
-            df = pd.DataFrame(self.kline_data)
+            df = pd.DataFrame([x.__json__() for x in self.kline_data_g])
             df['Datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
         # 创建 Plotly 子图
         if fig is None:

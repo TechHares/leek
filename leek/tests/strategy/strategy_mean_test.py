@@ -4,20 +4,49 @@
 # @Author  : shenglin.li
 # @File    : strategy_atr_test.py
 # @Software: PyCharm
+import unittest
 from decimal import Decimal
 
 import numpy as np
 import pandas as pd
 from plotly.subplots import make_subplots
 
+from leek.common import EventBus
 from leek.runner.view import ViewWorkflow
 import plotly.graph_objs as go
 
 from leek.strategy.common.strategy_common import PositionRateManager
+from leek.strategy.common import SymbolsFilter, PositionDirectionManager, CalculatorContainer, AtrStopLoss
+from leek.strategy.strategy_mean import SingleMaStrategy, LLTStrategy
+from leek.trade.trade import PositionSide
+
+
+class TestMean(unittest.TestCase):
+    def test_llthandle(self):
+        strategy = LLTStrategy()
+        PositionDirectionManager.__init__(strategy, PositionSide.FLAT)
+        PositionRateManager.__init__(strategy, "1")
+        self.bus = EventBus()
+        workflow = ViewWorkflow(strategy, "4h", 1704124800000, 1715159848986, "BTCUSDT")
+        # workflow = ViewWorkflow(strategy, "1d", 1199116800000, 1716369864986, "600031", 1)
+        # workflow = ViewWorkflow(strategy, "1d", 1514736000600, 1716369864986, "399967", 1)
+
+        workflow.start()
+        df = pd.DataFrame([x.__json__() for x in workflow.kline_data_g])
+        df['Datetime'] = pd.to_datetime(df['timestamp'] + 8 * 60 * 60 * 1000, unit='ms')
+        fig = make_subplots(rows=3, cols=1, shared_xaxes=True)
+        # 添加开仓通道
+        df['ma'] = df['close'].rolling(window=20).mean().apply(lambda x: Decimal(x))
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['llt'], mode='lines', name='LLT'), row=1, col=1)
+        # fig.add_trace(go.Scatter(x=df['Datetime'], y=df['ma'], mode='lines', name='MA'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['llt2'], mode='lines', name='LLT2'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['k'], mode='lines', name='斜率'), row=2, col=1)
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['balance'], mode='lines', name='斜率'), row=3, col=1)
+        workflow.draw(fig=fig, df=df)
+        print(len(df))
+        fig.show()
 
 if __name__ == '__main__':
-    from leek.strategy.common import SymbolsFilter, PositionDirectionManager, CalculatorContainer, AtrStopLoss
-    from leek.strategy.strategy_mean import SingleMaStrategy
 
     strategy = SingleMaStrategy()
     PositionRateManager.__init__(strategy, 0.5)

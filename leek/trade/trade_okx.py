@@ -128,7 +128,8 @@ class OkxWsTradeClient(threading.Thread):
             self.ws.run_forever(http_proxy_host=config.PROXY_HOST, http_proxy_port=config.PROXY_PORT, proxy_type="http")
 
     def on_close(self, ws, close_status_code, close_msg):
-        logger.error(f"OkxWsTradeClient连接关闭: {self.domain}, close_status_code={close_status_code}, close_msg={close_msg}")
+        logger.error(
+            f"OkxWsTradeClient连接关闭: {self.domain}, close_status_code={close_status_code}, close_msg={close_msg}")
         if self.keep_running:
             time.sleep(5)
             logger.info("OkxWsTradeClient 重连 ... ...")
@@ -201,7 +202,8 @@ class SwapOkxTrader(Trader):
 
         self.lever = int(leverage)
 
-        self.client = Trade.TradeAPI(domain=self.domain, api_key=api_key, api_secret_key=api_secret_key, passphrase=passphrase, flag=self.flag, debug=False, proxy=config.PROXY)
+        self.client = Trade.TradeAPI(domain=self.domain, api_key=api_key, api_secret_key=api_secret_key,
+                                     passphrase=passphrase, flag=self.flag, debug=False, proxy=config.PROXY)
         self.account = Account.AccountAPI(api_key=api_key, api_secret_key=api_secret_key, passphrase=passphrase,
                                           domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
 
@@ -237,27 +239,35 @@ class SwapOkxTrader(Trader):
         logger.info(f"[{order.strategy_id} - 下单], response: {res}")
         if res["code"] != "0":
             logger.error(f"下单失败: {json.dumps(res)}")
-            pos_trade = G()
-            pos_trade.order_id = order.order_id
-            pos_trade.transaction_price = 0
-            pos_trade.lever = self.lever
-            pos_trade.fee = 0
-            pos_trade.pnl = 0
-            pos_trade.sz = 0
-            pos_trade.cancel_source = 0
-            pos_trade.symbol = order.symbol
-            pos_trade.ct_val = 0
 
-            pos_trade.transaction_volume = 0
-            pos_trade.transaction_amount =0
-            pos_trade.side = order.side
+            pos_trade = self.__empty_trade(order.symbol, order.side, order.order_id)
             logger.info(f"OKX交易回调：{pos_trade}")
             self._trade_callback(pos_trade)
         # return order
 
+    def __empty_trade(self, symbol, side, order_id):
+        pos_trade = G()
+        pos_trade.order_id = order_id
+        pos_trade.transaction_price = 0
+        pos_trade.lever = self.lever
+        pos_trade.fee = 0
+        pos_trade.pnl = 0
+        pos_trade.sz = 0
+        pos_trade.cancel_source = 0
+        pos_trade.symbol = symbol
+        pos_trade.ct_val = 0
+
+        pos_trade.transaction_volume = 0
+        pos_trade.transaction_amount = 0
+        pos_trade.side = side
+        return pos_trade
+
     def __trade_callback(self, data):
         if data["state"] == "canceled":
             logger.error(f"订单已撤单: {data['order_id']}, 取消原因: {data['cancel_source']}")
+            pos_trade = self.__empty_trade(data["symbol"], PS.SHORT if data["side"] == "sell" else PS.LONG, data["order_id"])
+            logger.info(f"OKX交易回调：{pos_trade}")
+            self._trade_callback(pos_trade)
             return
 
         if data["state"] != "filled":
@@ -375,7 +385,7 @@ class SwapOkxTrader(Trader):
 
 if __name__ == '__main__':
     trader = SwapOkxTrader("", "",
-                 "", work_flag="2")
+                           "", work_flag="2")
     leverage = trader.account.set_leverage(lever="3", mgnMode="isolated", instId="FIL-USDT-SWAP", posSide="short")
     print(leverage)
     # trader.order(Order("T0", "TOLONG1", OT.MarketOrder, "DOGE-USDT-SWAP", Decimal(100), side=PS.SHORT))

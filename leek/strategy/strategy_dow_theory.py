@@ -11,7 +11,7 @@ from leek.strategy import BaseStrategy
 from leek.strategy.common import StopLoss
 from leek.strategy.common.calculator import calculate_donchian_channel
 from leek.strategy.common.strategy_common import PositionDirectionManager, PositionRateManager
-from leek.strategy.common.strategy_filter import JustFinishKData, FallbackTakeProfit
+from leek.strategy.common.strategy_filter import JustFinishKData, FallbackTakeProfit, DynamicRiskControl
 from leek.trade.trade import PositionSide
 
 """
@@ -19,7 +19,7 @@ from leek.trade.trade import PositionSide
 """
 
 
-class DowV1Strategy(JustFinishKData, PositionRateManager, PositionDirectionManager, StopLoss, BaseStrategy):
+class DowV1Strategy(JustFinishKData, PositionRateManager, PositionDirectionManager, DynamicRiskControl, BaseStrategy):
     verbose_name = "道氏理论(donchian channel+Lma)"
     """
     目标主要是在第二种中期趋势走势中获利，把顺长期趋势的中期行情定义为顺势，把逆长期趋势的中期行情定义为整理
@@ -58,7 +58,7 @@ class DowV1Strategy(JustFinishKData, PositionRateManager, PositionDirectionManag
     """
 
     def __init__(self, open_channel=20, close_channel=10, long_period=120, win_loss_target="2.0", half_needle=False,
-                 trade_type=0, fallback_percentage="0.05"):
+                 trade_type=0):
         """
         :param open_channel: 唐奇安通道周期(开仓)
         :param close_channel: 唐奇安通道周期(平仓)
@@ -66,14 +66,12 @@ class DowV1Strategy(JustFinishKData, PositionRateManager, PositionDirectionManag
         :param win_loss_target: 反转交易预期盈亏比
         :param half_needle: 影线折半处理
         :param trade_type: 交易类型 0 全部 1 顺势 2 反转
-        :param fallback_percentage: 回撤止盈的比例
         """
         self.long_period = int(long_period)
         self.open_channel = int(open_channel)
         self.close_channel = int(close_channel)
 
         self.win_loss_target = Decimal(win_loss_target)
-        self.fallback_percentage = Decimal(fallback_percentage)
         x = str(half_needle).lower()
         self.half_needle = x in ["true", 'on', 'open', '1']
 
@@ -136,14 +134,10 @@ class DowV1Strategy(JustFinishKData, PositionRateManager, PositionDirectionManag
                 if pre.close_channel_lower and price < pre.close_channel_lower:  # 平多
                     self.close_position("平多")
                     return
-                if price / self.g.position_open_price_high < 1 - self.fallback_percentage:
-                    self.close_position("回落平多")
             else:
                 if pre.close_channel_up and price > pre.close_channel_up:  # 平空
                     self.close_position("平空")
                     return
-                if self.g.position_open_price_high / price < 1 - self.fallback_percentage:
-                    self.close_position("回升平空")
         else:
             if pre.open_channel_up is None or pre.lma is None:
                 return
@@ -171,6 +165,15 @@ class DowV1Strategy(JustFinishKData, PositionRateManager, PositionDirectionManag
             return False
         win_loss_rate = (price - pre.lma) / (price - stop_loss_price)
         return abs(win_loss_rate) > self.win_loss_target
+
+    def to_dict(self):
+        p = self.position_manager.quantity_map
+        position = [(k, "%s" % p[k].avg_price, "%s" % p[k].quantity_amount) for k in p]
+        return {
+            "position": position,
+            "risk_control": [(k, "%s" % self.risk_container[k].stop_loss_price) for k in self.risk_container],
+            "value": "%s" % self.position_manager.get_value()
+        }
 
 
 if __name__ == '__main__':

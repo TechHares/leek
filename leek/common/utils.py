@@ -9,6 +9,7 @@ import inspect
 import re
 import time
 from collections import deque
+from datetime import datetime
 from decimal import *
 
 
@@ -140,6 +141,38 @@ def all_constructor_args(cls):
         args = get_constructor_args(base_class)
         all_args.extend(args)
     return set(all_args)
+
+
+class DateTime(object):
+    PATTERN_MICROSECOND = '%Y-%m-%d %H:%M:%S.%f'
+    PATTERN_SECOND = '%Y-%m-%d %H:%M:%S'
+    PATTERN_MINUTE = '%Y-%m-%d %H:%M'
+    PATTERN_DATE = '%Y-%m-%d'
+
+    @staticmethod
+    def to_timestamp(dt_str):
+        """
+        将时间转换为时间戳
+        :param dt_str: 时间 字符串
+        :return:
+        """
+        if len(dt_str) == 8:
+            return int(datetime.strptime(dt_str, '%Y%m%d').timestamp() * 1000)
+        if len(dt_str) == 10:
+            return int(datetime.strptime(dt_str, '%Y-%m-%d').timestamp() * 1000)
+        if len(dt_str) == 16:
+            return int(datetime.strptime(dt_str, '%Y-%m-%d %H:%M').timestamp() * 1000)
+        return int(datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S').timestamp() * 1000)
+
+    @staticmethod
+    def to_date_str(ts, pattern=PATTERN_SECOND):
+        """
+        将时间戳转换为时间
+        :param ts: 时间戳
+        :param pattern: 格式
+        :return:
+        """
+        return datetime.fromtimestamp(ts / 1000).strftime(pattern)[:-3]
 
 
 if __name__ == '__main__':

@@ -14,17 +14,20 @@ from leek.common import EventBus
 from leek.runner.view import ViewWorkflow
 from leek.strategy.common import PositionDirectionManager
 from leek.strategy.common.strategy_common import PositionRateManager
+from leek.strategy.common.strategy_filter import JustFinishKData, StopLoss, DynamicRiskControl
 from leek.strategy.strategy_dow_theory import DowV1Strategy
 from leek.trade.trade import PositionSide
 
 
 class TestDow(unittest.TestCase):
     def test_handle(self):
-        self.strategy = DowV1Strategy()
+        self.strategy = DowV1Strategy(open_channel=14, close_channel=7, long_period=240, win_loss_target="2.0")
         PositionDirectionManager.__init__(self.strategy, PositionSide.FLAT)
         PositionRateManager.__init__(self.strategy, "1")
+        JustFinishKData.__init__(self.strategy, "False")
+        DynamicRiskControl.__init__(self.strategy, "1.3", "0.02")
         self.bus = EventBus()
-        workflow = ViewWorkflow(self.strategy, "4h", 1609459200000, 1715159848986, "BTCUSDT")
+        workflow = ViewWorkflow(self.strategy, "30m", "2024-01-01", "2024-05-24", "BTC-USDT-SWAP")
 
         workflow.start()
         df = pd.DataFrame([x.__json__() for x in workflow.kline_data_g])

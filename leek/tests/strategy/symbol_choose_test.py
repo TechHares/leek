@@ -5,85 +5,57 @@
 # @File    : symbol_choose_test.py
 # @Software: PyCharm
 import copy
-import json
 import unittest
+import warnings
 
 from joblib import Parallel, delayed
 
 from leek.common.utils import decimal_quantize
-from leek.data import BacktestDataSource
 from leek.runner.backtest import BacktestWorkflow
-import warnings
+from leek.runner.symbol_choose import SymbolChooseWorkflow
+from leek.strategy.strategy_dow_theory import DowV1Strategy
+from leek.strategy.strategy_td import TDStrategy
 
 warnings.simplefilter('ignore', ResourceWarning)
 
 
 class TestSymbolChoose(unittest.TestCase):
-    def setUp(self) -> None:
-        self.data = {
-            "strategy_data": {
-                "name": "dow1", "total_amount": "1000.000000000000",
-                "strategy_cls": "leek.strategy.strategy_dow_theory|DowV1Strategy",
-                "symbol": "",
-                "min_price": "0.000000", "max_price": "0.000000", "grid": "10",
-                "risk_rate": "0.100000", "side": "1", "rolling_over": "1", "symbols": "",
-                "direction": "4", "mean_type": "SMA", "window": "10", "threshold": "0.020000",
-                "take_profit_rate": "0.200000", "fallback_percentage": "0.04",
-                "max_single_position": "1", "stop_loss_rate": "180.000000", "num_std_dev": "2.00",
-                "atr_coefficient": "1.000000", "fast_period": "5", "slow_period": "20",
-                "long_period": "120", "smoothing_period": "9", "factory": "2", "price_type": "1",
-                "open_channel": "20", "close_channel": "10", "true_range_window": "20",
-                "expected_value": "0.010000", "add_position_rate": "0.500000",
-                "close_position_rate": "2.000000", "open_vhf_threshold": "0.500000",
-                "close_vhf_threshold": "0.000000", "take_profit_period": "10", "trade_type": "0",
-                "win_loss_target": "1.500000", "data_source": "3", "trade": "2", "status": "1",
-                "process_id": "0", "end_time_0": "2024/05/11", "end_time_1": "16:05",
-                "initial-end_time_0": "2024/05/11", "initial-end_time_1": "16:05",
-                "actionName": "actionValue"
-            },
-            "trader_data": {
-                "slippage": 0,
-                "fee_type": "2",
-                "fee": 0.0005,
-                "min_fee": 0,
-                "limit_order_execution_rate": 100,
-                "volume_limit": 4
-            },
-            "datasource": {
-                "isIndeterminateSymbols": "true",
-                "checkAllSymbols": "false",
-                "interval": "1h",
-                "symbols": ["FILUSDT"],
-                "benchmark": "FILUSDT",
-                "start_time": 1714657956000,
-                "end_time": 1716385959000
-            }
-        }
-        self.symbols = BacktestDataSource("4h", [], 0, 0, "x").get_all_symbol()
 
     def test_dow1(self):
-        profit = {}
+        workflow = SymbolChooseWorkflow(DowV1Strategy, {
+            "max_single_position": "1",
+            "total_amount": "1000",
+            "open_channel": 14,
+            "close_channel": 7,
+            "long_period": 240,
+            "win_loss_target": "1.5",
+            "half_needle": False,
+            "just_finish_k": False,
+            "trade_type": 0,
+            "fallback_percentage": "0.05",
+            "direction": "4",
+            "atr_coefficient": "1.3",
+            "stop_loss_rate": "0.02",
 
-        def run(args):
-            x, d = args
-            workflow = BacktestWorkflow(d)
-            workflow.start()
-            workflow.data_source.join()
-            p = workflow.strategy.position_manager
-            a = decimal_quantize(p.available_amount + p.freeze_amount + p.position_value)
-            return x, a
+        }, "30m", "2024-05-19", "2024-05-25")
+        workflow.start()
 
-        ws = []
-        for symbol in self.symbols:
-            self.data["datasource"]["benchmark"] = symbol
-            self.data["datasource"]["symbols"][0] = symbol
-            ws.append((symbol, copy.deepcopy(self.data)))
-        results = Parallel(n_jobs=-1)(delayed(run)(task) for task in ws)
-        print(results)
+    def test_td(self):
+        workflow = SymbolChooseWorkflow(TDStrategy, {
+            "max_single_position": "1",
+            "total_amount": "1000",
+            "just_finish_k": True,
+            "direction": "4",
+            "n1": 4,
+            "n2": 4,
+            "n3": 6,
+            "atr_coefficient": "1.3",
+            "stop_loss_rate": "0.02",
 
-        r = sorted(results, key=lambda x: x[1], reverse=True)[:10]
-        print(r)
-        print(",".join([x[0] for x in r if x[1] > 1000]))
+        }, "15m", "2024-05-21", "2024-05-24")
+
+        workflow.start()
+
 
 if __name__ == '__main__':
     unittest.main()

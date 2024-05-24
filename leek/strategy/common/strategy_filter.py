@@ -5,9 +5,10 @@
 # @File    : strategy_common.py
 # @Software: PyCharm
 from abc import abstractmethod
+from collections import deque
 from decimal import Decimal
 
-from leek.common import G
+from leek.common import G, logger
 from leek.strategy.common.strategy_common import CalculatorContainer
 from leek.trade.trade import PositionSide
 
@@ -193,6 +194,84 @@ class AtrStopLoss(CalculatorContainer, Filter):
                                      f"触发价格={market_data.close} 平均持仓价={position.avg_price} 触发差价={dt_price}")
             return False
         return True
+
+
+class DynamicRiskControl(Filter):
+    """
+    无序的震荡可能会连续地止损，迅速移至成本非常地重要
+    """
+
+    def __init__(self, atr_coefficient="1", stop_loss_rate="0.1"):
+        """
+        :param atr_coefficient: atr系数， 根据风险偏好，越大止损范围越大
+        :param stop_loss_rate: 止损比例
+        """
+        self.atr_stop_loss_coefficient = Decimal(atr_coefficient)  # 动态
+        self.stop_loss_rate = Decimal(stop_loss_rate)  # 动态
+
+        self.tr_window = 13
+        self.risk_container = {}
+
+    def pre(self, market_data: G, position):
+        if market_data.symbol not in self.risk_container:
+            self.risk_container[market_data.symbol] = G(trs=deque(maxlen=self.tr_window),
+                                                        high=market_data.high, low=market_data.low)
+
+        ctx = self.risk_container[market_data.symbol]
+        atr = (sum(list(ctx.trs)) + (market_data.high - market_data.low)) / (len(ctx.trs) + 1)
+        if market_data.finish == 1:
+            ctx.trs.append(market_data.high - market_data.low)
+
+        if position is None:
+            ctx.high = market_data.high
+            ctx.low = market_data.low
+            if market_data.finish == 0:
+                if ctx.risk_control:
+                    return False
+            else:
+                ctx.risk_control = False
+            return True
+
+        if ctx.stop_loss_price is None:
+            if position.direction == PositionSide.SHORT:
+                ctx.stop_loss_price = min(max(market_data.high, ctx.high, market_data.close + self.atr_stop_loss_coefficient * atr),
+                                          market_data.close * (1 + self.stop_loss_rate))
+            else:
+                ctx.stop_loss_price = max(min(market_data.low, ctx.low, market_data.close - self.atr_stop_loss_coefficient * atr),
+                                          market_data.close * (1 - self.stop_loss_rate))
+            return True
+
+        if position.direction == PositionSide.SHORT and market_data.close > ctx.stop_loss_price:
+            ctx.risk_control = True
+            self.close_position(memo=f"动态平仓：系数={self.atr_stop_loss_coefficient} 退出价={ctx.stop_loss_price}"
+                                     f"触发价格={market_data.close} 平均持仓价={position.avg_price}"
+                                     f" 差价={position.avg_price-market_data.close}")
+            return False
+        if position.direction == PositionSide.LONG and market_data.close < ctx.stop_loss_price:
+            ctx.risk_control = True
+            self.close_position(memo=f"动态平仓：系数={self.atr_stop_loss_coefficient} 退出价={ctx.stop_loss_price}"
+                                     f"触发价格={market_data.close} 平均持仓价={position.avg_price}"
+                                     f" 差价={ market_data.close - position.avg_price}")
+            return False
+
+        if position.direction == PositionSide.SHORT and (market_data.close < position.avg_price - atr or market_data.close < position.avg_price * (1 - self.stop_loss_rate)):
+            stop_loss_price = min(position.avg_price, market_data.close + self.atr_stop_loss_coefficient * atr)
+            if stop_loss_price < ctx.stop_loss_price:
+                logger.info(f"止损价下移: 系数={self.atr_stop_loss_coefficient} atr={atr} 当前价格={market_data.close} ||"
+                            f" {ctx.stop_loss_price} -> {stop_loss_price}")
+                ctx.stop_loss_price = stop_loss_price
+        if position.direction == PositionSide.LONG and (market_data.close > position.avg_price + atr or market_data.close > position.avg_price * (1 + self.stop_loss_rate)):
+            stop_loss_price = max(position.avg_price, market_data.close - self.atr_stop_loss_coefficient * atr)
+            if stop_loss_price > ctx.stop_loss_price:
+                logger.info(f"止损价上移: 系数={self.atr_stop_loss_coefficient} atr={atr} 当前价格={market_data.close} ||"
+                            f" {ctx.stop_loss_price} -> {stop_loss_price}")
+                ctx.stop_loss_price = stop_loss_price
+
+        return True
+
+
+
+
 
 
 PRE_STRATEGY_LIST = [SymbolsFilter, SymbolFilter, StopLoss, TakeProfit, FallbackTakeProfit]

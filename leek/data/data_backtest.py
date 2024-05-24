@@ -12,11 +12,23 @@ from decimal import Decimal
 import efinance as ef
 
 from leek.common import EventBus, logger, config, G
-from leek.common.utils import decimal_quantize, decimal_to_str
+from leek.common.utils import decimal_quantize, decimal_to_str, DateTime
 from leek.data.data import DataSource
 import warnings
 
 warnings.simplefilter('ignore', ResourceWarning)
+config_interval = {
+    "1m": 60 * 1000,
+    "3m": 3 * 60 * 1000,
+    "5m": 5 * 60 * 1000,
+    "15m": 15 * 60 * 1000,
+    "30m": 30 * 60 * 1000,
+    "1h": 60 * 60 * 1000,
+    "4h": 4 * 60 * 60 * 1000,
+    "6h": 6 * 60 * 60 * 1000,
+    "12h": 12 * 60 * 60 * 1000,
+    "1d": 24 * 60 * 60 * 1000,
+}
 
 
 class BacktestDataSource(DataSource):
@@ -128,6 +140,7 @@ class BacktestDataSource(DataSource):
             cur = 0
             last = 0
             batch = []
+            emulation_map = {}
 
             def send_data():
                 nonlocal batch
@@ -138,7 +151,6 @@ class BacktestDataSource(DataSource):
                     batch = []
 
             ts = 0
-            emulation_map = {}
             for row in cursor:
                 if not self.keep_running:
                     break
@@ -155,9 +167,10 @@ class BacktestDataSource(DataSource):
                     ts = row[0]
                 ticket = G(symbol=row[1], timestamp=row[0], open=Decimal(row[2]), high=Decimal(row[3]),
                            low=Decimal(row[4]), close=Decimal(row[5]), volume=Decimal(row[6]), amount=Decimal(row[7]),
-                           interval=row[8], finish=1 if not config.BACKTEST_EMULATION or row[8] == config.BACKTEST_TARGET_INTERVAL else 0)
+                           interval=row[8], finish=0 if config.BACKTEST_EMULATION and row[
+                        8] == config.BACKTEST_EMULATION_INTERVAL else 1)
                 if config.BACKTEST_EMULATION and self.interval == config.BACKTEST_TARGET_INTERVAL:
-                    if self.interval == ticket.interval:  # K线
+                    if config.BACKTEST_TARGET_INTERVAL == ticket.interval:  # K线
                         if ticket.symbol in emulation_map:
                             del emulation_map[ticket.symbol]
                     else:
@@ -170,8 +183,10 @@ class BacktestDataSource(DataSource):
                             t.low = min(t.low, ticket.low)
                             t.volume += ticket.volume
                             t.amount += ticket.amount
-                            t.timestamp = ticket.timestamp
+                            t.cur_timestamp = ticket.timestamp
+                            t.timestamp = ticket.timestamp - ticket.timestamp % config_interval[self.interval]
                             ticket = G(**t.__json__())
+
                 ticket.interval = self.interval
                 batch.append(ticket)
 
@@ -205,19 +220,12 @@ class StockBacktestDataSource(BacktestDataSource):
         beg = datetime.fromtimestamp(self.start_time / 1000).strftime('%Y%m%d')
         end = datetime.fromtimestamp(self.end_time / 1000).strftime('%Y%m%d')
 
-        def to_ts(x):
-            if len(x) == 10:
-                return int(datetime.strptime(x, '%Y-%m-%d').timestamp() * 1000)
-            if len(x) == 16:
-                return int(datetime.strptime(x, '%Y-%m-%d %H:%M').timestamp() * 1000)
-            return int(datetime.strptime(x, '%Y-%m-%d %H:%M:%S').timestamp() * 1000)
-
         def next_tick(itrows):
             i, row = next(itrows, (None, None))
             if row is None:
                 return None
             return G(symbol=row["股票代码"],
-                     timestamp=to_ts(row["日期"]),
+                     timestamp=DateTime.to_timestamp(row["日期"]),
                      open=Decimal(str(row["开盘"])),
                      high=Decimal(str(row["最高"])),
                      low=Decimal(str(row["最低"])),
@@ -245,7 +253,6 @@ class StockBacktestDataSource(BacktestDataSource):
                 self._send_tick_data(x)
 
 
-
 if __name__ == '__main__':
     # select * from workstation_kline where `symbol`="ETHUSDT"  and timestamp between 1703132100000 and 1703337300000 and interval='15m'
     source = BacktestDataSource("4h", ["ETHUSDT"], 1703132100000, 1703337300000)
@@ -255,6 +262,7 @@ if __name__ == '__main__':
     DataSource.__init__(source, bus)
     source._run()
     for d in data:
-        print(d["symbol"], datetime.fromtimestamp(d["timestamp"]/1000).strftime("%Y-%m-%d %H:%M"), d["interval"], d["close"], d["volume"], d["amount"])
+        print(d["symbol"], datetime.fromtimestamp(d["timestamp"] / 1000).strftime("%Y-%m-%d %H:%M"), d["interval"],
+              d["close"], d["volume"], d["amount"])
     # print(json.dumps(data, default=decimal_to_str))
     # source.shutdown()

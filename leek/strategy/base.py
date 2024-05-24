@@ -221,7 +221,8 @@ class PositionManager:
         order = Order(signal.strategy_id, order_id, OT.MarketOrder, signal.symbol, Decimal(0), signal.price,
                       signal.side, signal.timestamp)
 
-        if signal.signal_type == "CLOSE":
+        p = self.get_position(signal.symbol)
+        if p is not None and p.direction != signal.side: # 平仓
             order.pos_type = PositionSide.switch_side(signal.side)
             if self.get_position(signal.symbol).sz is not None:
                 order.sz = self.get_position(signal.symbol).sz
@@ -432,7 +433,6 @@ class BaseStrategy(metaclass=ABCMeta):
         """
         position_signal = G()
         position_signal.signal_name = "OPEN_" + ("LONG" if side == PositionSide.LONG else "SHORT")
-        position_signal.signal_type = "OPEN"
         position_signal.symbol = self.market_data.symbol
         position_signal.price = self.market_data.close
         position_signal.side = side
@@ -457,7 +457,6 @@ class BaseStrategy(metaclass=ABCMeta):
         :return: 交易指令
         """
         position_signal = G()
-        position_signal.signal_type = "CLOSE"
         position_signal.signal_name = "CLOSE_" + ("LONG" if self.position.direction == PositionSide.LONG else "SHORT")
         position_signal.symbol = self.market_data.symbol
         position_signal.side = PositionSide.switch_side(self.position.direction)
@@ -473,6 +472,9 @@ class BaseStrategy(metaclass=ABCMeta):
 
     def is_long_position(self):
         return self.position.direction == PositionSide.LONG
+
+    def is_short_position(self):
+        return self.position.direction == PositionSide.SHORT
 
 
 @cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=600))

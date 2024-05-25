@@ -120,7 +120,8 @@ class DowV1Strategy(JustFinishKData, PositionRateManager, PositionDirectionManag
 
         price = self.market_data.close
         if self.have_position():
-            self.g.handle_count = (self.g.handle_count + 1 if self.g.handle_count else 1)
+            if self.market_data.finish == 1:
+                self.g.handle_count += 1
             self.position.update_price(price)
             if self.position.value > self.position.quantity_amount and self.g.handle_count >= self.close_channel:
                 self.close_position("持仓周期超过平仓通道周期")
@@ -150,6 +151,7 @@ class DowV1Strategy(JustFinishKData, PositionRateManager, PositionDirectionManag
         else:
             if pre.open_channel_up is None or pre.lma is None:
                 return
+            self.g.handle_count = 0
             self.g.position_open_price_high = price
             high = self.market_data.high if not self.half_needle else (self.market_data.high + max(self.market_data.open, price)) / 2
             if high > pre.open_channel_up and self.can_long():  # 做多判断

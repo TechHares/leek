@@ -25,6 +25,7 @@ warnings.simplefilter('ignore', ResourceWarning)
 
 
 def res_sort_default(results):
+    results = [x for x in results if len(x[1]) > 0]
     r = sorted(results, key=lambda x: x[1][-1][1], reverse=True)[:10]
     r = [x for x in r if x[1][-1][1] > 1000]
     print([(x[0], x[1][-1][1]) for x in r])

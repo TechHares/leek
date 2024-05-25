@@ -50,6 +50,7 @@ def download_okx_kline(start_date, end_date, symbols=None, intervals=None, skip=
 
 def __download_okx_kline(symbol, start_date, end_date, intervals, save_to, bar=None):
     end_ts = int(datetime.datetime.strptime(end_date, '%Y-%m-%d').timestamp() * 1000) + 24 * 60 * 60 * 1000
+    end_ts = min(end_ts, int(datetime.datetime.now().timestamp() * 1000))
     hour = 60 * 60 * 1000
     multi = {
         "1m": 1.5,

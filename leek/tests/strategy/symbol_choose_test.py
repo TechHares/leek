@@ -25,7 +25,7 @@ class TestSymbolChoose(unittest.TestCase):
         workflow = SymbolChooseWorkflow(DowV1Strategy, {
             "max_single_position": "1",
             "total_amount": "1000",
-            "open_channel": 14,
+            "open_channel": 20,
             "close_channel": 7,
             "long_period": 240,
             "win_loss_target": "1.5",
@@ -37,7 +37,7 @@ class TestSymbolChoose(unittest.TestCase):
             "atr_coefficient": "1.3",
             "stop_loss_rate": "0.02",
 
-        }, "30m", "2024-05-19", "2024-05-25")
+        }, "30m", "2024-05-18", "2024-05-26")
         workflow.start()
 
     def test_td(self):
@@ -46,14 +46,13 @@ class TestSymbolChoose(unittest.TestCase):
             "total_amount": "1000",
             "just_finish_k": True,
             "direction": "4",
-            "n1": 4,
-            "n2": 4,
-            "n3": 4,
+            "window": 4,
+            "fast_period": 4,
+            "slow_period": 4,
             "atr_coefficient": "1.3",
             "stop_loss_rate": "0.02",
 
-        }, "1h", "2024-01-01", "2024-05-24")
-        # FRONT-USDT-SWAP,TURBO-USDT-SWAP,LPT-USDT-SWAP,CORE-USDT-SWAP,ID-USDT-SWAP,PEOPLE-USDT-SWAP,TRB-USDT-SWAP,FET-USDT-SWAP,BIGTIME-USDT-SWAP,SUSHI-USDT-SWAP
+        }, "30m", "2024-05-25", "2024-05-26")
         workflow.start()
 
 

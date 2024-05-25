@@ -257,15 +257,21 @@ class DynamicRiskControl(Filter):
             return True
 
         if position.direction == PositionSide.SHORT and (market_data.close < position.avg_price - atr or market_data.close < position.avg_price * (1 - self.stop_loss_rate)):
-            stop_loss_price = min(position.avg_price, market_data.close + self.atr_stop_loss_coefficient * atr)
+            if ctx.stop_loss_price > position.avg_price:
+                stop_loss_price = (position.avg_price + market_data.close) / 2
+            else:
+                stop_loss_price = min(position.avg_price, market_data.close + self.atr_stop_loss_coefficient * atr)
             if stop_loss_price < ctx.stop_loss_price:
                 logger.info(f"止损价下移: 系数={self.atr_stop_loss_coefficient} atr={atr} 当前价格={market_data.close} ||"
                             f" {ctx.stop_loss_price} -> {stop_loss_price}")
                 ctx.stop_loss_price = stop_loss_price
         if position.direction == PositionSide.LONG and (market_data.close > position.avg_price + atr or market_data.close > position.avg_price * (1 + self.stop_loss_rate)):
-            stop_loss_price = max(position.avg_price, market_data.close - self.atr_stop_loss_coefficient * atr)
+            if ctx.stop_loss_price < position.avg_price:
+                stop_loss_price = (position.avg_price + market_data.close) / 2
+            else:
+                stop_loss_price = max(position.avg_price, market_data.close - self.atr_stop_loss_coefficient * atr)
             if stop_loss_price > ctx.stop_loss_price:
-                logger.info(f"止损价上移: 系数={self.atr_stop_loss_coefficient} atr={atr} 当前价格={market_data.close} ||"
+                logger.info(f"止损价上移: 持仓价={position.avg_price} atr={atr} 当前价格={market_data.close} ||"
                             f" {ctx.stop_loss_price} -> {stop_loss_price}")
                 ctx.stop_loss_price = stop_loss_price
 

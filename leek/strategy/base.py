@@ -20,7 +20,7 @@ import cachetools
 from leek.common import logger, config, notify
 from leek.common import G
 from leek.common.event import EventBus
-from leek.common.utils import decimal_quantize, get_defined_classes, get_all_base_classes
+from leek.common.utils import decimal_quantize, get_defined_classes, get_all_base_classes, DateTime
 from leek.strategy.common import Filter
 from leek.trade.trade import Order, PositionSide, OrderType as OT
 
@@ -222,7 +222,7 @@ class PositionManager:
                       signal.side, signal.timestamp)
 
         p = self.get_position(signal.symbol)
-        if p is not None and p.direction != signal.side: # 平仓
+        if p is not None and p.direction != signal.side:  # 平仓
             order.pos_type = PositionSide.switch_side(signal.side)
             if self.get_position(signal.symbol).sz is not None:
                 order.sz = self.get_position(signal.symbol).sz
@@ -477,10 +477,20 @@ class BaseStrategy(metaclass=ABCMeta):
         return self.position.direction == PositionSide.SHORT
 
 
+class StrategyTest(BaseStrategy):
+    verbose_name = "数据打印(测试用)"
+
+    def __init__(self):
+        pass
+
+    def handle(self):
+        print(DateTime.to_date_str(self.market_data.timestamp), self.market_data)
+
+
 @cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=600))
 def get_all_strategies_cls_list():
     files = [f for f in os.listdir(Path(__file__).parent)
-             if f.endswith(".py") and f not in ["__init__.py", "base.py"]]
+             if f.endswith(".py") and f not in ["__init__.py"]]
     classes = []
     for f in files:
         classes.extend(get_defined_classes(f"leek.strategy.{f[:-3]}"))

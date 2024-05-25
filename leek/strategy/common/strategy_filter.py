@@ -247,13 +247,14 @@ class DynamicRiskControl(Filter):
             self.close_position(memo=f"动态平仓：系数={self.atr_stop_loss_coefficient} 退出价={ctx.stop_loss_price}"
                                      f"触发价格={market_data.close} 平均持仓价={position.avg_price}"
                                      f" 差价={position.avg_price-market_data.close}")
-            return False
+
+            return True
         if position.direction == PositionSide.LONG and self.long_risk(market_data, ctx, atr):
             ctx.risk_control = True
             self.close_position(memo=f"动态平仓：系数={self.atr_stop_loss_coefficient} 退出价={ctx.stop_loss_price}"
                                      f"触发价格={market_data.close} 平均持仓价={position.avg_price}"
                                      f" 差价={ market_data.close - position.avg_price}")
-            return False
+            return True
 
         if position.direction == PositionSide.SHORT and (market_data.close < position.avg_price - atr or market_data.close < position.avg_price * (1 - self.stop_loss_rate)):
             stop_loss_price = min(position.avg_price, market_data.close + self.atr_stop_loss_coefficient * atr)

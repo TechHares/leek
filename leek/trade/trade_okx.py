@@ -213,6 +213,14 @@ class SwapOkxTrader(Trader):
         self.ws_client.start()
 
     def order(self, order: Order):
+        try:
+            sz = self.__calculate_sz(order)
+        except Exception as e:
+            logger.error(f"下单sz计算失败: {e}")
+            pos_trade = self.__empty_trade(order.symbol, order.side, order.order_id)
+            logger.info(f"OKX交易回调：{pos_trade}")
+            self._trade_callback(pos_trade)
+            return
         args = {
             "tdMode": self.td_mode,
             "instId": order.symbol,
@@ -220,7 +228,7 @@ class SwapOkxTrader(Trader):
             "side": SwapOkxTrader.__Side_Map[order.side],
             "posSide": SwapOkxTrader.__Pos_Side_Map[order.pos_type],
             "ordType": "limit",
-            "sz": "%s" % self.__calculate_sz(order),
+            "sz": "%s" % sz,
         }
         if order.price is not None:
             args["px"] = "%s" % order.price

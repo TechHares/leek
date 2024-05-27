@@ -220,6 +220,7 @@ class DynamicRiskControl(Filter):
 
         ctx = self.risk_container[market_data.symbol]
         atr = (sum(list(ctx.trs)) + (market_data.high - market_data.low)) / (len(ctx.trs) + 1)
+        deta = self.atr_stop_loss_coefficient * atr
         if market_data.finish == 1:
             ctx.trs.append(market_data.high - market_data.low)
 
@@ -235,41 +236,41 @@ class DynamicRiskControl(Filter):
 
         if ctx.stop_loss_price is None:
             if position.direction == PositionSide.SHORT:
-                ctx.stop_loss_price = min(max(market_data.high, ctx.high, market_data.close + self.atr_stop_loss_coefficient * atr),
+                ctx.stop_loss_price = min(max(market_data.high, ctx.high, market_data.close + deta),
                                           market_data.close * (1 + self.stop_loss_rate))
             else:
-                ctx.stop_loss_price = max(min(market_data.low, ctx.low, market_data.close - self.atr_stop_loss_coefficient * atr),
+                ctx.stop_loss_price = max(min(market_data.low, ctx.low, market_data.close - deta),
                                           market_data.close * (1 - self.stop_loss_rate))
             return True
 
-        if position.direction == PositionSide.SHORT and self.short_risk(market_data, ctx, atr):
+        if position.direction == PositionSide.SHORT and self.short_risk(market_data, ctx, deta):
             ctx.risk_control = True
             self.close_position(memo=f"动态平仓：系数={self.atr_stop_loss_coefficient} 退出价={ctx.stop_loss_price}"
                                      f"触发价格={market_data.close} 平均持仓价={position.avg_price}"
                                      f" 差价={position.avg_price-market_data.close}")
 
             return True
-        if position.direction == PositionSide.LONG and self.long_risk(market_data, ctx, atr):
+        if position.direction == PositionSide.LONG and self.long_risk(market_data, ctx, deta):
             ctx.risk_control = True
             self.close_position(memo=f"动态平仓：系数={self.atr_stop_loss_coefficient} 退出价={ctx.stop_loss_price}"
                                      f"触发价格={market_data.close} 平均持仓价={position.avg_price}"
                                      f" 差价={ market_data.close - position.avg_price}")
             return True
 
-        if position.direction == PositionSide.SHORT and (market_data.close < position.avg_price - atr or market_data.close < position.avg_price * (1 - self.stop_loss_rate)):
+        if position.direction == PositionSide.SHORT and (market_data.close < position.avg_price - deta or market_data.close < position.avg_price * (1 - self.stop_loss_rate)):
             if ctx.stop_loss_price > position.avg_price:
                 stop_loss_price = (position.avg_price + market_data.close) / 2
             else:
-                stop_loss_price = min(position.avg_price, market_data.close + self.atr_stop_loss_coefficient * atr)
+                stop_loss_price = min(position.avg_price, market_data.close + deta)
             if stop_loss_price < ctx.stop_loss_price:
                 logger.info(f"止损价下移: 系数={self.atr_stop_loss_coefficient} atr={atr} 当前价格={market_data.close} ||"
                             f" {ctx.stop_loss_price} -> {stop_loss_price}")
                 ctx.stop_loss_price = stop_loss_price
-        if position.direction == PositionSide.LONG and (market_data.close > position.avg_price + atr or market_data.close > position.avg_price * (1 + self.stop_loss_rate)):
+        if position.direction == PositionSide.LONG and (market_data.close > position.avg_price + deta or market_data.close > position.avg_price * (1 + self.stop_loss_rate)):
             if ctx.stop_loss_price < position.avg_price:
                 stop_loss_price = (position.avg_price + market_data.close) / 2
             else:
-                stop_loss_price = max(position.avg_price, market_data.close - self.atr_stop_loss_coefficient * atr)
+                stop_loss_price = max(position.avg_price, market_data.close - deta)
             if stop_loss_price > ctx.stop_loss_price:
                 logger.info(f"止损价上移: 持仓价={position.avg_price} atr={atr} 当前价格={market_data.close} ||"
                             f" {ctx.stop_loss_price} -> {stop_loss_price}")

@@ -27,17 +27,16 @@ class TestSymbolChoose(unittest.TestCase):
             "total_amount": "1000",
             "open_channel": 20,
             "close_channel": 7,
-            "long_period": 240,
-            "win_loss_target": "1.5",
+            "long_period": 120,
+            "win_loss_target": "1.3",
             "half_needle": False,
             "just_finish_k": False,
             "trade_type": 0,
-            "fallback_percentage": "0.05",
             "direction": "4",
             "atr_coefficient": "1.3",
             "stop_loss_rate": "0.02",
 
-        }, "30m", "2024-05-18", "2024-05-26")
+        }, "30m", "2024-05-19", "2024-05-26")
         workflow.start()
 
     def test_td(self):
@@ -52,7 +51,7 @@ class TestSymbolChoose(unittest.TestCase):
             "atr_coefficient": "1.3",
             "stop_loss_rate": "0.02",
 
-        }, "30m", "2024-05-25", "2024-05-26")
+        }, "1h", "2024-05-25", "2024-05-26")
         workflow.start()
 
 

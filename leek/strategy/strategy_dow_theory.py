@@ -187,7 +187,10 @@ class DowV1Strategy(JustFinishKData, PositionRateManager, PositionDirectionManag
         return {
             "position": position,
             "risk_control": [(k, "%s" % self.risk_container[k].stop_loss_price) for k in self.risk_container],
-            "value": "%s" % self.position_manager.get_value()
+            "position_value": "%s" % self.position_manager.get_value(),
+            "profit": "%s" % (self.position_manager.get_value() - self.position_manager.total_amount),
+            "fee": "%s" % self.position_manager.fee,
+            "available_amount": "%s" % self.position_manager.available_amount,
         }
 
 

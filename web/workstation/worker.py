@@ -30,8 +30,7 @@ class WorkerWorkflow(SimpleWorkflow):
 
         try:
             while self.run_state:
-                # sleep到下一个整点
-                time.sleep(int((1 - (time.time() / 3600) % 1) * 3600))
+                time.sleep(60)
                 self.save_run_data()
         except KeyboardInterrupt:
             pass
@@ -43,11 +42,12 @@ class WorkerWorkflow(SimpleWorkflow):
         logger.debug(f"更新{self.job_id}, 运行数据: {strategy_config.run_data}")
         strategy_config.just_save()
 
-        value = self.strategy.position_manager.get_value()
-        ProfitLog.objects.create(strategy_id=self.job_id, timestamp=int(time.time()),
-                                 value=value,
-                                 profit=value - self.strategy.position_manager.total_amount,
-                                 fee=self.strategy.position_manager.position_value)
+        # todo 暂时不做， 直接看第三方
+        # value = self.strategy.position_manager.get_value()
+        # ProfitLog.objects.create(strategy_id=self.job_id, timestamp=int(time.time()),
+        #                          value=value,
+        #                          profit=value - self.strategy.position_manager.total_amount,
+        #                          fee=self.strategy.position_manager.position_value)
 
     def save_trade_log(self, data):
         # todo 暂时不做， 直接看第三方

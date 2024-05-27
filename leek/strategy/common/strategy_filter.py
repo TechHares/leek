@@ -202,7 +202,7 @@ class DynamicRiskControl(Filter):
     无序的震荡可能会连续地止损，迅速移至成本非常地重要
     """
 
-    def __init__(self, atr_coefficient="1", stop_loss_rate="0.1"):
+    def __init__(self, window=13, atr_coefficient="1", stop_loss_rate="0.1"):
         """
         :param atr_coefficient: atr系数， 根据风险偏好，越大止损范围越大
         :param stop_loss_rate: 止损比例
@@ -210,7 +210,7 @@ class DynamicRiskControl(Filter):
         self.atr_stop_loss_coefficient = decimal_quantize(Decimal(atr_coefficient), 3)  # 动态
         self.stop_loss_rate = Decimal(stop_loss_rate)  # 动态
 
-        self.tr_window = 13
+        self.tr_window = int(window)
         self.risk_container = {}
 
     def pre(self, market_data: G, position):

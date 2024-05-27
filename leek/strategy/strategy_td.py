@@ -33,7 +33,7 @@ class TDStrategy(PositionDirectionManager, DynamicRiskControl, PositionRateManag
         return {
             "symbol": market_data.symbol,
             "interval": market_data.interval,
-            "size": self.n2
+            "size": self.n1 + self.n2 + self.n3
         }
 
     def _data_init(self, market_datas: list):

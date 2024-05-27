@@ -155,6 +155,8 @@ class DowV1Strategy(JustFinishKData, PositionRateManager, PositionDirectionManag
         else:
             if pre.open_channel_up is None or pre.lma is None:
                 return
+            if not self.enough_amount():
+                return
             self.g.handle_count = 0
             self.g.position_open_price_high = price
             high = self.market_data.high if not self.half_needle else (self.market_data.high + max(self.market_data.open, price)) / 2

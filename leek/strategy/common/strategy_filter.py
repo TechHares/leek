@@ -210,7 +210,7 @@ class DynamicRiskControl(Filter):
         self.atr_stop_loss_coefficient = decimal_quantize(Decimal(atr_coefficient), 3)  # 动态
         self.stop_loss_rate = Decimal(stop_loss_rate)  # 动态
 
-        self.tr_window = 27
+        self.tr_window = 13
         self.risk_container = {}
 
     def pre(self, market_data: G, position):

@@ -234,6 +234,8 @@ class DynamicRiskControl(Filter):
             else:
                 ctx.risk_control = False
             return True
+        if hasattr(self, "all_k") and not self.all_k and market_data.finish == 0:
+            return True
 
         if ctx.stop_loss_price is None:
             if position.direction == PositionSide.SHORT:
@@ -248,17 +250,19 @@ class DynamicRiskControl(Filter):
             ctx.risk_control = True
             self.close_position(memo=f"动态平仓：系数={self.atr_stop_loss_coefficient} 退出价={ctx.stop_loss_price}"
                                      f"触发价格={market_data.close} 平均持仓价={position.avg_price}"
-                                     f" 差价={position.avg_price-market_data.close}")
+                                     f" 差价={position.avg_price - market_data.close}")
 
             return True
         if position.direction == PositionSide.LONG and self.long_risk(market_data, ctx, deta):
             ctx.risk_control = True
             self.close_position(memo=f"动态平仓：系数={self.atr_stop_loss_coefficient} 退出价={ctx.stop_loss_price}"
                                      f"触发价格={market_data.close} 平均持仓价={position.avg_price}"
-                                     f" 差价={ market_data.close - position.avg_price}")
+                                     f" 差价={market_data.close - position.avg_price}")
             return True
 
-        if position.direction == PositionSide.SHORT and (market_data.close < position.avg_price - deta or market_data.close < position.avg_price * (1 - self.stop_loss_rate)):
+        if position.direction == PositionSide.SHORT and (
+                market_data.close < position.avg_price - deta or market_data.close < position.avg_price * (
+                1 - self.stop_loss_rate)):
             if ctx.stop_loss_price > position.avg_price:
                 stop_loss_price = (position.avg_price + market_data.close) / 2
             else:
@@ -267,7 +271,9 @@ class DynamicRiskControl(Filter):
                 logger.info(f"止损价下移: 系数={self.atr_stop_loss_coefficient} atr={atr} 当前价格={market_data.close} ||"
                             f" {ctx.stop_loss_price} -> {stop_loss_price}")
                 ctx.stop_loss_price = stop_loss_price
-        if position.direction == PositionSide.LONG and (market_data.close > position.avg_price + deta or market_data.close > position.avg_price * (1 + self.stop_loss_rate)):
+        if position.direction == PositionSide.LONG and (
+                market_data.close > position.avg_price + deta or market_data.close > position.avg_price * (
+                1 + self.stop_loss_rate)):
             if ctx.stop_loss_price < position.avg_price:
                 stop_loss_price = (position.avg_price + market_data.close) / 2
             else:

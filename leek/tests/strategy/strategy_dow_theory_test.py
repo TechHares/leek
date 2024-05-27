@@ -24,8 +24,8 @@ class TestDow(unittest.TestCase):
         self.strategy = DowV1Strategy(open_channel=14, close_channel=7, long_period=240, win_loss_target="2.0")
         PositionDirectionManager.__init__(self.strategy, PositionSide.FLAT)
         PositionRateManager.__init__(self.strategy, "1")
-        JustFinishKData.__init__(self.strategy, "False")
-        DynamicRiskControl.__init__(self.strategy, "1.3", "0.02")
+        JustFinishKData.__init__(self.strategy, "True")
+        DynamicRiskControl.__init__(self.strategy, 13, "1.3", "0.02")
         self.bus = EventBus()
         workflow = ViewWorkflow(self.strategy, "30m", "2024-01-01", "2024-05-24", "BTC-USDT-SWAP")
 

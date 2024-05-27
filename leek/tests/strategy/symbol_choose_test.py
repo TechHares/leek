@@ -114,14 +114,14 @@ class TestSymbolChoose(unittest.TestCase):
             "long_period": 120,
             "win_loss_target": "1.3",
             "half_needle": False,
-            "just_finish_k": False,
+            "just_finish_k": True,
             "trade_type": 0,
             "direction": "4",
-            "atr_coefficient": "1.3",
-            "stop_loss_rate": "0.02",
+            "atr_coefficient": "1.5",
+            "stop_loss_rate": "0.05",
 
-        }, "30m", "2024-05-19", "2024-05-26")
-        workflow.start(sort_func=draw_fig("30m"))
+        }, "4h", "2024-05-10", "2024-05-26")
+        workflow.start(sort_func=draw_fig("4h(处理未完成K)"))
 
     def test_td(self):
         workflow = SymbolChooseWorkflow(TDStrategy, {
@@ -151,11 +151,11 @@ class TestSymbolChoose(unittest.TestCase):
             "slow_period": 20,
             "smoothing_period": 5,
 
-            "atr_coefficient": "1.3",
+            "atr_coefficient": "1.5",
             "stop_loss_rate": "0.02",
 
-        }, "5m", "2024-03-25", "2024-05-26")
-        workflow.start(sort_func=draw_fig("5m 不仿真"))
+        }, "1h", "2024-03-25", "2024-05-26")
+        workflow.start(sort_func=draw_fig("1h 不仿真"))
         # gal sui lsk gmt wif mew tia
 
 

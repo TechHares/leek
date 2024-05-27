@@ -286,7 +286,10 @@ class PositionManager:
         self.freeze_rate -= rate
         self.freeze_amount -= amount
 
-        self.used_rate += rate
+        if real_amount == 0:
+            self.available_rate += rate
+        else:
+            self.used_rate += rate
         self.used_amount += real_amount
 
         self.available_amount += (amount - real_amount)
@@ -414,7 +417,7 @@ class BaseStrategy(metaclass=ABCMeta):
 
     def to_dict(self):
         return {
-            "position_value": "%s" % self.position_manager.get_value(),
+            "position_value": "%s" % self.position_manager.position_value,
             "profit": "%s" % (self.position_manager.get_value() - self.position_manager.total_amount),
             "fee": "%s" % self.position_manager.fee,
             "available_amount": "%s" % self.position_manager.available_amount,

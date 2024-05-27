@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# @Time    : 2024/5/7 22:40
+# @Time    : 2024/5/27 16:00
 # @Author  : shenglin.li
-# @File    : strategy_turtle_test.py
+# @File    : strategy_boll_test.py
 # @Software: PyCharm
 import decimal
 import unittest
@@ -16,25 +16,23 @@ from leek.runner.view import ViewWorkflow
 from leek.strategy.common import PositionDirectionManager
 from leek.strategy.common.strategy_common import PositionRateManager
 from leek.strategy.common.strategy_filter import JustFinishKData, DynamicRiskControl
+from leek.strategy.strategy_bollinger_bands import BollingerBandsV2Strategy
 from leek.strategy.strategy_rsi import RSIStrategy
 from leek.strategy.strategy_td import TDStrategy
 from leek.trade.trade import PositionSide
 
 
-class TestRSI(unittest.TestCase):
+class TestBoll(unittest.TestCase):
     def test_handle(self):
-        self.strategy = RSIStrategy(period=5, over_buy=85, over_sell=15)
-        self.strategy.rsi_func = [self.strategy.classic_rsi, self.strategy.ibs_rsi, self.strategy.mom_rsi]
-        # self.strategy.rsi_func = [self.strategy.mom_rsi]
-
+        self.strategy = BollingerBandsV2Strategy(window=20, num_std_dev="2.0", fast_period="9", slow_period="26",
+                                                 smoothing_period="4")
         PositionDirectionManager.__init__(self.strategy, PositionSide.FLAT)
         PositionRateManager.__init__(self.strategy, "1")
         JustFinishKData.__init__(self.strategy, "False")
-        DynamicRiskControl.__init__(self.strategy, 14, "1.3", "0.02")
+        DynamicRiskControl.__init__(self.strategy, 13, "1.3", "0.02")
         self.bus = EventBus()
 
-        workflow = ViewWorkflow(self.strategy, "1d", "2004-01-15", "2024-05-28", "000300", 1)
-        # workflow = ViewWorkflow(self.strategy, "15m", "2024-03-15", "2024-05-24", "ETH-USDT-SWAP")
+        workflow = ViewWorkflow(self.strategy, "5m", "2024-03-15", "2024-05-28", "FIL-USDT-SWAP")
         # workflow = ViewWorkflow(self.strategy, "4h", "2024-03-15", "2024-05-24", "BTC-USDT-SWAP")
 
         workflow.start()
@@ -43,9 +41,14 @@ class TestRSI(unittest.TestCase):
         fig = make_subplots(rows=3, cols=1, shared_xaxes=True)
         df["benchmark"] = df["close"] / df.iloc[1]["close"]
         df["profit"] = df["balance"] / decimal.Decimal("1000")
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['boll_upper_band'], mode='lines', name='up'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['boll_lower_band'], mode='lines', name='down'), row=1, col=1)
+
         fig.add_trace(go.Scatter(x=df['Datetime'], y=df['benchmark'], mode='lines', name='benchmark'), row=2, col=1)
         fig.add_trace(go.Scatter(x=df['Datetime'], y=df['profit'], mode='lines', name='profit'), row=2, col=1)
-        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['rsi'], mode='lines', name='rsi'), row=3, col=1)
+
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['dea'], mode='lines', name='dea'), row=3, col=1)
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['dif'], mode='lines', name='dif'), row=3, col=1)
         workflow.draw(fig=fig, df=df)
         print(len(df))
         fig.show()
@@ -53,3 +56,4 @@ class TestRSI(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

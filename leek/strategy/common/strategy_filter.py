@@ -234,8 +234,6 @@ class DynamicRiskControl(Filter):
             else:
                 ctx.risk_control = False
             return True
-        if hasattr(self, "all_k") and not self.all_k and market_data.finish == 0:
-            return True
 
         if ctx.stop_loss_price is None:
             if position.direction == PositionSide.SHORT:

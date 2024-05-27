@@ -414,6 +414,10 @@ class BaseStrategy(metaclass=ABCMeta):
 
     def to_dict(self):
         return {
+            "position_value": "%s" % self.position_manager.get_value(),
+            "profit": "%s" % (self.position_manager.get_value() - self.position_manager.total_amount),
+            "fee": "%s" % self.position_manager.fee,
+            "available_amount": "%s" % self.position_manager.available_amount,
             "运行状态保存": "敬请期待",
         }
 

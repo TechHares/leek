@@ -184,16 +184,12 @@ class DowV1Strategy(JustFinishKData, PositionRateManager, PositionDirectionManag
         return abs(win_loss_rate) > self.win_loss_target
 
     def to_dict(self):
+        d = BaseStrategy.to_dict(self)
         p = self.position_manager.quantity_map
         position = [(k, "%s" % p[k].avg_price, "%s" % p[k].quantity_amount) for k in p]
-        return {
-            "position": position,
-            "risk_control": [(k, "%s" % self.risk_container[k].stop_loss_price) for k in self.risk_container],
-            "position_value": "%s" % self.position_manager.get_value(),
-            "profit": "%s" % (self.position_manager.get_value() - self.position_manager.total_amount),
-            "fee": "%s" % self.position_manager.fee,
-            "available_amount": "%s" % self.position_manager.available_amount,
-        }
+        d["position"] = position
+        d["risk_control"] = [(k, "%s" % self.risk_container[k].stop_loss_price) for k in self.risk_container]
+        return d
 
 
 if __name__ == '__main__':

@@ -172,7 +172,7 @@ class DateTime(object):
         :param pattern: 格式
         :return:
         """
-        return datetime.fromtimestamp(ts / 1000).strftime(pattern)[:-3]
+        return datetime.fromtimestamp(ts / 1000).strftime(pattern)
 
 
 if __name__ == '__main__':

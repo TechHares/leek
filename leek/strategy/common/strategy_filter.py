@@ -11,6 +11,7 @@ from decimal import Decimal
 from leek.common import G, logger
 from leek.common.utils import decimal_quantize
 from leek.strategy.common.strategy_common import CalculatorContainer
+from leek.t import ATR
 from leek.trade.trade import PositionSide
 
 """
@@ -215,14 +216,12 @@ class DynamicRiskControl(Filter):
 
     def pre(self, market_data: G, position):
         if market_data.symbol not in self.risk_container:
-            self.risk_container[market_data.symbol] = G(trs=deque(maxlen=self.tr_window),
+            self.risk_container[market_data.symbol] = G(trs=ATR(self.tr_window),
                                                         high=market_data.high, low=market_data.low)
 
         ctx = self.risk_container[market_data.symbol]
-        atr = (sum(list(ctx.trs)) + (market_data.high - market_data.low)) / (len(ctx.trs) + 1)
+        atr = ctx.trs.update(market_data)
         deta = self.atr_stop_loss_coefficient * atr
-        if market_data.finish == 1:
-            ctx.trs.append(market_data.high - market_data.low)
 
         if position is None:
             ctx.high = market_data.high

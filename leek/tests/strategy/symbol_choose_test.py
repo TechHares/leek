@@ -76,7 +76,7 @@ def draw_profit_and_drawdown(memo, results):
                                   marker=dict(color='gray'))
 
     # 创建布局
-    layout = go.Layout(title='利润和回撤(%s)' % memo, xaxis=dict(title='Symbol'),
+    layout = go.Layout(title='%s' % memo, xaxis=dict(title='Symbol'),
                        yaxis=dict(title='Value'),
                        font=dict(family='Arial Unicode MS, sans-serif'),
                        showlegend=True)
@@ -94,7 +94,7 @@ def draw_fig(memo=""):
         results = [x for x in results if len(x[1]) > 0]
         r = sorted(results, key=lambda x: x[1][-1][1], reverse=True)
         draw_profit_and_drawdown(memo, r)
-        r = r[:10]
+        r = r[:20]
         r = [x for x in r if x[1][-1][1] > 1000]
         print([(x[0], x[1][-1][1]) for x in r])
         print(",".join([x[0] for x in r]))
@@ -110,18 +110,19 @@ class TestSymbolChoose(unittest.TestCase):
             "max_single_position": "1",
             "total_amount": "1000",
             "open_channel": 20,
-            "close_channel": 7,
+            "close_channel": 10,
             "long_period": 120,
             "win_loss_target": "1.3",
-            "half_needle": False,
+            "half_needle": True,
             "just_finish_k": True,
             "trade_type": 0,
             "direction": "4",
             "atr_coefficient": "1.5",
-            "stop_loss_rate": "0.05",
+            "stop_loss_rate": "0.03",
 
-        }, "4h", "2024-05-10", "2024-05-26")
-        workflow.start(sort_func=draw_fig("4h(处理未完成K)"))
+        }, "1h", "2024-05-10", "2024-05-27")
+        workflow.start(sort_func=draw_fig("1h"))
+        # workflow.start()
 
     def test_td(self):
         workflow = SymbolChooseWorkflow(TDStrategy, {
@@ -135,27 +136,62 @@ class TestSymbolChoose(unittest.TestCase):
             "atr_coefficient": "1.3",
             "stop_loss_rate": "0.02",
 
-        }, "1h", "2024-05-25", "2024-05-26")
-        workflow.start()
+        }, "1d", "2023-05-25", "2024-05-26")
+        workflow.start(draw_fig("1h"))
 
     def test_bollv2(self):
-        workflow = SymbolChooseWorkflow(BollingerBandsV2Strategy, {
-            "max_single_position": "1",
-            "total_amount": "1000",
-            "just_finish_k": True,
-            "direction": "4",
+        # for i in ["30m", "1h"]:
+        for i in ["30m"]:
+            # workflow = SymbolChooseWorkflow(BollingerBandsV2Strategy, {
+            #     "max_single_position": "1",
+            #     "total_amount": "1000",
+            #     "just_finish_k": True,
+            #     "direction": "4",
+            #
+            #     "num_std_dev": "3",
+            #     "window": 18,
+            #     "fast_period": 10,
+            #     "slow_period": 20,
+            #     "smoothing_period": 7,
+            #
+            #     "atr_coefficient": "1.5",
+            #     "stop_loss_rate": "0.02",
+            #
+            # }, "15m", "2024-04-25", "2024-05-27")
+            workflow = SymbolChooseWorkflow(BollingerBandsV2Strategy, {
+                "max_single_position": "1",
+                "total_amount": "1000",
+                "just_finish_k": True,
+                "direction": "4",
 
-            "window": 20,
-            "num_std_dev": "2.0",
-            "fast_period": 7,
-            "slow_period": 20,
-            "smoothing_period": 5,
+                "num_std_dev": "3",
+                "window": 18,
+                "fast_period": 10,
+                "slow_period": 20,
+                "smoothing_period": 7,
 
-            "atr_coefficient": "1.5",
-            "stop_loss_rate": "0.02",
+                "atr_coefficient": "1.5",
+                "stop_loss_rate": "0.02",
 
-        }, "1h", "2024-03-25", "2024-05-26")
-        workflow.start(sort_func=draw_fig("1h 不仿真"))
+            }, "30m", "2024-04-25", "2024-05-27")
+
+            # workflow = SymbolChooseWorkflow(BollingerBandsV2Strategy, {
+            #     "max_single_position": "1",
+            #     "total_amount": "1000",
+            #     "just_finish_k": True,
+            #     "direction": "4",
+            #
+            #     "window": 20,
+            #     "num_std_dev": "2",
+            #     "fast_period": 12,
+            #     "slow_period": 26,
+            #     "smoothing_period": 9,
+            #
+            #     "atr_coefficient": "1.5",
+            #     "stop_loss_rate": "0.05",
+            #
+            # }, i, "2024-03-25", "2024-05-26")
+            workflow.start(sort_func=draw_fig("%s 不仿真" % i))
         # gal sui lsk gmt wif mew tia
 
 

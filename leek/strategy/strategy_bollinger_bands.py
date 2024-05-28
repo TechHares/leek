@@ -145,6 +145,18 @@ class BollingerBandsV2Strategy(PositionRateManager, JustFinishKData, PositionDir
 
         self.macd_patience = 3
 
+    def data_init_params(self, market_data):
+        return {
+            "symbol": market_data.symbol,
+            "interval": market_data.interval,
+            "size": max(self.window, self.slow_line_period, self.average_moving_period)
+        }
+
+    def _data_init(self, market_datas: list):
+        for market_data in market_datas:
+            self.market_data = market_data
+            self._calculate()
+
     def _calculate(self):
         if self.g.q is None:
             self.g.q = deque(

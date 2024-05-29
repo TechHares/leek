@@ -21,3 +21,4 @@ tables~=3.9.2
 plotly==5.22.0
 joblib==1.4.2
 efinance~=0.5.2
+scikit-learn~=1.4.2

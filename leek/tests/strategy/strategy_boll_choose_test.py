@@ -26,9 +26,7 @@ class TestBollSymbolChoose(unittest.TestCase):
         timestamp = datetime.datetime.now().timestamp()
         start = DateTime.to_date_str(timestamp * 1000 - 30 * 24 * 60 * 60 * 1000, DateTime.PATTERN_DATE)
         end = DateTime.to_date_str(timestamp * 1000, DateTime.PATTERN_DATE)
-        if timestamp > 1:
-            print(start, end)
-            return
+        print(start, end)
         for num_std_dev in self.arg_num_std_dev:
             for window in self.arg_window:
                 for fast_period in self.arg_fast_period:
@@ -38,7 +36,7 @@ class TestBollSymbolChoose(unittest.TestCase):
                                 workflow = SymbolChooseWorkflow(BollingerBandsV2Strategy, {
                                     "max_single_position": "1",
                                     "total_amount": "1000",
-                                    "just_finish_k": True,
+                                    "just_finish_k": False,
                                     "direction": "4",
 
                                     "num_std_dev": num_std_dev,

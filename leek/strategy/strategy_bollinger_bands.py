@@ -144,6 +144,7 @@ class BollingerBandsV2Strategy(PositionRateManager, JustFinishKData, PositionDir
         self.average_moving_period = int(smoothing_period)
 
         self.macd_patience = 3
+        self.max_bar_amplitude = 0.1
 
     def data_init_params(self, market_data):
         return {
@@ -200,6 +201,11 @@ class BollingerBandsV2Strategy(PositionRateManager, JustFinishKData, PositionDir
 
         price = self.market_data.close
         if not self.have_position():
+            vol = 0
+            if self.market_data.low != 0:
+                vol = (self.market_data.high - self.market_data.low) / self.market_data.low
+            if vol > self.max_bar_amplitude:  # 波动太大放弃
+                return
             if price > cur.boll_upper_band and self.can_long() and self.just_one_cross(
                     [d.m for d in data[-self.macd_patience:]], 1):  # 突破上轨
                 self.create_order(PositionSide.LONG, position_rate=self.max_single_position, memo="布林带开多")

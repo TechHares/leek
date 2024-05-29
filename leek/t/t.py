@@ -6,18 +6,20 @@
 # @Software: PyCharm
 import abc
 from abc import abstractmethod
+from collections import deque
 
 
 class T(metaclass=abc.ABCMeta):
-    def __init__(self, max_cache=10):
-        self.max_cache = max_cache
+    def __init__(self, max_cache=100):
+        self.cache = deque(maxlen=max_cache)
 
     @abstractmethod
     def update(self, data):
         pass
 
-    def last(self, n=10):
-        pass
+    def last(self, n=100):
+        n = min(len(self.cache), n)
+        return list(self.cache)[-n:]
 
 
 if __name__ == '__main__':

@@ -453,7 +453,7 @@ class BaseStrategy(metaclass=ABCMeta):
         self.bus.publish(EventBus.TOPIC_STRATEGY_SIGNAL, position_signal)
 
     def have_position(self):
-        return self.position is not None
+        return self.position is not None and self.position.quantity > 0
 
     def enough_amount(self):
         return self.position_manager.enough_amount()

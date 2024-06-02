@@ -316,11 +316,14 @@ class SwapOkxTrader(Trader):
         :param order: 订单
         :return: sz -> str
         """
-        if order.sz:
-            return Decimal(order.sz)
         instrument = self.__get_instrument(order.symbol, SwapOkxTrader.__Pos_Side_Map[order.side])
         if not instrument:
             raise RuntimeError("交易信息获取失败")
+
+        lot_sz = instrument["lotSz"]  # 下单数量精度
+        if order.sz:
+            sz = Decimal(order.sz)
+            return sz - (sz % Decimal(lot_sz))
 
         ct_val = instrument["ctVal"]  # 合约面值
         if not order.price:
@@ -328,7 +331,6 @@ class SwapOkxTrader(Trader):
             order.price = Decimal(res["data"][0]["markPx"])
         num = order.amount * self.lever / (order.price * Decimal(ct_val))
 
-        lot_sz = instrument["lotSz"]  # 下单数量精度
         sz = num - (num % Decimal(lot_sz))
 
         min_sz = instrument["minSz"]  # 最小下单数量

@@ -226,6 +226,7 @@ class PositionManager:
             order.pos_type = PositionSide.switch_side(signal.side)
             if self.get_position(signal.symbol).sz is not None:
                 order.sz = self.get_position(signal.symbol).sz
+                order.sz *= signal.position_rate / p.quantity_rate
         else:
             amount = self.freeze(order_id, signal.position_rate)
             if amount <= 0:

@@ -389,6 +389,8 @@ class BaseStrategy(metaclass=ABCMeta):
                 self.g.data_init_status = 1
                 if params:
                     self.bus.publish(EventBus.TOPIC_TICK_DATA_INIT_PARAMS, params)
+                else:
+                    self.g.data_init_status = 2
             else:
                 time.sleep(0.1)
         self.market_data = market_data

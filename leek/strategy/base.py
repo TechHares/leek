@@ -180,7 +180,7 @@ class PositionManager:
             rate = self.release_amount(trade.order_id, amt, trade.fee)
             position.quantity_rate += rate
         elif trade.transaction_volume > 0:
-            self.release_position(position.quantity_rate, amt, trade.fee)
+            self.release_position(self.signal_processing_map[trade.symbol], amt, trade.fee)
 
         # 更新可用资金
         if position.quantity == 0:
@@ -234,7 +234,7 @@ class PositionManager:
             order.amount = amount
 
         order.extend = signal.extend
-        self.signal_processing_map[signal.symbol] = order_id
+        self.signal_processing_map[signal.symbol] = signal.position_rate
         self.bus.publish(EventBus.TOPIC_ORDER_DATA, order)
 
     @locked

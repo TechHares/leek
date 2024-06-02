@@ -461,7 +461,7 @@ class BaseStrategy(metaclass=ABCMeta):
     def enough_amount(self):
         return self.position_manager.enough_amount()
 
-    def close_position(self, memo="", extend=None):
+    def close_position(self, memo="", extend=None, rate="1"):
         """
         平仓指令
         :return: 交易指令
@@ -470,7 +470,7 @@ class BaseStrategy(metaclass=ABCMeta):
         position_signal.signal_name = "CLOSE_" + ("LONG" if self.position.direction == PositionSide.LONG else "SHORT")
         position_signal.symbol = self.market_data.symbol
         position_signal.side = PositionSide.switch_side(self.position.direction)
-        position_signal.position_rate = Decimal("1")
+        position_signal.position_rate = Decimal(rate)
         position_signal.price = self.market_data.close
         position_signal.creator = self.__class__
         position_signal.strategy_id = self.__strategy_id

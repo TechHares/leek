@@ -100,13 +100,17 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
             if self.is_short():  # 空
                 side = PS.switch_side(side)
 
+        rate = abs(self.current_grid - dt_gird) / self.grid
         logger.info(
             f"方向{self.side} 操作方向{side}"
-            f" 网格数{self.current_grid}/{self.grid} 开仓：{abs(self.current_grid - dt_gird) / self.grid}\n"
+            f" 网格数{self.current_grid}/{self.grid} 开仓：{rate}\n"
             f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}\n"
         )
         self.g.gird = dt_gird
-        self.create_order(side, abs(self.current_grid - dt_gird) / self.grid)
+        if self.side == side:
+            self.create_order(side, rate)
+        else:
+            self.close_position(rate=rate)
 
     def handle_position(self, order):
         self.current_grid = self.g.gird

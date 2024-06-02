@@ -5,7 +5,7 @@
 # @File    : strategy_grid.py
 # @Software: PyCharm
 
-from leek.common import EventBus
+from leek.common import EventBus, logger
 from leek.common.utils import *
 from leek.strategy.common import *
 from leek.strategy import BaseStrategy
@@ -100,14 +100,11 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
             if self.is_short():  # 空
                 side = PS.switch_side(side)
 
-        self.notify(
+        logger.info(
             f"方向{self.side} 操作方向{side}"
             f" 网格数{self.current_grid}/{self.grid} 开仓：{abs(self.current_grid - dt_gird) / self.grid}\n"
             f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}\n"
         )
-        # si = "卖" if self.direction != order.side else "买"
-        # print(f"网格数{self.current_grid} -> {dt_gird}, 资金: {self.available_amount} + {self.position_value} ="
-        #       f" {self.available_amount + self.position_value} , {si} {order.amount}")
         self.g.gird = dt_gird
         self.create_order(side, abs(self.current_grid - dt_gird) / self.grid)
 

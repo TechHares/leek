@@ -181,6 +181,7 @@ class PositionManager:
             position.quantity_rate += rate
         elif trade.transaction_volume > 0:
             self.release_position(self.signal_processing_map[trade.symbol], amt, trade.fee)
+            position.quantity_rate -= self.signal_processing_map[trade.symbol]
 
         # 更新可用资金
         if position.quantity == 0:

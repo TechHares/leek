@@ -7,9 +7,10 @@
 import json
 import threading
 import time
+from datetime import datetime
 from decimal import Decimal
 
-from okx import MarketData
+from okx import MarketData, PublicData
 
 from leek.common import logger, G, config
 from leek.common.utils import decimal_to_str
@@ -161,6 +162,60 @@ class OkxMarketDataSource(DataSource):
                                  finish=1
                                  )
                         self._send_tick_data(data)
+
+
+class OKXFundingDataSource(DataSource):
+    verbose_name = "OKX资金费"
+
+    def __init__(self, interval=300, work_flag="0"):
+        """
+        行情数据
+        :param interval: 获取数据间隔(秒)
+        :param work_flag: 0 实盘 1 模拟盘 2 aws实盘
+        """
+        self.interval = interval
+        self.flag = "0"
+        self.domain = "https://www.okx.com"
+        if work_flag == "1":
+            self.flag = "1"
+        if work_flag == "2":
+            self.domain = "https://aws.okx.com"
+        self.market_api = MarketData.MarketAPI(domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
+        self.public_api = PublicData.PublicAPI(domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
+        self.__run = True
+
+    def _run(self):
+        next_trigger = 0
+        while self.__run:
+            if int(time.time()) < next_trigger:
+                time.sleep(1)
+                continue
+            tickers = self.market_api.get_tickers(instType="SWAP")
+            if tickers and tickers["code"] == "0":
+                tickers = tickers["data"]
+            else:
+                logger.error("获取所有市场数据失败")
+                continue
+            next_trigger = int(time.time()) + self.interval
+            symbols = set([ticker["instId"] for ticker in tickers if ticker["instId"].endswith("-USDT-SWAP")])
+            funding_rates = []
+            for symbol in symbols:
+                res = self.public_api.get_funding_rate(symbol)
+                if res and res["code"] == "0":
+                    funding_rates.append(G(**res["data"][0]))
+                else:
+                    logger.error(f"获取{symbol}资金费数据失败")
+            a = sorted(funding_rates, key=lambda x: abs(Decimal(x.fundingRate)), reverse=True)[:10]
+            swaps = []
+            spots = []
+            for s in a:
+                print(s.instId)
+            data = G(symbol="funding",
+                     timestamp=int(datetime.now().timestamp() * 1000),
+                     rates=a,
+                     finish=1
+                     )
+            self._send_tick_data(data)
 
 
 if __name__ == '__main__':

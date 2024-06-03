@@ -8,9 +8,11 @@ import time
 import unittest
 from datetime import datetime
 
+import ccxt
+
 from leek.common import EventBus
 from leek.data import DataSource, WSDataSource
-from leek.data.data_okx import OkxMarketDataSource, OkxKlineDataSource
+from leek.data.data_okx import OkxMarketDataSource, OkxKlineDataSource, OKXFundingDataSource
 
 
 class TestBase(unittest.TestCase):
@@ -49,6 +51,23 @@ class TestBase(unittest.TestCase):
         datas = source.data_init_hook(["BTC-USDT-SWAP", "4h", 120])
         for data in datas:
             print(datetime.fromtimestamp(data.timestamp / 1000).strftime("%Y-%m-%d %H:%M:%S"), data)
+
+    def test_funding(self):
+        source = OKXFundingDataSource()
+        source._run()
+
+    def test_cctx(self):
+        okx = ccxt.okx({
+            "enableRateLimit": True,
+            "options": {
+                "defaultType": "swap",
+                "fetchMarkets": ["swap"]
+            }
+        })
+
+        markets = okx.fetch_markets({"instType": "SWAP", "instId": "BTC-USDT-SWAP"})
+        print(markets[0]["info"])
+
 
 if __name__ == '__main__':
     unittest.main()

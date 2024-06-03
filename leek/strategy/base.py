@@ -224,9 +224,9 @@ class PositionManager:
         p = self.get_position(signal.symbol)
         if p is not None and p.direction != signal.side:  # 平仓
             order.pos_type = PositionSide.switch_side(signal.side)
-            if self.get_position(signal.symbol).sz is not None:
-                order.sz = self.get_position(signal.symbol).sz
-                order.sz *= signal.position_rate / p.quantity_rate
+            if p.sz is not None:
+                order.sz = p.sz * signal.position_rate / p.quantity_rate
+                logger.info(f"平仓sz计算：all={p.sz}, sz={p.sz} * {signal.position_rate} / {p.quantity_rate} = {order.sz}")
         else:
             amount = self.freeze(order_id, signal.position_rate)
             if amount <= 0:

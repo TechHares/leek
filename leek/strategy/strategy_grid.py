@@ -78,7 +78,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
             dt_price = price - self.min_price
 
         dt_gird = decimal_quantize(dt_price / self.grid_price, 0, 2)
-        if dt_gird == self.current_grid:
+        if dt_gird == self.current_grid or (dt_gird == 0 and self.current_grid == 1):
             return
         if self.risk:  # 已经风控
             if dt_gird < 3 or dt_gird > 8:
@@ -110,7 +110,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
     def handle_position(self, order):
         self.current_grid = self.g.gird
         si = "卖" if self.side != order.side else "买"
-        print(
+        logger.info(
             f"网格购买成功 -> {self.g.gird}, 资金: {self.position_manager.available_amount} + {self.position_manager.position_value} ="
             f" {self.position_manager.available_amount + self.position_manager.position_value} , {si} {order.amount}")
 

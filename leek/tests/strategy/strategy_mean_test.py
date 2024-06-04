@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # @Time    : 2024/2/26 10:59
 # @Author  : shenglin.li
-# @File    : strategy_atr_test.py
+# @File    : strategy_mean_test.py
 # @Software: PyCharm
 import unittest
 from decimal import Decimal

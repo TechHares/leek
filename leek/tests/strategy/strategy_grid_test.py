@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # @Time    : 2024/6/03 21:27
 # @Author  : shenglin.li
-# @File    : strategy_boll_choose_test.py
+# @File    : strategy_grid_test.py
 # @Software: PyCharm
 import datetime
 import time

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # @Time    : 2024/4/11 20:35
 # @Author  : shenglin.li
-# @File    : strategy_super_trend.py
+# @File    : strategy_super_trend_test.py
 # @Software: PyCharm
 from decimal import Decimal
 

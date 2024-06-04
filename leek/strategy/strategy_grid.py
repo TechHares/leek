@@ -81,9 +81,8 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         if dt_gird == self.current_grid or (dt_gird == 0 and self.current_grid == 1):
             return
         if self.risk:  # 已经风控
-            if dt_gird < 3 or dt_gird > 8:
+            if dt_gird > 8:
                 return
-            dt_gird = 1
             self.risk = False
 
         side = PS.LONG

@@ -40,7 +40,6 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
 
         # 运行数据
         self.current_grid = Decimal("0")
-        self.last_price = Decimal("0")
         self.risk = False  # 是否已经风控
 
     def post_constructor(self):
@@ -78,18 +77,14 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         else:
             dt_price = price - self.min_price
 
-        dt_gird = decimal_quantize(dt_price / self.grid_price, 0, 1)
+        dt_gird = decimal_quantize(dt_price / self.grid_price, 0, 2)
         if dt_gird == self.current_grid:
-            return
-        if abs(self.last_price - price) < self.grid_price / 2:
             return
         if self.risk:  # 已经风控
             if dt_gird < 3 or dt_gird > 8:
                 return
             dt_gird = 1
             self.risk = False
-
-        self.last_price = price
 
         side = PS.LONG
         if dt_gird > self.current_grid:
@@ -122,7 +117,6 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
     def to_dict(self):
         d = super().to_dict()
         d["current_grid"] = self.current_grid.__str__()
-        d["last_price"] = self.last_price.__str__()
         d["risk"] = self.risk
         return d
 
@@ -131,8 +125,6 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
 
         if "current_grid" in data:
             self.current_grid = Decimal(data["current_grid"])
-        if "last_price" in data:
-            self.last_price = Decimal(data["last_price"])
         if "risk" in data:
             self.risk = data["risk"]
 

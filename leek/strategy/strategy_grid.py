@@ -77,34 +77,44 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         else:
             dt_price = price - self.min_price
 
+        self.add_position(dt_price)
+        if self.have_position():
+            self.sub_position(dt_price)
+
+    def sub_position(self, dt_price):
+        price = self.market_data.close
+        dt_gird = decimal_quantize(dt_price / self.grid_price, 0, 1)
+        if dt_gird >= self.current_grid or (dt_gird == 0 and self.current_grid == 1):
+            return
+
+        rate = abs(self.current_grid - dt_gird) / self.grid
+        logger.info(
+            f"方向{self.side} "
+            f" 网格数{self.current_grid}/{self.grid} 平仓：{rate}\n"
+            f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}\n"
+        )
+        self.g.gird = dt_gird
+        self.close_position(rate=rate)
+
+    def add_position(self, dt_price):
+        price = self.market_data.close
         dt_gird = decimal_quantize(dt_price / self.grid_price, 0, 2)
-        if dt_gird == self.current_grid or (dt_gird == 0 and self.current_grid == 1):
+        if dt_gird <= self.current_grid:
             return
         if self.risk:  # 已经风控
             if dt_gird > 8:
                 return
             self.risk = False
 
-        side = PS.LONG
-        if dt_gird > self.current_grid:
-            if self.is_short():  # 空
-                side = PS.switch_side(side)
-        else:
-            side = PS.SHORT
-            if self.is_short():  # 空
-                side = PS.switch_side(side)
-
+        side = PS.LONG if self.is_long() else PS.SHORT
         rate = abs(self.current_grid - dt_gird) / self.grid
         logger.info(
             f"方向{self.side} 操作方向{side}"
-            f" 网格数{self.current_grid}/{self.grid} 开仓：{rate}\n"
+            f" 网格数{self.current_grid}/{self.grid} 加仓：{rate}\n"
             f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}\n"
         )
         self.g.gird = dt_gird
-        if self.side == side:
-            self.create_order(side, rate)
-        else:
-            self.close_position(rate=rate)
+        self.create_order(side, rate)
 
     def handle_position(self, order):
         self.current_grid = self.g.gird

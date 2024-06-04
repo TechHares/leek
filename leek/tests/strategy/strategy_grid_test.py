@@ -29,12 +29,14 @@ class TestGridStrategy(unittest.TestCase):
 
         SymbolFilter.__init__(self.strategy, "TNSR-USDT-SWAP")
         PositionSideManager.__init__(self.strategy, PositionSide.SHORT)
-        workflow = ViewWorkflow(self.strategy, "1m", "2024-06-03 19:00", "2024-06-03 21:44", "TNSR-USDT-SWAP")
+        workflow = ViewWorkflow(self.strategy, "1m", "2024-06-03 15:00", "2024-06-03 21:44", "TNSR-USDT-SWAP")
         workflow.start()
         df = pd.DataFrame([x.__json__() for x in workflow.kline_data_g])
         df['Datetime'] = pd.to_datetime(df['timestamp'] + 8 * 60 * 60 * 1000, unit='ms')
         fig = make_subplots(rows=3, cols=1, shared_xaxes=True)
         workflow.draw(fig=fig, df=df)
+        # to_dict = self.strategy.to_dict()
+        # print(to_dict)
         print(len(df))
         fig.show()
 

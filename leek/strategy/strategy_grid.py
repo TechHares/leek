@@ -93,7 +93,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
             f" 网格数{self.current_grid}/{self.grid} 平仓：{rate}\n"
             f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}\n"
         )
-        self.g.gird = dt_gird
+        self.g.gird = -abs(self.current_grid - dt_gird)
         self.close_position(rate=rate)
 
     def add_position(self, dt_price):
@@ -113,11 +113,11 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
             f" 网格数{self.current_grid}/{self.grid} 加仓：{rate}\n"
             f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}\n"
         )
-        self.g.gird = dt_gird
+        self.g.gird = abs(self.current_grid - dt_gird)
         self.create_order(side, rate)
 
     def handle_position(self, order):
-        self.current_grid = self.g.gird
+        self.current_grid += self.g.gird
         si = "卖" if self.side != order.side else "买"
         logger.info(
             f"网格购买成功 -> {self.g.gird}, 资金: {self.position_manager.available_amount} + {self.position_manager.position_value} ="

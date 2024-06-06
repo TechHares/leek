@@ -127,7 +127,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         self.create_order(side, rate)
 
     def handle_position(self, order):
-        g = self.__g_map[order.symbol]
+        g = self.__BaseStrategy__g_map[order.symbol]
         self.current_grid += g.gird
         g.order_time = None
         si = "卖" if self.side != order.side else "买"
@@ -143,8 +143,6 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
     def set_dict_data(self, data):
         super().set_dict_data(data)
 
-        if "current_grid" in data:
-            self.current_grid = Decimal(data["current_grid"])
         if "risk" in data:
             self.risk = data["risk"]
 

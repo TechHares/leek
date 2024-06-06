@@ -82,6 +82,10 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
             self.sub_position(dt_price)
 
     def sub_position(self, dt_price):
+        if self.g.order_time is not None:
+            if int(datetime.now().timestamp()) > self.g.order_time + 120:
+                logger.error(f"订单一直没处理完")
+            return
         price = self.market_data.close
         dt_gird = decimal_quantize(dt_price / self.grid_price, 0, 1)
         if dt_gird >= self.current_grid or (dt_gird == 0 and self.current_grid == 1):
@@ -94,9 +98,14 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
             f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}\n"
         )
         self.g.gird = -abs(self.current_grid - dt_gird)
+        self.g.order_time = (int(datetime.now().timestamp()))
         self.close_position(rate=rate)
 
     def add_position(self, dt_price):
+        if self.g.order_time is not None:
+            if int(datetime.now().timestamp()) > self.g.order_time + 120 :
+                logger.error(f"订单一直没处理完")
+            return
         price = self.market_data.close
         dt_gird = decimal_quantize(dt_price / self.grid_price, 0, 2)
         if dt_gird <= self.current_grid:
@@ -114,10 +123,13 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
             f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}\n"
         )
         self.g.gird = abs(self.current_grid - dt_gird)
+        self.g.order_time = (int(datetime.now().timestamp()))
         self.create_order(side, rate)
 
     def handle_position(self, order):
-        self.current_grid += self.g.gird
+        g = self.__g_map[order.symbol]
+        self.current_grid += g.gird
+        g.order_time = None
         si = "卖" if self.side != order.side else "买"
         logger.info(
             f"网格购买成功 -> {self.g.gird}, 资金: {self.position_manager.available_amount} + {self.position_manager.position_value} ="
@@ -125,7 +137,6 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
 
     def to_dict(self):
         d = super().to_dict()
-        d["current_grid"] = self.current_grid.__str__()
         d["risk"] = self.risk
         return d
 

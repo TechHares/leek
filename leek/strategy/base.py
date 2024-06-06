@@ -256,7 +256,7 @@ class PositionManager:
             freeze_amount = min(decimal_quantize(rate * self.total_amount, 2), self.available_amount)
 
         if freeze_amount < PositionManager.MIN_POSITION * self.total_amount < self.available_amount:
-            freeze_amount = Decimal(self.available_amount)
+            freeze_amount = PositionManager.MIN_POSITION * self.total_amount
         if freeze_amount < PositionManager.MIN_POSITION * self.total_amount:
             return Decimal(0)
         self.available_rate -= rate

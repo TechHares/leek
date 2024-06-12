@@ -137,8 +137,8 @@ class StrategyConfig(models.Model):
                                     default="")
     # =====================================单向单标的网格================================================
     symbol = models.CharField(u'标的物', max_length=200, default="", blank=True)
-    min_price = models.DecimalField(u'网格下界', max_digits=36, decimal_places=6, default="0")
-    max_price = models.DecimalField(u'网格上界', max_digits=36, decimal_places=6, default="0")
+    min_price = models.DecimalField(u'网格下界', max_digits=36, decimal_places=18, default="0")
+    max_price = models.DecimalField(u'网格上界', max_digits=36, decimal_places=18, default="0")
     grid = models.IntegerField(u'网格个数', default="10")
     risk_rate = models.DecimalField(u'风控系数', max_digits=36, decimal_places=6, default="0.1")
     DIRECTION_CHOICE = (

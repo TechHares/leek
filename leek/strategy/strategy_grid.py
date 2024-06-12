@@ -104,7 +104,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
 
     def add_position(self, dt_price):
         if self.g.order_time is not None:
-            if int(datetime.now().timestamp()) > self.g.order_time + 120 :
+            if int(datetime.now().timestamp()) > self.g.order_time + 120:
                 logger.error(f"订单一直没处理完")
             return
         price = self.market_data.close
@@ -112,7 +112,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         if dt_gird <= self.current_grid:
             return
         if self.risk:  # 已经风控
-            if dt_gird > 8:
+            if dt_gird > self.grid - 2:
                 return
             self.risk = False
 

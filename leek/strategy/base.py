@@ -458,6 +458,8 @@ class BaseStrategy(metaclass=ABCMeta):
         平仓指令
         :return: 交易指令
         """
+        if not self.have_position():
+            return
         position_signal = G()
         position_signal.signal_name = "CLOSE_" + ("LONG" if self.position.direction == PositionSide.LONG else "SHORT")
         position_signal.symbol = self.market_data.symbol

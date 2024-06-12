@@ -66,7 +66,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
                 self.g.order_time = (int(datetime.now().timestamp()))
                 self.notify(f"SingleGridStrategy {market_data.symbol}价格{price}超出风控范围{self.min_price * (1 - self.risk_rate)}"
                             f"-{self.max_price * (1 + self.risk_rate)} 平仓")
-                self.g.gird = 0
+                self.g.gird = -self.current_grid
                 self.close_position("网格风控")
                 self.risk = True
             return
@@ -129,6 +129,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
 
     def handle_position(self, order):
         self.current_grid += self.g.gird
+        self.g.gird = 0
         self.g.order_time = None
         si = "卖" if self.side != order.side else "买"
         logger.info(

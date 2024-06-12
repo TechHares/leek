@@ -62,13 +62,14 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         market_data = self.market_data
         price = market_data.close
         if price > self.max_price * (1 + self.risk_rate) or price < self.min_price * (1 - self.risk_rate):
-            if self.current_grid > 0:  # 有持仓
-                self.notify(f"SingleGridStrategy 价格{price}超出风控范围{self.min_price * (1 - self.risk_rate)}"
+            if self.g.order_time is None and self.current_grid > 0:  # 有持仓
+                self.g.order_time = (int(datetime.now().timestamp()))
+                self.notify(f"SingleGridStrategy {market_data.symbol}价格{price}超出风控范围{self.min_price * (1 - self.risk_rate)}"
                             f"-{self.max_price * (1 + self.risk_rate)} 平仓")
                 self.g.gird = 0
                 self.close_position("网格风控")
                 self.risk = True
-                return
+            return
 
         if price > self.max_price or price < self.min_price:  # 网格之外
             return
@@ -127,9 +128,8 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         self.create_order(side, rate)
 
     def handle_position(self, order):
-        g = self.__BaseStrategy__g_map[order.symbol]
-        self.current_grid += g.gird
-        g.order_time = None
+        self.current_grid += self.g.gird
+        self.g.order_time = None
         si = "卖" if self.side != order.side else "买"
         logger.info(
             f"网格购买成功 -> {self.g.gird}, 资金: {self.position_manager.available_amount} + {self.position_manager.position_value} ="

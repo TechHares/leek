@@ -70,9 +70,6 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
                 self.close_position("网格风控")
                 self.risk = True
             return
-
-        if price > self.max_price or price < self.min_price:  # 网格之外
-            return
         if self.is_long():
             dt_price = self.max_price - price
         else:
@@ -100,6 +97,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         )
         self.g.gird = -abs(self.current_grid - dt_gird)
         self.g.order_time = (int(datetime.now().timestamp()))
+        self.g.last_add_time = None
         self.close_position(rate=rate)
 
     def add_position(self, dt_price):
@@ -108,14 +106,15 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
                 logger.error(f"订单一直没处理完")
             return
         price = self.market_data.close
-        dt_gird = decimal_quantize(dt_price / self.grid_price, 0, 2)
+        dt_gird = min(self.grid, decimal_quantize(dt_price / self.grid_price, 0, 2))  # 防止风控设置过大导致超出网格个数
         if dt_gird <= self.current_grid:
             return
         if self.risk:  # 已经风控
             if dt_gird > self.grid - 2:
                 return
             self.risk = False
-
+        if self.g.last_add_time and int(datetime.now().timestamp()) - self.g.last_add_time < 20:  # 暴力拉升先避开
+            return
         side = PS.LONG if self.is_long() else PS.SHORT
         rate = abs(self.current_grid - dt_gird) / self.grid
         logger.info(
@@ -124,7 +123,8 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
             f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}\n"
         )
         self.g.gird = abs(self.current_grid - dt_gird)
-        self.g.order_time = (int(datetime.now().timestamp()))
+        self.g.order_time = int(datetime.now().timestamp())
+        self.g.last_add_time = int(datetime.now().timestamp())
         self.create_order(side, rate)
 
     def handle_position(self, order):

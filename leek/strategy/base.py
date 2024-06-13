@@ -54,7 +54,7 @@ class Position:
 
     def update_filled_position(self, order):
         if order.transaction_volume == 0:
-            return
+            return 0
         self.fee += abs(order.fee)
 
         if self.direction == order.side:
@@ -63,12 +63,20 @@ class Position:
             self.quantity += order.transaction_volume
             self.avg_price = decimal_quantize(quantity_value / self.quantity, 8)
             self.quantity_amount += order.transaction_amount
+            return_amount = order.transaction_amount
         else:
+            if self.direction == PositionSide.LONG:
+                return_amount = order.transaction_volume / self.quantity * self.quantity_amount \
+                                + (order.transaction_price - self.avg_price) * order.transaction_volume
+            else:
+                return_amount = order.transaction_volume / self.quantity * self.quantity_amount \
+                                + (self.avg_price - order.transaction_price) * order.transaction_volume
             self.sz -= order.sz
             self.quantity -= order.transaction_volume
             self.quantity_amount -= order.transaction_amount
         self.update_price(order.transaction_price)
         # logger.info(f"仓位变动[{self.symbol}] {self.direction} {self.quantity} {self.avg_price} {self.value}")
+        return return_amount
 
     def get_close_order(self, strategy_id, order_id, price: Decimal = None,
                         order_type=OT.MarketOrder,
@@ -166,12 +174,13 @@ class PositionManager:
         position = self.quantity_map[trade.symbol]
         self.logger_print("仓位更新", (trade.__str__(), position.__str__()))
         self.bus.publish(EventBus.TOPIC_POSITION_UPDATE, position, trade)
-        position.update_filled_position(trade)
+        amt = position.update_filled_position(trade)
+
         if position.direction == trade.side:  # 开仓
-            rate = self.release_amount(trade.order_id, trade.transaction_amount, trade.fee)
+            rate = self.release_amount(trade.order_id, amt, trade.fee)
             position.quantity_rate += rate
         elif trade.transaction_volume > 0:
-            self.release_position(self.signal_processing_map[trade.symbol], trade.transaction_amount, trade.fee)
+            self.release_position(self.signal_processing_map[trade.symbol], amt, trade.fee)
             position.quantity_rate -= self.signal_processing_map[trade.symbol]
 
         # 更新可用资金

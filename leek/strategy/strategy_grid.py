@@ -63,7 +63,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         price = market_data.close
         if price > self.max_price * (1 + self.risk_rate) or price < self.min_price * (1 - self.risk_rate):
             if self.g.order_time is None and self.current_grid > 0:  # 有持仓
-                self.g.order_time = (int(datetime.now().timestamp()))
+                self.g.order_time = int(datetime.now().timestamp())
                 self.notify(f"SingleGridStrategy {market_data.symbol}价格{price}超出风控范围{self.min_price * (1 - self.risk_rate)}"
                             f"-{self.max_price * (1 + self.risk_rate)} 平仓")
                 self.g.gird = -self.current_grid
@@ -89,6 +89,9 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         if dt_gird >= self.current_grid or (dt_gird == 0 and self.current_grid == 1):
             return
 
+        if self.g.last_sub_time and int(datetime.now().timestamp()) - self.g.last_sub_time < 20:  # 暴力下杀先避开
+            return
+
         rate = abs(self.current_grid - dt_gird) / self.grid
         logger.info(
             f"方向{self.side} "
@@ -96,7 +99,8 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
             f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}\n"
         )
         self.g.gird = -abs(self.current_grid - dt_gird)
-        self.g.order_time = (int(datetime.now().timestamp()))
+        self.g.order_time = int(datetime.now().timestamp())
+        self.g.last_sub_time = int(datetime.now().timestamp())
         self.g.last_add_time = None
         self.close_position(rate=rate)
 
@@ -125,6 +129,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         self.g.gird = abs(self.current_grid - dt_gird)
         self.g.order_time = int(datetime.now().timestamp())
         self.g.last_add_time = int(datetime.now().timestamp())
+        self.g.last_sub_time = None
         self.create_order(side, rate)
 
     def handle_position(self, order):

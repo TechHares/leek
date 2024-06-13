@@ -143,7 +143,6 @@ class PositionManager:
         self.quantity_map: Dict[str, Position] = {}
 
         self.__seq_id = 0
-        self.post_constructor()
         self.signal_processing_map = {}
 
     def post_constructor(self):
@@ -369,6 +368,7 @@ class BaseStrategy(metaclass=ABCMeta):
 
     def post_constructor(self):
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA, self._wrap_handle)
+        self.position_manager.post_constructor()
 
         def data_init(symbol, market_datas: list):
             self._data_init(market_datas)

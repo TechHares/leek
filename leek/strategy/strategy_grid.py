@@ -39,6 +39,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         self.grid_price = decimal_quantize(((self.max_price - self.min_price) / self.grid), 8)
 
         # 运行数据
+        self.threshold = 60  # 定义暴力波动阈值 x秒内穿多个网格
         self.current_grid = Decimal("0")
         self.risk = False  # 是否已经风控
 
@@ -89,7 +90,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         if dt_gird >= self.current_grid or (dt_gird == 0 and self.current_grid == 1):
             return
 
-        if self.g.last_sub_time and int(datetime.now().timestamp()) - self.g.last_sub_time < 20:  # 暴力下杀先避开
+        if self.g.last_sub_time and int(datetime.now().timestamp()) - self.g.last_sub_time < self.threshold:  # 暴力下杀先避开
             return
 
         rate = abs(self.current_grid - dt_gird) / self.grid
@@ -110,6 +111,8 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
                 logger.error(f"订单一直没处理完")
             return
         price = self.market_data.close
+        if price > self.max_price or price < self.min_price:
+            return
         dt_gird = min(self.grid, decimal_quantize(dt_price / self.grid_price, 0, 2))  # 防止风控设置过大导致超出网格个数
         if dt_gird <= self.current_grid:
             return
@@ -117,7 +120,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
             if dt_gird > self.grid - 2:
                 return
             self.risk = False
-        if self.g.last_add_time and int(datetime.now().timestamp()) - self.g.last_add_time < 20:  # 暴力拉升先避开
+        if self.g.last_add_time and int(datetime.now().timestamp()) - self.g.last_add_time < self.threshold:  # 暴力拉升先避开
             return
         side = PS.LONG if self.is_long() else PS.SHORT
         rate = abs(self.current_grid - dt_gird) / self.grid

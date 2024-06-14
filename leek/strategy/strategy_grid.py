@@ -86,7 +86,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
                 logger.error(f"订单一直没处理完")
             return
         price = self.market_data.close
-        dt_gird = decimal_quantize(dt_price / self.grid_price, 0, 1)
+        dt_gird = max(decimal_quantize(dt_price / self.grid_price, 0, 1), 0)
         if dt_gird >= self.current_grid or (dt_gird == 0 and self.current_grid == 1):
             return
 

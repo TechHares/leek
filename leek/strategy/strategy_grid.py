@@ -137,12 +137,12 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
 
     def handle_position(self, order):
         self.current_grid += self.g.gird
-        self.g.gird = 0
         self.g.order_time = None
         si = "卖" if self.side != order.side else "买"
         logger.info(
-            f"网格购买成功 -> {self.g.gird}, 资金: {self.position_manager.available_amount} + {self.position_manager.position_value} ="
+            f"网格购买成功 {self.g.gird} -> {self.current_grid}, 资金: {self.position_manager.available_amount} + {self.position_manager.position_value} ="
             f" {self.position_manager.available_amount + self.position_manager.position_value} , {si} {order.amount}")
+        self.g.gird = 0
 
     def to_dict(self):
         d = super().to_dict()

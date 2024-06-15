@@ -10,6 +10,7 @@ import time
 from datetime import datetime
 from decimal import Decimal
 
+from cachetools import cached, TTLCache
 from okx import MarketData, PublicData
 
 from leek.common import logger, G, config
@@ -182,6 +183,8 @@ class OKXFundingDataSource(DataSource):
             self.domain = "https://aws.okx.com"
         self.market_api = MarketData.MarketAPI(domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
         self.public_api = PublicData.PublicAPI(domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
+        self.close_price_size = 120
+        self.funding_cache = {}
         self.__run = True
 
     def _run(self):
@@ -200,22 +203,74 @@ class OKXFundingDataSource(DataSource):
             symbols = set([ticker["instId"] for ticker in tickers if ticker["instId"].endswith("-USDT-SWAP")])
             funding_rates = []
             for symbol in symbols:
+                ts = int(datetime.now().timestamp() * 1000)
+                if symbol in self.funding_cache and int(self.funding_cache[symbol].nextFundingTime) > ts:
+                    funding_rates.append(self.funding_cache[symbol])
+                    continue
                 res = self.public_api.get_funding_rate(symbol)
                 if res and res["code"] == "0":
-                    funding_rates.append(G(**res["data"][0]))
+                    self.funding_cache[symbol] = G(**res["data"][0])
+                    funding_rates.append(self.funding_cache[symbol])
                 else:
                     logger.error(f"获取{symbol}资金费数据失败")
-            a = sorted(funding_rates, key=lambda x: abs(Decimal(x.fundingRate)), reverse=True)[:10]
-            swaps = []
-            spots = []
-            for s in a:
-                print(s.instId)
+            a = sorted(funding_rates, key=lambda x: abs(Decimal(x.fundingRate)), reverse=True)
+            swap_prices = self.get_all_prices("SWAP")
+            spot_prices = self.get_all_prices("SPOT")
+            for s in a[:10]:
+                spot_inst_id = s.instId.replace("-USDT-SWAP", "-USDT")
+                s.spot_closes = self.get_kline(spot_inst_id)
+                s.swap_closes = self.get_kline(s.instId)
+                s.swap_instrument = self.__get_instrument(s.instId)
+                s.spot_instrument = self.__get_instrument(spot_inst_id)
+                if s.instId in swap_prices:
+                    s.swap_price = swap_prices[s.instId]
+                if s.instId in spot_prices:
+                    s.spot_price = spot_prices[s.instId]
             data = G(symbol="funding",
                      timestamp=int(datetime.now().timestamp() * 1000),
                      rates=a,
                      finish=1
                      )
             self._send_tick_data(data)
+
+    def get_all_prices(self, ins_type="SWAP"):
+        tickers = self.market_api.get_tickers(instType=ins_type)
+        return {ticker["instId"]: Decimal(ticker["last"]) for ticker in tickers["data"]
+                if "USDT" in ticker["instId"]}
+
+    @cached(cache=TTLCache(maxsize=600, ttl=300))
+    def get_kline(self, symbol):
+        ts = int(time.time() * 1000)
+        res = []
+        while len(res) < self.close_price_size:
+            candlesticks = self.market_api.get_history_candlesticks(instId=symbol, bar="5m", after=ts)
+            if candlesticks["data"] is None or len(candlesticks["data"]) == 0:
+                break
+            for row in candlesticks["data"]:
+                ts = int(row[0]) - 1
+                res.append(Decimal(row[4]))
+        return res[:min(self.close_price_size, len(res))]
+
+    @cached(cache=TTLCache(maxsize=600, ttl=864000))
+    def __get_instrument(self, symbol):
+        """
+        获取交易产品基础信息
+        :param symbol:
+        :return:
+        """
+        instruments = self.public_api.get_instruments(instType="SWAP" if symbol.endswith("-SWAP") else "SPOT",
+                                                      instId=symbol)
+        if not instruments:
+            return None
+
+        if instruments['code'] != '0':
+            return None
+
+        if len(instruments['data']) == 0:
+            return None
+
+        instrument = instruments['data'][0]
+        return instrument
 
 
 if __name__ == '__main__':

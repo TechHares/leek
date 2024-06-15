@@ -11,6 +11,7 @@ from datetime import datetime
 import ccxt
 
 from leek.common import EventBus
+from leek.common.utils import DateTime
 from leek.data import DataSource, WSDataSource
 from leek.data.data_okx import OkxMarketDataSource, OkxKlineDataSource, OKXFundingDataSource
 
@@ -55,6 +56,9 @@ class TestBase(unittest.TestCase):
     def test_funding(self):
         source = OKXFundingDataSource()
         source._run()
+        # kline = source.get_kline("BTC-USDT")
+        # for k in kline:
+        #     print(DateTime.to_date_str(k[0]), k[1], k[2])
 
     def test_cctx(self):
         okx = ccxt.okx({

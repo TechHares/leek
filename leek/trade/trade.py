@@ -36,6 +36,12 @@ class PositionSide(Enum):
             return PositionSide.LONG
         raise RuntimeError
 
+    def switch(self):
+        return self.switch_side(self)
+
+    def is_long(self):
+        return self == PositionSide.LONG
+
 
 class OrderType(Enum):
     """
@@ -45,26 +51,53 @@ class OrderType(Enum):
     LimitOrder = 2  # 限价单
 
 
+class TradeMode(Enum):
+    """
+    交易模式
+    """
+    ISOLATED = 1  # 保证金模式-逐仓
+    CROSS = 2  # 保证金模式-全仓
+    CASH = 3  # 非保证金模式-非保证金
+
+
+class TradeInsType(Enum):
+    """
+    交易产品类型
+    """
+
+    SPOT = 1  # 现货
+    MARGIN = 2  # 杠杆
+    SWAP = 3  # 合约
+    FUTURES = 4  # 期货
+    OPTION = 5  # 期权
+
+
 class Order:
     """
     交易指令
     """
 
     def __init__(self, strategy_id: str, order_id, tp: OrderType, symbol: str, amount: Decimal = 0.0,
-                 price: Decimal = None, side: PositionSide = PositionSide.LONG, order_time: datetime = None):
+                 vol: Decimal = 0.0, price: Decimal = None, side: PositionSide = PositionSide.LONG,
+                 order_time: datetime = None, trade_ins_type: TradeInsType = TradeInsType.SWAP,
+                 trade_mode: TradeMode = TradeMode.ISOLATED, sz=None, pos_type=None, lever=1):
         self.strategy_id = strategy_id  # 策略ID
         self.order_id = order_id  # 订单ID
+        self.trade_ins_type = trade_ins_type  # 交易标的类型
         self.type = tp  # 类型
+        self.trade_mode = trade_mode  # 交易类型 保证金模式：isolated：逐仓 ；cross：全仓 ； 非保证金模式：cash：非保证金
         self.symbol = symbol  # 产品
         self.price = price  # 价格
         self.amount = amount  # 报单额
+        self.vol = vol  # 报单数量
         self.side = side  # 交易方向
+        self.lever = lever  # 杠杆倍数
         self.order_time = order_time  # 时间
         if self.order_time is None:
             self.order_time = int(time.time()*1000)
-        self.pos_type = side
+        self.pos_type = pos_type
 
-        self.sz = None  # 实际需交易数量，如amount与实际挂单之间有运算，传此值不转化直接使用
+        self.sz = sz  # 实际需交易数量，如amount与实际挂单之间有运算，传此值不转化直接使用
         self.cct = None  # sz 对应面值
 
         self.transaction_volume = None  # 成交数量

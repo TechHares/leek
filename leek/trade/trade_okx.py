@@ -20,7 +20,7 @@ from okx.utils import sign
 
 from leek.common import logger, G, config
 from leek.common.utils import decimal_to_str, decimal_quantize
-from leek.trade.trade import Trader, Order, PositionSide as PS, OrderType as OT
+from leek.trade.trade import Trader, Order, PositionSide as PS, OrderType as OT, TradeInsType, TradeMode
 
 LOCK = threading.RLock()
 
@@ -101,6 +101,7 @@ class OkxWsTradeClient(threading.Thread):
                             cancel_source=d["cancelSource"],  # 取消原因
                             symbol=d["instId"],
                             pos_side=d["posSide"],
+                            trade_mode=d["trade_mode"],
                         ).__json__()
                         self.callback(order_result)
 
@@ -327,7 +328,7 @@ class SwapOkxTrader(Trader):
 
         ct_val = instrument["ctVal"]  # 合约面值
         if not order.price:
-            res = trader.public_client.get_mark_price("SWAP", instId=order.symbol)
+            res = self.public_client.get_mark_price("SWAP", instId=order.symbol)
             order.price = Decimal(res["data"][0]["markPx"])
         num = order.amount * self.lever / (order.price * Decimal(ct_val))
 
@@ -392,13 +393,249 @@ class SwapOkxTrader(Trader):
 #     await asyncio.sleep(10)
 #     await ws.unsubscribe(args, callback=callback)
 #  asyncio.run(main())
+class OkxTrader(Trader):
+    verbose_name = "OKX交易"
+    """
+    OKX 交易
 
+    实盘API交易地址如下：
+        REST：https://www.okx.com/
+        WebSocket公共频道：wss://ws.okx.com:8443/ws/v5/public
+        WebSocket私有频道：wss://ws.okx.com:8443/ws/v5/private
+        WebSocket业务频道：wss://ws.okx.com:8443/ws/v5/business
+    AWS 地址如下：
+        REST：https://aws.okx.com
+        WebSocket公共频道：wss://wsaws.okx.com:8443/ws/v5/public
+        WebSocket私有频道：wss://wsaws.okx.com:8443/ws/v5/private
+        WebSocket业务频道：wss://wsaws.okx.com:8443/ws/v5/business
+
+    模拟盘API交易地址如下：
+        REST：https://www.okx.com
+        WebSocket公共频道：wss://wspap.okx.com:8443/ws/v5/public?brokerId=9999
+        WebSocket私有频道：wss://wspap.okx.com:8443/ws/v5/private?brokerId=9999
+        WebSocket业务频道：wss://wspap.okx.com:8443/ws/v5/business?brokerId=9999
+    """
+    __Side_Map = {
+        PS.LONG: "buy",
+        PS.SHORT: "sell",
+    }
+
+    __Pos_Side_Map = {
+        PS.LONG: "long",
+        PS.SHORT: "short",
+    }
+
+    __Trade_Mode_Map = {
+        TradeMode.ISOLATED: "isolated",
+        TradeMode.CROSS: "cross",
+        TradeMode.CASH: "cash",
+    }
+
+    __Inst_Type_SPOT = "SPOT"
+    __Inst_Type_MARGIN = "MARGIN"
+    __Inst_Type_SWAP = "SWAP"
+    __Inst_Type_FUTURES = "FUTURES"
+    __Inst_Type_OPTION = "OPTION"
+
+    def __init__(self, api_key="", api_secret_key="", passphrase="", slippage_level=4, work_flag="0", td_mode="isolated"):
+        self.api_key = api_key
+        self.api_secret_key = api_secret_key
+        self.passphrase = passphrase
+        self.td_mode = td_mode
+        self.flag = "0"
+        self.domain = "https://www.okx.com"
+        ws_domain = "wss://ws.okx.com:8443/ws/v5/private"
+        if work_flag == "1":
+            self.flag = "1"
+            ws_domain = "wss://wspap.okx.com:8443/ws/v5/private?brokerId=9999"
+        if work_flag == "2":
+            self.domain = "https://aws.okx.com"
+            ws_domain = "wss://wsaws.okx.com:8443/ws/v5/private"
+
+        self.slippage_level = int(slippage_level)
+
+        self.client = Trade.TradeAPI(domain=self.domain, api_key=api_key, api_secret_key=api_secret_key,
+                                     passphrase=passphrase, flag=self.flag, debug=False, proxy=config.PROXY)
+        self.account = Account.AccountAPI(api_key=api_key, api_secret_key=api_secret_key, passphrase=passphrase,
+                                          domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
+
+        self.public_client = PublicData.PublicAPI(domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
+        self.market_client = MarketData.MarketAPI(domain=self.domain, flag=self.flag, debug=False, proxy=config.PROXY)
+        self.ws_client = OkxWsTradeClient(self.__trade_callback, api_key=api_key,
+                                          api_secret_key=api_secret_key, passphrase=passphrase, domain=ws_domain)
+        self.ws_client.start()
+
+    def order(self, order: Order):
+        args = {
+            "tdMode": OkxTrader.__Trade_Mode_Map[order.trade_mode],
+            "instId": order.symbol,
+            "clOrdId": "%s" % order.order_id,
+            "side": OkxTrader.__Side_Map[order.side],
+            "ordType": "limit",
+        }
+        if order.trade_ins_type == TradeInsType.SWAP:
+            try:
+                sz = self.__check_sz(order)
+            except Exception as e:
+                logger.error(f"下单sz check失败: {e}")
+                pos_trade = self.__empty_trade(order.symbol, order.side, order.order_id)
+                logger.info(f"OKX交易回调：{pos_trade}")
+                self._trade_callback(pos_trade)
+                return
+            args["sz"] = "%s" % sz
+            if order.pos_type:
+                args["posSide"] = OkxTrader.__Pos_Side_Map[order.pos_type],
+            else:
+                args["posSide"] = OkxTrader.__Pos_Side_Map[order.side],
+
+        if order.price is not None:
+            args["px"] = "%s" % order.price
+
+        if order.type == OT.MarketOrder:
+            if order.trade_ins_type == TradeInsType.SWAP:  # 合约使用高级限价省手续费
+                args["ordType"] = "optimal_limit_ioc"
+            else:
+                args["ordType"] = "market"
+
+        if order.type == OT.LimitOrder:  # 处理滑档
+            orderbook = self.market_client.get_orderbook(order.symbol, max(10, self.slippage_level))
+            if order.side == PS.LONG:
+                args["px"] = orderbook["data"]["asks"][self.slippage_level][0]
+            else:
+                args["px"] = orderbook["data"]["bids"][self.slippage_level][0]
+            logger.info(f"[{order.strategy_id} - 下单], args: {args}, {order}")
+
+        logger.info(f"[{order.strategy_id} - 下单], args: {args}, {order}")
+        res = self.client.place_order(**args)
+        logger.info(f"[{order.strategy_id} - 下单], response: {res}")
+        if res["code"] != "0":
+            logger.error(f"下单失败: {json.dumps(res)}")
+
+            pos_trade = self.__empty_trade(order.symbol, order.side, order.order_id)
+            logger.info(f"OKX交易回调：{pos_trade}")
+            self._trade_callback(pos_trade)
+        # return order
+
+    def __empty_trade(self, symbol, side, order_id):
+        pos_trade = G()
+        pos_trade.order_id = order_id
+        pos_trade.transaction_price = 0
+        pos_trade.lever = 0
+        pos_trade.fee = 0
+        pos_trade.pnl = 0
+        pos_trade.sz = 0
+        pos_trade.cancel_source = 0
+        pos_trade.symbol = symbol
+        pos_trade.ct_val = 0
+
+        pos_trade.transaction_volume = 0
+        pos_trade.transaction_amount = 0
+        pos_trade.side = side
+        return pos_trade
+
+    def __trade_callback(self, data):
+        if data["state"] == "canceled":
+            logger.error(f"订单已撤单: {data['order_id']}, 取消原因: {data['cancel_source']}")
+            pos_trade = self.__empty_trade(data["symbol"], PS.SHORT if data["side"] == "sell" else PS.LONG, data["order_id"])
+            logger.info(f"OKX交易回调：{pos_trade}")
+            self._trade_callback(pos_trade)
+            return
+
+        if data["state"] != "filled":
+            return
+        pos_trade = G()
+        pos_trade.order_id = data["order_id"]
+        pos_trade.transaction_price = Decimal(data["price"])
+        pos_trade.lever = int(data["lever"])
+        pos_trade.fee = abs(Decimal(data["fee"]))
+        pos_trade.pnl = Decimal(data["pnl"])
+        pos_trade.sz = Decimal(data["sz"])
+        pos_trade.cancel_source = data["cancel_source"]
+        pos_trade.symbol = data["symbol"]
+
+        instrument = self.__get_instrument(data["symbol"], data["pos_side"], data["trade_mode"], pos_trade.lever)
+        if not instrument:
+            raise RuntimeError("交易信息获取失败")
+
+        pos_trade.transaction_volume = pos_trade.sz * pos_trade.ct_val
+        amt = decimal_quantize(pos_trade.transaction_volume * pos_trade.transaction_price / pos_trade.lever, 8)
+        pos_trade.transaction_amount = abs(Decimal(amt))
+        pos_trade.side = PS.LONG
+        if data["side"] == "sell":
+            pos_trade.side = PS.SHORT
+        logger.info(f"OKX交易回调：{pos_trade}")
+        self._trade_callback(pos_trade)
+
+    def cancel_order(self, strategy, order_id, symbol: str):
+        logger.info(f"[{strategy} - 撤单], order_id: {order_id}, symbol={symbol}")
+        res = self.client.cancel_order(instId=symbol, clOrdId="%s" % order_id)
+        logger.info(f"[{strategy} - 撤单], response: {res}")
+
+    def __check_sz(self, order: Order):
+        """
+        计算下单数量 sz
+        :param order: 订单
+        :return: sz -> str
+        """
+        instrument = self.__get_instrument(order.symbol, OkxTrader.__Pos_Side_Map[order.side],
+                                           OkxTrader.__Trade_Mode_Map[order.trade_mode], order.lever)
+        if not instrument:
+            raise RuntimeError("交易信息获取失败")
+
+        sz = Decimal(order.sz)
+        min_sz = instrument["minSz"]  # 最小下单数量
+        if sz < Decimal(min_sz):
+            raise RuntimeError(f"下单数量 sz {sz}小于最低限制{min_sz}")
+
+        if order.type == OT.MarketOrder:
+            max_mkt_sz = instrument["maxMktSz"]  # 合约或现货市价单的单笔最大委托数量
+            sz = min(sz, Decimal(max_mkt_sz))
+        else:
+            max_lmt_sz = instrument["maxLmtSz"]  # 合约或现货限价单的单笔最大委托数量
+            sz = min(sz, Decimal(max_lmt_sz))
+        return Decimal(sz)
+
+    @cached(cache=TTLCache(maxsize=20, ttl=600))
+    def __get_instrument(self, symbol, posSide, td_mode, lever):
+        """
+        获取交易产品基础信息
+        :param symbol:
+        :return:
+        """
+        res = self.account.set_leverage(lever="%s" % lever, mgnMode=td_mode, instId=symbol, posSide=posSide)
+        if res and res["code"] != "0":
+            logger.error(f"设置杠杆失败:{res['msg'] if res else res}")
+        instruments = self.public_client.get_instruments(instType="SWAP", instId=symbol)
+        if not instruments:
+            return None
+
+        if instruments['code'] != '0':
+            return None
+
+        if len(instruments['data']) == 0:
+            return None
+
+        instrument = instruments['data'][0]
+        return instrument
+
+    def shutdown(self):
+        self.ws_client.keep_running = False
+        if self.ws_client:
+            if self.ws_client.ws:
+                self.ws_client.ws.keep_running = False
+                self.ws_client.ws.close()
+            if self.ws_client.timer:
+                self.ws_client.timer.cancel()
 if __name__ == '__main__':
-    trader = SwapOkxTrader("", "",
-                           "", work_flag="2")
-    leverage = trader.account.set_leverage(lever="3", mgnMode="isolated", instId="FIL-USDT-SWAP", posSide="short")
-    print(leverage)
+    # trader = SwapOkxTrader("", "",
+    #                        "", work_flag="2")
+    # leverage = trader.account.set_leverage(lever="3", mgnMode="isolated", instId="FIL-USDT-SWAP", posSide="short")
+    # print(leverage)
     # trader.order(Order("T0", "TOLONG1", OT.MarketOrder, "DOGE-USDT-SWAP", Decimal(100), side=PS.SHORT))
     #
     # time.sleep(100)
     # trader.shutdown()
+    c = MarketData.MarketAPI(domain="https://aws.okx.com", flag="0", debug=True)
+    orderbook = c.get_orderbook("NOT-USDT-SWAP", 10)
+    print(orderbook)
+

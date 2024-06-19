@@ -218,16 +218,18 @@ class PositionManager:
         self.__seq_id += 1
         order_id = f"{signal.strategy_id}{'LONG' if signal.side == PositionSide.LONG else 'SHORT'}{self.__seq_id}"
 
-        order = Order(signal.strategy_id, order_id, OT.MarketOrder, signal.symbol, Decimal(0), signal.price,
+        order = Order(signal.strategy_id, order_id, OT.MarketOrder, signal.symbol, Decimal(0), Decimal(0), signal.price,
                       signal.side, signal.timestamp)
 
         p = self.get_position(signal.symbol)
         if p is not None and p.direction != signal.side:  # 平仓
             order.pos_type = PositionSide.switch_side(signal.side)
+            signal.position_rate = min(signal.position_rate, p.quantity_rate)
             if p.sz is not None:
-                order.sz = min(p.sz, p.sz * signal.position_rate / p.quantity_rate)
+                order.sz = p.sz * signal.position_rate / p.quantity_rate
                 logger.info(f"平仓sz计算：all={p.sz}, sz={p.sz} * {signal.position_rate} / {p.quantity_rate} = {order.sz}")
         else:
+            signal.position_rate = min(signal.position_rate, self.available_rate)
             amount = self.freeze(order_id, signal.position_rate)
             if amount <= 0:
                 return
@@ -348,8 +350,8 @@ class BaseStrategy(metaclass=ABCMeta):
         self.position_manager = PositionManager(bus, total_amount)
 
         # base 内部变量
-        self.__strategy_id = strategy_id
-        self.__seq_id = 0
+        self._strategy_id = strategy_id
+        self._seq_id = 0
         self.__g_map: Dict[str, G] = {}  # 保存不同标的变量
 
         # 当前标的策略上文变量
@@ -413,8 +415,8 @@ class BaseStrategy(metaclass=ABCMeta):
         pass
 
     def _get_seq_id(self):
-        self.__seq_id += 1
-        return self.__seq_id
+        self._seq_id += 1
+        return self._seq_id
 
     def shutdown(self):
         pass
@@ -450,7 +452,7 @@ class BaseStrategy(metaclass=ABCMeta):
         position_signal.timestamp = self.market_data.timestamp
         position_signal.position_rate = Decimal("%s" % position_rate)
         position_signal.creator = self.__class__
-        position_signal.strategy_id = self.__strategy_id
+        position_signal.strategy_id = self._strategy_id
         position_signal.memo = memo
         position_signal.extend = extend
         self.g.price = self.market_data.close * (1 if side == PositionSide.LONG else -1)
@@ -476,7 +478,7 @@ class BaseStrategy(metaclass=ABCMeta):
         position_signal.position_rate = Decimal(rate)
         position_signal.price = self.market_data.close
         position_signal.creator = self.__class__
-        position_signal.strategy_id = self.__strategy_id
+        position_signal.strategy_id = self._strategy_id
         position_signal.timestamp = self.market_data.timestamp
         position_signal.memo = memo
         position_signal.extend = extend

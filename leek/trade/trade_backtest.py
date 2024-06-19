@@ -59,7 +59,7 @@ class BacktestTrader(Trader):
         pos_trade.transaction_volume = pos_trade.sz
         if order.type == OrderType.LimitOrder:  # 限价单
             random_num = random.randint(self.limit_order_execution_rate, 100)  # 成交量波动
-            pos_trade.transaction_volume = decimal_quantize(order.sz * random_num / 100, 6)
+            pos_trade.transaction_volume = decimal_quantize(pos_trade.sz * random_num / 100, 6)
 
         #  3. 计算成交额
         pos_trade.transaction_amount = decimal_quantize(pos_trade.transaction_volume * pos_trade.transaction_price, 2, 1)

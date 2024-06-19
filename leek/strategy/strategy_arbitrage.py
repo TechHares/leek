@@ -26,7 +26,8 @@ class FundingStrategy(PositionRateManager, PositionDirectionManager, BaseStrateg
     def __init__(self):
         # 成本计算
         # 预期交易滑点
-        self.slippage = Decimal("0.001")
+        # self.slippage = Decimal("0.001")
+        self.slippage = Decimal("0.00")
         # 合约方向 费用
         self.short_fee = Decimal("0.003")
         self.long_fee = Decimal("0.004")
@@ -59,6 +60,7 @@ class FundingStrategy(PositionRateManager, PositionDirectionManager, BaseStrateg
 
     def post_constructor(self):
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA, self._wrap_handle)
+        self.bus.subscribe(EventBus.TOPIC_POSITION_DATA, self.order_handle)
 
     def handle(self):
         # todo 根据资金费收取周期不同 更细节的处理
@@ -109,7 +111,10 @@ class FundingStrategy(PositionRateManager, PositionDirectionManager, BaseStrateg
         with self.lock:
             if self.state != 3:
                 return
-
+            self.swap_order = self.swap_position.get_close_order(self._strategy_id, f"fundingclose{self._seq_id}")
+            self.hedging_order = self.hedging_position.get_close_order(self._strategy_id, f"hedgingclose{self._seq_id}")
+            self.bus.publish(EventBus.TOPIC_ORDER_DATA, self.swap_order)
+            self.bus.publish(EventBus.TOPIC_ORDER_DATA, self.hedging_order)
             self.state = 4
 
     def open_position(self, symbol, side, funding_data):
@@ -144,21 +149,23 @@ class FundingStrategy(PositionRateManager, PositionDirectionManager, BaseStrateg
             ct_val = Decimal(funding_data.swap_instrument["ctVal"])
             num = trade_amount * self.swap_lever / (swap_price * ct_val)
             sz = num - (num % Decimal(funding_data.swap_instrument["lotSz"]))
-
-            self.swap_order = Order(strategy_id=self.__strategy_id, order_id=f"funding{self.__seq_id}",
+            self._seq_id += 1
+            self.swap_order = Order(strategy_id=self._strategy_id, order_id=f"funding{self._seq_id}",
                                     tp=OrderType.LimitOrder, symbol=symbol, amount=swap_amount * self.swap_lever,
                                     vol=ct_val * sz, price=swap_price, side=side, order_time=now,
                                     trade_mode=TradeMode.CROSS, sz=sz)
 
             # 计算下单数量
             spot_price = funding_data.spot_price
-            self.hedging_order = Order(strategy_id=self.__strategy_id, order_id=f"hedging{self.__seq_id}",
+            self.hedging_order = Order(strategy_id=self._strategy_id, order_id=f"hedging{self._seq_id}",
                                        tp=OrderType.LimitOrder, symbol=symbol.replace("-SWAP", ""),
                                        amount=hedging_amount * hedging_lever,
                                        vol=ct_val * sz, price=spot_price, side=side.switch(), order_time=now,
                                        trade_mode=hedging_trade_mode)
             self.state = 1
             self.funding_time = int(funding_data.fundingTime)
+            logger.info(f"套利开仓: {self.swap_order}")
+            logger.info(f"套利对冲: {self.hedging_order}")
             self.bus.publish(EventBus.TOPIC_ORDER_DATA, self.swap_order)
             self.bus.publish(EventBus.TOPIC_ORDER_DATA, self.hedging_order)
 
@@ -168,21 +175,23 @@ class FundingStrategy(PositionRateManager, PositionDirectionManager, BaseStrateg
             if self.state in [1, 2]:  # 开仓 / 单腿成交
                 p = Position(trade.symbol, trade.side)
                 amt = p.update_filled_position(trade)
+                logger.info(f"套利订单回调: {trade}")
                 if trade.order_id == self.swap_order.order_id:
                     if self.swap_position:
                         raise Exception(f"swap_position 已经存在{trade}, 检查交易")
                     self.swap_position = p
-                    self.swap_order = None
                 elif trade.order_id == self.hedging_order.order_id:
                     if self.hedging_position:
                         raise Exception(f"hedging_position 已经存在{trade}, 检查交易")
                     self.hedging_position = p
-                    self.hedging_order = None
                 else:
                     logger.error(f"未知的订单信息 {trade}")
                     raise Exception(f"未知的订单信息{trade}")
                 self.position_manager.available_amount -= amt
                 self.state += 1
+                if self.state == 3:
+                    self.hedging_order = None
+                    self.swap_order = None
                 return
 
             if self.state in [4, 5]:  # 平仓挂单 / 平仓单腿成交

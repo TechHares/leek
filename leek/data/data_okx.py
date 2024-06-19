@@ -224,8 +224,8 @@ class OKXFundingDataSource(DataSource):
                 s.spot_instrument = self.__get_instrument(spot_inst_id)
                 if s.instId in swap_prices:
                     s.swap_price = swap_prices[s.instId]
-                if s.instId in spot_prices:
-                    s.spot_price = spot_prices[s.instId]
+                if spot_inst_id in spot_prices:
+                    s.spot_price = spot_prices[spot_inst_id]
             data = G(symbol="funding",
                      timestamp=int(datetime.now().timestamp() * 1000),
                      rates=a,

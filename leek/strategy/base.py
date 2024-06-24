@@ -230,6 +230,7 @@ class PositionManager:
                 logger.info(f"平仓sz计算：all={p.sz}, sz={p.sz} * {signal.position_rate} / {p.quantity_rate} = {order.sz}")
         else:
             signal.position_rate = min(signal.position_rate, self.available_rate)
+            order.pos_type = signal.side
             amount = self.freeze(order_id, signal.position_rate)
             if amount <= 0:
                 return

@@ -7,9 +7,11 @@
 
 from leek.common import EventBus, logger
 from leek.common.utils import *
-from leek.strategy.common import *
 from leek.strategy import BaseStrategy
-from leek.trade.trade import Order, PositionSide as PS, OrderType as OT
+from leek.strategy.common import *
+from leek.strategy.common.strategy_common import PositionRateManager
+from leek.strategy.common.strategy_filter import DynamicRiskControl
+from leek.trade.trade import PositionSide as PS
 
 
 class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
@@ -154,6 +156,16 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
 
         if "risk" in data:
             self.risk = data["risk"]
+
+
+class DynamicGridStrategy(PositionDirectionManager, PositionRateManager, DynamicRiskControl, BaseStrategy):
+    verbose_name = "动态网格"
+
+    def __init__(self):
+        pass
+
+    def handle(self):
+        pass
 
 
 if __name__ == '__main__':

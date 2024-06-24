@@ -31,11 +31,11 @@ class TestRSI(unittest.TestCase):
         fig.show()
 
     def test_handle2(self):
-            workflow = ViewWorkflow(None, "1m", "2024-06-18 14:30", "2024-06-18 18:30", "MERL-USDT-SWAP")
-            kdj = StochRSI(14, 14, 3, 3)
-            data = workflow.get_data("MERL-USDT-SWAP")
+            workflow = ViewWorkflow(None, "1d", "2020-06-18 14:30", "2024-06-24 18:30", "300498", 1)
+            rsi = StochRSI(14, 14, 3, 3)
+            data = workflow.get_data(workflow.benchmark)
             for d in data:
-                r = kdj.update(d)
+                r = rsi.update(d)
                 if r:
                     d.k, d.d = r
             df = pd.DataFrame([x.__json__() for x in data])

@@ -101,7 +101,7 @@ class OkxWsTradeClient(threading.Thread):
                             cancel_source=d["cancelSource"],  # 取消原因
                             symbol=d["instId"],
                             pos_side=d["posSide"],
-                            trade_mode=d["trade_mode"],
+                            trade_mode=d["tdMode"],
                         ).__json__()
                         self.callback(order_result)
 

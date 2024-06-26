@@ -165,7 +165,7 @@ class BacktestDataSource(DataSource):
                 if ts != row[0]:
                     send_data()
                     ts = row[0]
-                ticket = G(symbol=row[1], timestamp=row[0], open=Decimal(row[2]), high=Decimal(row[3]),
+                ticket = G(symbol=row[1], timestamp=row[0], open=Decimal(row[2]), high=Decimal(row[3]), current_time=row[0],
                            low=Decimal(row[4]), close=Decimal(row[5]), volume=Decimal(row[6]), amount=Decimal(row[7]),
                            interval=row[8], finish=0 if config.BACKTEST_EMULATION and row[
                         8] == config.BACKTEST_EMULATION_INTERVAL else 1)
@@ -225,6 +225,7 @@ class StockBacktestDataSource(BacktestDataSource):
             if row is None:
                 return None
             return G(symbol=row["股票代码"],
+                     current_time=DateTime.to_timestamp(row["日期"]),
                      timestamp=DateTime.to_timestamp(row["日期"]),
                      open=Decimal(str(row["开盘"])),
                      high=Decimal(str(row["最高"])),

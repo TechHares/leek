@@ -200,6 +200,8 @@ class StrategyConfig(models.Model):
     open_vhf_threshold = models.DecimalField(u'vhf开仓阈值(开仓)', max_digits=36, decimal_places=6, default=0.5)
     close_vhf_threshold = models.DecimalField(u'vhf平仓阈值(平仓)', max_digits=36, decimal_places=6, default=0.0)
     take_profit_period = models.IntegerField(u'vmma计算周期(平仓)', default="10")
+    over_buy = models.IntegerField(u'超买阈值', default="80", validators=[MinValueValidator(0), MaxValueValidator(100)])
+    over_sell = models.IntegerField(u'超卖阈值', default="20", validators=[MinValueValidator(0), MaxValueValidator(100)])
     TRADE_TYPE_CHOICE = (
         (0, u"顺势|反转"),
         (1, u"顺势"),

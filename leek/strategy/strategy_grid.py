@@ -11,6 +11,7 @@ from leek.strategy import BaseStrategy
 from leek.strategy.common import *
 from leek.strategy.common.strategy_common import PositionRateManager
 from leek.strategy.common.strategy_filter import DynamicRiskControl
+from leek.t import RSI, StochRSI
 from leek.trade.trade import PositionSide as PS
 
 
@@ -41,7 +42,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         self.grid_price = decimal_quantize(((self.max_price - self.min_price) / self.grid), 8)
 
         # 运行数据
-        self.threshold = 60  # 定义暴力波动阈值 x秒内穿多个网格
+        self.threshold = 60 * 1000  # 定义暴力波动阈值 x豪秒内穿多个网格
         self.current_grid = Decimal("0")
         self.risk = False  # 是否已经风控
 
@@ -67,8 +68,9 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         if price > self.max_price * (1 + self.risk_rate) or price < self.min_price * (1 - self.risk_rate):
             if self.g.order_time is None and self.current_grid > 0:  # 有持仓
                 self.g.order_time = int(datetime.now().timestamp())
-                self.notify(f"SingleGridStrategy {market_data.symbol}价格{price}超出风控范围{self.min_price * (1 - self.risk_rate)}"
-                            f"-{self.max_price * (1 + self.risk_rate)} 平仓")
+                logger.error(
+                    f"SingleGridStrategy {market_data.symbol}价格{price}超出风控范围{self.min_price * (1 - self.risk_rate)}"
+                    f"-{self.max_price * (1 + self.risk_rate)} 平仓")
                 self.g.gird = -self.current_grid
                 self.close_position("网格风控")
                 self.risk = True
@@ -86,54 +88,63 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         if self.g.order_time is not None:
             if int(datetime.now().timestamp()) > self.g.order_time + 120:
                 logger.error(f"订单一直没处理完")
+            logger.debug(f"订单进行中放弃减仓, 订单时间: {DateTime.to_date_str(self.g.order_time)}")
             return
         price = self.market_data.close
         dt_gird = max(decimal_quantize(dt_price / self.grid_price, 0, 1), 0)
         if dt_gird >= self.current_grid or (dt_gird == 0 and self.current_grid == 1):
+            logger.debug(f"无需减仓: {dt_gird} / {self.current_grid}")
             return
 
-        if self.g.last_sub_time and int(datetime.now().timestamp()) - self.g.last_sub_time < self.threshold:  # 暴力下杀先避开
+        if self.g.last_sub_time and self.market_data.current_time - self.g.last_sub_time < self.threshold:  # 暴力下杀先避开
+            logger.debug(f"遭遇暴力波动放弃减仓: {DateTime.to_date_str(self.g.last_sub_time)} "
+                         f"{DateTime.to_date_str(self.market_data.current_time)} {self.threshold}")
             return
 
         rate = abs(self.current_grid - dt_gird) / self.grid
         logger.info(
             f"方向{self.side} "
-            f" 网格数{self.current_grid}/{self.grid} 平仓：{rate}\n"
-            f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}\n"
+            f" 网格数{self.current_grid}/{self.grid} 平仓：{rate}"
+            f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}"
         )
         self.g.gird = -abs(self.current_grid - dt_gird)
-        self.g.order_time = int(datetime.now().timestamp())
-        self.g.last_sub_time = int(datetime.now().timestamp())
+        self.g.order_time = self.market_data.current_time
+        self.g.last_sub_time = self.market_data.current_time
         self.g.last_add_time = None
         self.close_position(rate=rate)
 
     def add_position(self, dt_price):
         if self.g.order_time is not None:
-            if int(datetime.now().timestamp()) > self.g.order_time + 120:
+            if int(datetime.now().timestamp() * 1000) > self.g.order_time + 120000:
                 logger.error(f"订单一直没处理完")
+            logger.debug(f"订单进行中放弃加仓, 订单时间: {DateTime.to_date_str(self.g.order_time)}")
             return
         price = self.market_data.close
         if price > self.max_price or price < self.min_price:
+            logger.debug(f"价格超出网格放弃加仓: {self.min_price}~{self.max_price} 当前{price}")
             return
         dt_gird = min(self.grid, decimal_quantize(dt_price / self.grid_price, 0, 2))  # 防止风控设置过大导致超出网格个数
         if dt_gird <= self.current_grid:
+            logger.debug(f"无需加仓: {dt_gird} / {self.current_grid}")
             return
         if self.risk:  # 已经风控
             if dt_gird > self.grid - 2:
                 return
             self.risk = False
-        if self.g.last_add_time and int(datetime.now().timestamp()) - self.g.last_add_time < self.threshold:  # 暴力拉升先避开
+        if self.g.last_add_time and int(
+                datetime.now().timestamp() * 1000) - self.g.last_add_time < self.threshold:  # 暴力拉升先避开
+            logger.debug(f"遭遇暴力波动放弃加仓: {DateTime.to_date_str(self.g.last_add_time)} {self.threshold}")
             return
         side = PS.LONG if self.is_long() else PS.SHORT
         rate = abs(self.current_grid - dt_gird) / self.grid
         logger.info(
             f"方向{self.side} 操作方向{side}"
-            f" 网格数{self.current_grid}/{self.grid} 加仓：{rate}\n"
-            f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}\n"
+            f" 网格数{self.current_grid}/{self.grid} 加仓：{rate}"
+            f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}"
         )
         self.g.gird = abs(self.current_grid - dt_gird)
-        self.g.order_time = int(datetime.now().timestamp())
-        self.g.last_add_time = int(datetime.now().timestamp())
+        self.g.order_time = self.market_data.current_time
+        self.g.last_add_time = self.market_data.current_time
         self.g.last_sub_time = None
         self.create_order(side, rate)
 
@@ -158,14 +169,54 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
             self.risk = data["risk"]
 
 
-class DynamicGridStrategy(PositionDirectionManager, PositionRateManager, DynamicRiskControl, BaseStrategy):
-    verbose_name = "动态网格"
+class RSIGridStrategy(SingleGridStrategy):
+    verbose_name = "RSI网格"
 
-    def __init__(self):
-        pass
+    def __init__(self, over_buy=80, over_sell=20):
+        self.rsi = StochRSI()
+        self.over_sell = int(over_sell)
+        self.over_buy = int(over_buy)
+
+        self.k = None
+        self.d = None
+
+    def data_init_params(self, market_data):
+        return {
+            "symbol": market_data.symbol,
+            "interval": market_data.interval,
+            "size": 50
+        }
+
+    def _data_init(self, market_datas: list):
+        for market_data in market_datas:
+            self.rsi.update(market_data)
+        logger.info(f"RSI数据初始化完成")
 
     def handle(self):
-        pass
+        self.k, self.d = self.rsi.update(self.market_data)
+        self.market_data.k = self.k
+        self.market_data.d = self.d
+        super().handle()
+
+    def add_position(self, dt_price):
+        if self.can(self.side):
+            super().add_position(dt_price)
+        else:
+            logger.debug(f"{self.side}方向RSI未到条件 不加仓")
+
+    def sub_position(self, dt_price):
+        if self.can(self.side.switch()):
+            super().sub_position(dt_price)
+        else:
+            logger.debug(f"{self.side}方向RSI未到条件 不加仓")
+
+    def can(self, side: PS):
+        if self.k is None or self.d is None:
+            return False
+        if side == PS.LONG:
+            return self.k < self.over_sell and self.d < self.over_sell
+        else:
+            return self.k > self.over_buy and self.d > self.over_buy
 
 
 if __name__ == '__main__':

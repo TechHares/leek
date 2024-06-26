@@ -60,6 +60,7 @@ class OkxKlineDataSource(WSDataSource):
                 data = G(symbol=params["symbol"],
                          interval=params["interval"],
                          timestamp=int(row[0]),
+                         current_time=ts,
                          open=Decimal(row[1]),
                          high=Decimal(row[2]),
                          low=Decimal(row[3]),
@@ -100,6 +101,7 @@ class OkxKlineDataSource(WSDataSource):
                 data = G(symbol=symbol,
                          interval=interval,
                          timestamp=int(d[0]),
+                         current_time=int(time.time() * 1000),
                          open=Decimal(d[1]),
                          high=Decimal(d[2]),
                          low=Decimal(d[3]),
@@ -154,6 +156,7 @@ class OkxMarketDataSource(DataSource):
                     if ticker["instId"].endswith("-USDT-" + self.inst_type):
                         data = G(symbol=ticker["instId"],
                                  timestamp=int(ticker["ts"]),
+                                 current_time=int(ticker["ts"]),
                                  open=Decimal(ticker["last"]),
                                  high=Decimal(ticker["last"]),
                                  low=Decimal(ticker["last"]),

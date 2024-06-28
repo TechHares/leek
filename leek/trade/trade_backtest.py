@@ -52,7 +52,10 @@ class BacktestTrader(Trader):
 
         #  2. 计算成交量
         if order.sz is None:
-            pos_trade.sz = decimal_quantize(order.amount / pos_trade.transaction_price, 6)
+            if pos_trade.transaction_price == 0:
+                pos_trade.sz = 0
+            else:
+                pos_trade.sz = decimal_quantize(order.amount / pos_trade.transaction_price, 6)
         else:
             pos_trade.sz = Decimal(order.sz)
         pos_trade.cct = 1

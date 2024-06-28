@@ -221,7 +221,7 @@ class StrategyConfigAdmin(admin.ModelAdmin):
     @cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=600))
     def all_symbol(self):
         with connections["data"].cursor() as cursor:
-            cursor.execute("select distinct symbol from workstation_kline")
+            cursor.execute("select distinct symbol from workstation_kline order by symbol")
             rows = cursor.fetchall()
             return [row[0] for row in rows]
 

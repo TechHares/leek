@@ -4,6 +4,7 @@
 # @Author  : shenglin.li
 # @File    : worker.py
 # @Software: PyCharm
+import logging
 import os
 import sys
 import time
@@ -13,7 +14,7 @@ from pathlib import Path
 import django
 from django.utils import timezone
 
-from leek.common import logger, EventBus
+from leek.common import logger, EventBus, invoke
 from leek.runner.runner import BaseWorkflow
 from leek.runner.simple import SimpleWorkflow
 
@@ -30,11 +31,21 @@ class WorkerWorkflow(SimpleWorkflow):
 
         try:
             while self.run_state:
-                time.sleep(60)
+                time.sleep(5)
+                self.apply_setting()
                 self.save_run_data()
         except KeyboardInterrupt:
             pass
 
+    def apply_setting(self):
+        from .models import RuntimeConfig
+        if RuntimeConfig.objects.filter(id=1).exists():
+            config = RuntimeConfig.objects.get(id=1)
+            if logging.getLevelName(config.log_level) != logger.level:
+                logger.info(f"更新日志等级: {config.log_level}")
+                logger.setLevel(logging.getLevelName(config.log_level))
+
+    @invoke(20)
     def save_run_data(self):
         from .models import StrategyConfig, ProfitLog
         strategy_config = StrategyConfig.objects.get(pk=self.job_id)

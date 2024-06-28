@@ -358,3 +358,21 @@ class ProfitLog(models.Model):
 
     def __str__(self):
         return "%s-%s" % (self.strategy_id, self.timestamp)
+
+
+class RuntimeConfig(models.Model):
+    id = models.AutoField(u'id', primary_key=True)
+    LOG_LEVEL_CHOICE = (
+        ("CRITICAL", 'CRITICAL'),
+        ("ERROR", 'ERROR'),
+        ("WARNING", 'WARNING'),
+        ("INFO", 'INFO'),
+        ("DEBUG", 'DEBUG'),
+        ("NOTSET", 'NOTSET'),
+    )
+    log_level = models.CharField(u'日志等级', max_length=20, default="INFO", blank=False, choices=LOG_LEVEL_CHOICE)
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="修改时间")
+
+    class Meta:
+        verbose_name = "设置"
+        verbose_name_plural = "设置"

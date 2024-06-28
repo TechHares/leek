@@ -4,7 +4,7 @@ from urllib.parse import unquote
 import cachetools
 from django.contrib import admin
 from django.db import connections
-from django.http import JsonResponse, StreamingHttpResponse
+from django.http import JsonResponse, StreamingHttpResponse, HttpResponseRedirect
 from django.urls import path
 from import_export.admin import ImportExportModelAdmin
 
@@ -12,7 +12,7 @@ from leek.common.utils import all_constructor_args, get_cls
 from leek.data.data import get_all_data_cls_list
 from leek.strategy import get_all_strategies_cls_list
 from leek.trade.trade import get_all_trader_cls_list
-from .models import TradeConfig, DataSourceConfig, StrategyConfig, TradeLog, Kline
+from .models import TradeConfig, DataSourceConfig, StrategyConfig, TradeLog, Kline, RuntimeConfig
 
 
 # Register your models here.
@@ -284,6 +284,22 @@ class KlineIntervalFilter(admin.SimpleListFilter):
             self.used_parameters.setdefault(self.parameter_name, "1m")
 
 
+class SettingModelAdmin(admin.ModelAdmin):
+    show_save_and_continue = False
+
+    def changelist_view(self, request):
+        return HttpResponseRedirect("1/change")
+
+    def change_view(self, request, object_id, form_url="", extra_context=None):
+        if not RuntimeConfig.objects.filter(id=1).exists():
+            RuntimeConfig.objects.create(id=1)
+        return super().change_view(request, "1", form_url, extra_context)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 # class KlineAdmin(ImportExportModelAdmin):
 #     list_display = ('symbol', 'timestamp', 'open', 'high', 'low', 'close', 'volume', 'amount',)
 #     list_display_links = ('symbol',)
@@ -291,6 +307,8 @@ class KlineIntervalFilter(admin.SimpleListFilter):
 #     list_filter = (KlineIntervalFilter, 'symbol', 'timestamp',)
 #     list_per_page = 10
 
+
+admin.site.register(RuntimeConfig, SettingModelAdmin)
 admin.site.register(TradeConfig, TradeConfigAdmin)
 admin.site.register(DataSourceConfig, DataSourceConfigAdmin)
 admin.site.register(StrategyConfig, StrategyConfigAdmin)

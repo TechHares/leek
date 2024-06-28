@@ -11,6 +11,7 @@ from leek.common.log import logger, get_logger
 from leek.common.event import EventBus
 from leek.common import config
 from leek.common.utils import IdGenerator, StateMachine
+from leek.common.wrapper import locked, invoke
 
 
 class G(object):
@@ -37,7 +38,7 @@ class G(object):
         return str(self.__json__())
 
 
-__all__ = ["EventBus", "logger", "get_logger", "config", "G", "IdGenerator", "StateMachine"]
+__all__ = ["EventBus", "logger", "get_logger", "config", "G", "IdGenerator", "StateMachine", "locked", "invoke"]
 
 if __name__ == '__main__':
     g = G()

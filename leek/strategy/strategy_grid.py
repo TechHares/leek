@@ -196,6 +196,7 @@ class RSIGridStrategy(SingleGridStrategy):
         self.k, self.d = self.rsi.update(self.market_data)
         self.market_data.k = self.k
         self.market_data.d = self.d
+        logger.debug(f"RSI网格 {self.k} {self.d} {self.market_data}")
         super().handle()
 
     def add_position(self, dt_price):

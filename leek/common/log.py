@@ -22,7 +22,7 @@ def get_logger(name="Default", level="DEBUG",
     lg.setLevel(logging.getLevelName(level))
 
     handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.getLevelName(level))
+    handler.setLevel(logging.getLevelName("NOTSET"))
     handler.setFormatter(logging.Formatter(formatter))
     lg.addHandler(handler)
     lg.addFilter(ErrorFilter())

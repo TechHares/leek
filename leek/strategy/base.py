@@ -500,7 +500,7 @@ class StrategyTest(BaseStrategy):
         pass
 
     def handle(self):
-        print(DateTime.to_date_str(self.market_data.timestamp), self.market_data)
+        logger.debug(f"DATA: {DateTime.to_date_str(self.market_data.timestamp)}, {self.market_data}")
 
 
 @cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=600))

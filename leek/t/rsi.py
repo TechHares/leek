@@ -6,7 +6,7 @@
 # @Software: PyCharm
 from collections import deque
 
-from leek.common import G
+from leek.common import G, logger
 from leek.t.t import T
 
 
@@ -25,6 +25,8 @@ class RSI(T):
 
     def update(self, data):
         rsi = None
+        pre_gain = self.pre_gain
+        pre_loss = self.pre_loss
         try:
             data.delta = 0
             if len(self.q) > 0:
@@ -32,22 +34,24 @@ class RSI(T):
             if len(self.q) < self.window:
                 return rsi
 
-            if self.pre_gain is None:
+            if pre_gain is None:
                 ls = [data.delta for data in list(self.q)[-self.window + 1:]]
                 ls.append(data.delta)
-                self.pre_gain = sum([x for x in ls if x > 0]) / self.window
-                self.pre_loss = -sum([x for x in ls if x < 0]) / self.window
+                pre_gain = sum([x for x in ls if x > 0]) / self.window
+                pre_loss = -sum([x for x in ls if x < 0]) / self.window
             else:
-                self.pre_gain = (self.pre_gain / self.window * (self.window - 1)) + max(data.delta, 0) / self.window
-                self.pre_loss = (self.pre_loss / self.window * (self.window - 1)) - min(0, data.delta) / self.window
+                pre_gain = (pre_gain / self.window * (self.window - 1)) + max(data.delta, 0) / self.window
+                pre_loss = (pre_loss / self.window * (self.window - 1)) - min(0, data.delta) / self.window
             rsi = 0.0
             # 计算平滑增益和损失
-            if self.pre_gain+self.pre_loss != 0:
-                rsi = self.pre_gain/(self.pre_gain+self.pre_loss) * 100
+            if pre_gain+pre_loss != 0:
+                rsi = pre_gain/(pre_gain+pre_loss) * 100
             return rsi
         finally:
             if data.finish == 1:
                 self.q.append(data)
+                self.pre_gain = pre_gain
+                self.pre_loss = pre_loss
                 if rsi:
                     self.cache.append(rsi)
 
@@ -77,6 +81,7 @@ class StochRSI(T):
 
             num = []
             devno = []
+            logger.debug(f"RSI:{last}")
             for i in range(self.k_smoothing_factor, 0, -1):
                 d = last[-i - self.period:-i]
                 num.append(d[-1] - min(d))
@@ -86,6 +91,7 @@ class StochRSI(T):
                 stoch_rsi[0] = sum(num) / sum(devno) * 100
 
             c = list(self.cache)
+            logger.debug(f"STOCH RSI:{self.last(10)}")
             if data.finish != 1:
                 c.append(stoch_rsi)
             if len(c) > self.d_smoothing_factor and c[-self.d_smoothing_factor][0] is not None:

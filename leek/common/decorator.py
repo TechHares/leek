@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # @Time    : 2024/6/28 19:30
 # @Author  : shenglin.li
-# @File    : wrapper.py
+# @File    : decorator.py
 # @Software: PyCharm
 import threading
 

@@ -31,7 +31,7 @@ class TestRSI(unittest.TestCase):
         fig.show()
 
     def test_handle2(self):
-            workflow = ViewWorkflow(None, "1d", "2020-06-18 14:30", "2024-06-24 18:30", "300498", 1)
+            workflow = ViewWorkflow(None, "5m", "2024-06-29 14:30", "2024-07-01 18:30", "AEVO-USDT-SWAP")
             rsi = StochRSI(14, 14, 3, 3)
             data = workflow.get_data(workflow.benchmark)
             for d in data:
@@ -45,8 +45,8 @@ class TestRSI(unittest.TestCase):
             #                          line=dict(color='black', width=1), name='rsi'), row=2, col=1)
             fig.add_trace(go.Scatter(x=df['Datetime'], y=df['k'], mode='lines',
                                      line=dict(color='black', width=1), name='k'), row=2, col=1)
-            # fig.add_trace(go.Scatter(x=df['Datetime'], y=df['d'], mode='lines',
-            #                          line=dict(color='orange', width=1), name=''), row=2, col=1)
+            fig.add_trace(go.Scatter(x=df['Datetime'], y=df['d'], mode='lines',
+                                     line=dict(color='orange', width=1), name=''), row=2, col=1)
 
             # import talib
             # rsi = talib.STOCHRSI(df['close'], 14, 14, 3, 3)

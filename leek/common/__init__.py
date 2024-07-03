@@ -11,7 +11,7 @@ from leek.common.log import logger, get_logger
 from leek.common.event import EventBus
 from leek.common import config
 from leek.common.utils import IdGenerator, StateMachine
-from leek.common.wrapper import locked, invoke
+from leek.common.decorator import locked, invoke
 
 
 class G(object):

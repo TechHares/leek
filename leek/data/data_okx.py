@@ -7,15 +7,29 @@
 import json
 import threading
 import time
+from collections import deque
 from datetime import datetime
 from decimal import Decimal
 
 from cachetools import cached, TTLCache
 from okx import MarketData, PublicData
 
-from leek.common import logger, G, config
-from leek.common.utils import decimal_to_str
+from leek.common import logger, G, config, locked
+from leek.common.utils import decimal_to_str, DateTime
 from leek.data.data import WSDataSource, DataSource
+
+interval_map = {
+    "1m": 60 * 1000,
+    "3m": 3 * 60 * 1000,
+    "5m": 5 * 60 * 1000,
+    "15m": 15 * 60 * 1000,
+    "30m": 30 * 60 * 1000,
+    "1h": 60 * 60 * 1000,
+    "4h": 4 * 60 * 60 * 1000,
+    "6h": 6 * 60 * 60 * 1000,
+    "12h": 12 * 60 * 60 * 1000,
+    "1d": 24 * 60 * 60 * 1000,
+}
 
 
 class OkxKlineDataSource(WSDataSource):
@@ -43,6 +57,8 @@ class OkxKlineDataSource(WSDataSource):
                     "instId": symbol
                 })
         self.timer = None
+
+        self.check_map = {}
 
     def data_init_hook(self, params) -> list:
         logger.info("OkxKlineDataSource 初始化：%s" % json.dumps(params, default=decimal_to_str))
@@ -94,7 +110,7 @@ class OkxKlineDataSource(WSDataSource):
         if "event" in msg and (msg["event"] == "subscribe" or msg["event"] == "unsubscribe"):
             return
         logger.debug(f"OKX数据源：{msg}")
-        interval = msg["arg"]["channel"].replace("candle", "")
+        interval = msg["arg"]["channel"].replace("candle", "").replace("H", "h").replace("W", "w").replace("D", "d")
         symbol = msg["arg"]["instId"]
         if msg["data"]:
             for d in msg["data"]:
@@ -110,7 +126,17 @@ class OkxKlineDataSource(WSDataSource):
                          amount=Decimal(d[7]),
                          finish=int(d[8])
                          )
+                self.check_data(data)
                 self._send_tick_data(data)
+
+    @locked()
+    def check_data(self, data):
+        if data.finish == 0:
+            return
+        k = f"{data.symbol}-{data.interval}"
+        if k in self.check_map and self.check_map[k] + interval_map[data.interval] != data.timestamp:
+            logger.error(f"数据有缺{k}, {DateTime.to_date_str(self.check_map[k])}-{DateTime.to_date_str(data.timestamp)}")
+        self.check_map[k] = data.timestamp
 
     def shutdown(self):
         super().shutdown()

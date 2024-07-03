@@ -33,11 +33,30 @@ class TestBase(unittest.TestCase):
         time.sleep(30)
 
     def test_kline(self):
-        source = OkxKlineDataSource("1", ["5m"], "BTC-USDT-SWAP")
+        source = OkxKlineDataSource("2", ["1m"], "AEVO-USDT-SWAP")
         bus = EventBus()
         DataSource.__init__(source, bus)
-        source.start()
-        bus.subscribe(EventBus.TOPIC_TICK_DATA, lambda x: print(x))
+
+        pre = None
+        def check_data(x):
+            nonlocal pre, source
+            if x.finish == 1:
+                if pre is None:
+                    pre = x
+                elif pre.timestamp == x.timestamp:
+                    pre = None
+                else:
+                    print(DateTime.to_date_str(pre.timestamp), DateTime.to_date_str(x.timestamp))
+                    source.shutdown()
+            else:
+                if pre is None or pre.timestamp == x.timestamp:
+                    pre = x
+                else:
+                    print(DateTime.to_date_str(pre.timestamp), DateTime.to_date_str(x.timestamp))
+                    source.shutdown()
+
+        bus.subscribe(EventBus.TOPIC_TICK_DATA, check_data)
+        source._run()
         print("shutdown")
         time.sleep(30)
         print("shutdown")

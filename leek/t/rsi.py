@@ -94,8 +94,8 @@ class StochRSI(T):
             logger.debug(f"STOCH RSI:{self.last(10)}")
             if data.finish != 1:
                 c.append(stoch_rsi)
-            if len(c) > self.d_smoothing_factor and c[-self.d_smoothing_factor][0] is not None:
-                stoch_rsi[1] = sum([x[0] for x in c[-self.d_smoothing_factor:]]) / self.d_smoothing_factor
+            if len(c) > self.d_smoothing_factor and c[-self.d_smoothing_factor+1][0] is not None:
+                stoch_rsi[1] = (sum([x[0] for x in c[-self.d_smoothing_factor+1:]]) + stoch_rsi[0]) / self.d_smoothing_factor
             return stoch_rsi
         finally:
             if data.finish == 1 and stoch_rsi[0]:

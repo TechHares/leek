@@ -91,7 +91,7 @@ class StochRSI(T):
                 stoch_rsi[0] = sum(num) / sum(devno) * 100
 
             c = list(self.cache)
-            logger.debug(f"STOCH RSI:{self.last(10)}")
+            logger.debug(f"STOCH RSI:{self.last(10)}, {stoch_rsi[0]}")
             if data.finish != 1:
                 c.append(stoch_rsi)
             if len(c) > self.d_smoothing_factor and c[-self.d_smoothing_factor+1][0] is not None:

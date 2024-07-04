@@ -215,9 +215,9 @@ class RSIGridStrategy(SingleGridStrategy):
         if self.k is None or self.d is None:
             return False
         if side == PS.LONG:
-            return self.k < self.over_sell and self.d < self.over_sell
+            return self.d < self.k < self.over_sell
         else:
-            return self.k > self.over_buy and self.d > self.over_buy
+            return self.d > self.k > self.over_buy
 
 
 if __name__ == '__main__':

@@ -46,6 +46,7 @@ class RSI(T):
             # 计算平滑增益和损失
             if pre_gain+pre_loss != 0:
                 rsi = pre_gain/(pre_gain+pre_loss) * 100
+            logger.info(f"RSI计算[{self.window}]：pre_gain:{pre_gain}, pre_loss:{pre_loss}, delta:{data.delta} => rsi:{rsi}")
             return rsi
         finally:
             if data.finish == 1:

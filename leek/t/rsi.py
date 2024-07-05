@@ -76,12 +76,12 @@ class StochRSI(T):
             last = self.rsi.last(self.k_smoothing_factor + self.period)
             if len(last) < self.k_smoothing_factor + self.period:
                 return stoch_rsi
-            if data.finish != 1:
+            if data.finish == 0:
                 last.append(rsi)
 
             num = []
             devno = []
-            logger.debug(f"RSI:{last}")
+            logger.debug(f"RSI:{last}, {rsi}, => {data.finish}")
             for i in range(self.k_smoothing_factor, 0, -1):
                 d = last[-i - self.period:-i]
                 num.append(d[-1] - min(d))

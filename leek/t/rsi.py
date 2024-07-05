@@ -87,7 +87,7 @@ class StochRSI(T):
                 num.append(d[-1] - min(d))
                 devno.append(max(d) - min(d))
             stoch_rsi[0] = 100
-            if devno != 0:
+            if sum(devno) != 0:
                 stoch_rsi[0] = sum(num) / sum(devno) * 100
 
             c = list(self.cache)

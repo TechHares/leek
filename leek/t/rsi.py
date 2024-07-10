@@ -84,14 +84,15 @@ class StochRSI(T):
             devno = []
             logger.debug(f"RSI:{last}, {rsi}, => {data.finish}")
             for i in range(self.k_smoothing_factor, 0, -1):
-                d = last[-i - self.period:-i]
+                i -= 1
+                d = last[-i - self.period:-i] if i > 0 else last[-i - self.period:]
                 num.append(d[-1] - min(d))
                 devno.append(max(d) - min(d))
             stoch_rsi[0] = 100
             if sum(devno) != 0:
                 stoch_rsi[0] = sum(num) / sum(devno) * 100
 
-            c = list(self.cache)
+            c = self.last(max(self.d_smoothing_factor+1, 10))
             logger.debug(f"STOCH RSI:{self.last(10)}, {stoch_rsi[0]}")
             if data.finish != 1:
                 c.append(stoch_rsi)

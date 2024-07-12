@@ -346,7 +346,7 @@ class SwapOkxTrader(Trader):
             sz = min(sz, Decimal(max_lmt_sz))
         return Decimal(sz)
 
-    @cached(cache=TTLCache(maxsize=20, ttl=600))
+    @cached(cache=TTLCache(maxsize=20, ttl=36000))
     def __get_instrument(self, symbol, posSide):
         """
         获取交易产品基础信息

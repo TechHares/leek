@@ -135,7 +135,7 @@ class DataSourceConfigAdmin(admin.ModelAdmin):
 
 class StrategyConfigAdmin(admin.ModelAdmin):
     change_form_template = "workstation/strategy_form.html"
-    list_display = ('name', 'strategy_cls', 'total_amount', 'available_amount', 'position_value', 'profit', 'fee',
+    list_display = ('name', 'strategy_cls', 'data_source', 'trade', 'total_amount', 'profit', 'fee',
                     'status', 'process_id', 'end_time')
     list_display_links = ('name',)  # 默认
     readonly_fields = ('run_data',)

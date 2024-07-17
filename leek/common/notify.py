@@ -17,7 +17,8 @@ def send_to_dingding(content):
     pre = f"leek => {current_process().pid}:"
     requests.post("https://oapi.dingtalk.com/robot/send?access_token=" + ALERT_TOKEN,
                   headers={"Content-Type": "application/json"},
-                  data=json.dumps({"msgtype": "text", "text": "%s %s" % (pre, content)}, default=decimal_to_str))
+                  data=json.dumps({"msgtype": "text", "text": {"content": "%s %s" % (pre, content)}},
+                                  default=decimal_to_str))
 
 
 def send_to_console(content):

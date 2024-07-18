@@ -172,6 +172,8 @@ class DateTime(object):
         :param pattern: 格式
         :return:
         """
+        if ts is None:
+            return ""
         return datetime.fromtimestamp(ts / 1000).strftime(pattern)
 
 

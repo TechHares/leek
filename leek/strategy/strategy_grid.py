@@ -12,7 +12,7 @@ from leek.strategy.common import *
 from leek.strategy.common.strategy_common import PositionRateManager
 from leek.strategy.common.strategy_filter import DynamicRiskControl
 from leek.t import RSI, StochRSI
-from leek.trade.trade import PositionSide as PS
+from leek.trade.trade import PositionSide as PS, PositionSide
 
 
 class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
@@ -218,6 +218,27 @@ class RSIGridStrategy(SingleGridStrategy):
             return self.d < self.k < self.over_sell
         else:
             return self.d > self.k > self.over_buy
+
+
+class RSIGridStrategyV2(SingleGridStrategy):
+    verbose_name = "RSI网格V2"
+
+    def __init__(self, limit_threshold=3):
+        self.limit_threshold = int(limit_threshold)
+
+    def create_order(self, side: PositionSide, position_rate="0.5", memo="", extend=None):
+        logger.debug(f"RSIGridStrategyV2 加仓， 清除平仓阈值")
+        self.g.limit = 0
+        super(RSIGridStrategyV2, self).create_order(side, position_rate, memo, extend)
+
+    def close_position(self, memo="", extend=None, rate="1"):
+        self.g.limit += 1
+        logger.debug(f"RSIGridStrategyV2 平仓， 连续平仓次数 {self.g.limit}")
+        if self.g.limit >= self.limit_threshold:
+            logger.info(f"RSIGridStrategyV2 连续平仓次数达到阈值， 全平")
+            rate = "1"
+        super(RSIGridStrategyV2, self).close_position(memo, extend, rate=rate)
+        self.risk = False
 
 
 if __name__ == '__main__':

@@ -211,6 +211,7 @@ class StrategyConfig(models.Model):
     win_loss_target = models.DecimalField(u'反转交易预期盈亏比', max_digits=36, decimal_places=6, default=2.0)
     data_source = models.ForeignKey(DataSourceConfig, on_delete=models.PROTECT, verbose_name=u'数据源')
     trade = models.ForeignKey(TradeConfig, on_delete=models.PROTECT, verbose_name=u'交易器')
+    limit_threshold = models.IntegerField(u'完全平仓阈值(连续平仓之后先清仓)', default=5, null=True)
     STATUS_CHOICE = (
         (1, u"停止"),
         (2, u"运行"),

@@ -236,6 +236,7 @@ class RSIGridStrategyV2(RSIGridStrategy):
         logger.debug(f"RSIGridStrategyV2 平仓， 连续平仓次数 {self.g.limit}")
         if self.g.limit >= self.limit_threshold:
             logger.info(f"RSIGridStrategyV2 连续平仓次数达到阈值， 全平")
+            self.g.gird = -self.current_grid
             rate = "1"
         super(RSIGridStrategyV2, self).close_position(memo, extend, rate=rate)
         self.risk = False

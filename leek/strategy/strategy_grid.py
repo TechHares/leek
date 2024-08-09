@@ -220,7 +220,7 @@ class RSIGridStrategy(SingleGridStrategy):
             return self.d > self.k > self.over_buy
 
 
-class RSIGridStrategyV2(SingleGridStrategy):
+class RSIGridStrategyV2(RSIGridStrategy):
     verbose_name = "RSI网格V2"
 
     def __init__(self, limit_threshold=3):

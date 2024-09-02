@@ -1,4 +1,4 @@
-﻿urllib3==1.26.6
+﻿urllib3==2.2.2
 cachetools==5.3.3
 pandas==2.2.2
 python_okx==0.2.9
@@ -18,7 +18,9 @@ tqdm==4.66.4
 # mac 安装tables需要hdf5
 # export HDF5_DIR=/opt/homebrew/opt/hdf5/
 tables~=3.9.2
-plotly==5.22.0
+plotly==5.23.0
 joblib==1.4.2
 efinance~=0.5.2
-scikit-learn~=1.4.2
+scikit-learn~=1.5.1
+service_identity~=24.1.0
+scipy~=1.14.0

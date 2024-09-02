@@ -19,6 +19,12 @@ def execute_cmd(cmd):
             print(output.strip())
 
 
+# 检查环境
+if sys.version_info < (3, 12):
+    print("请使用Python3.12及以上版本")
+    print("请使用Python3.12及以上版本")
+    print("请使用Python3.12及以上版本")
+    sys.exit(1)
 # 执行安装依赖包命令
 pip_install_command = sys.executable + ' -m pip install -r requirements.txt'
 execute_cmd(pip_install_command)
@@ -39,6 +45,5 @@ def update(args):
 
 if __name__ == '__main__':
     from multiprocessing import Process
-
     Process(target=update, args=[['manage.py', 'migrate', "workstation", "--database=data"]], daemon=False).start()
     Process(target=update, args=[['manage.py', 'migrate', "workstation"]], daemon=False).start()

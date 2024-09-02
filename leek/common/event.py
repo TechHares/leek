@@ -40,7 +40,7 @@ class EventBus:
                     logger.info(f"topic[{topic}] 取消订阅: {func}")
 
     def publish(self, topic: str, *args, **kwargs):
-        logger.debug(f"topic[{topic}] 发布事件: {args} {kwargs}")
+        # logger.debug(f"topic[{topic}] 发布事件: {args} {kwargs}")
         if topic in self.handlers:
             for handler in self.handlers[topic]:
                 try:

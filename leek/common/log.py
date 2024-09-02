@@ -29,7 +29,7 @@ def get_logger(name="Default", level="DEBUG",
     return lg
 
 
-logger = get_logger("Leek", "INFO", "[%(process)d-%(threadName)s] %(asctime)s [%(levelname)s]: %(message)s")
+logger = get_logger("Leek", "DEBUG", "[%(process)d-%(threadName)s] %(asctime)s [%(levelname)s]: %(message)s")
 
 if __name__ == '__main__':
     logger.info("打印日志")

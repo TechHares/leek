@@ -24,6 +24,8 @@ class WorkerWorkflow(SimpleWorkflow):
         super().__init__(cfg_data_source, cfg_strategy, cfg_trader)
 
     def start(self):
+        from .config import load_config
+        load_config()
         super()._init_config()
         self.strategy.set_dict_data(self.cfg_strategy["run_data"])
         BaseWorkflow.start(self)
@@ -32,19 +34,10 @@ class WorkerWorkflow(SimpleWorkflow):
         try:
             while self.run_state:
                 time.sleep(5)
-                self.apply_setting()
+                load_config()
                 self.save_run_data()
         except KeyboardInterrupt:
             pass
-
-    def apply_setting(self):
-        from .models import RuntimeConfig
-        if RuntimeConfig.objects.filter(id=1).exists():
-            config = RuntimeConfig.objects.get(id=1)
-            if logging.getLevelName(config.log_level) != logger.level:
-                logger.info(f"更新日志等级: {config.log_level}")
-                logger.setLevel(logging.getLevelName(config.log_level))
-
     @invoke(20)
     def save_run_data(self):
         from .models import StrategyConfig, ProfitLog

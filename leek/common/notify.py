@@ -8,14 +8,14 @@ import json
 
 import requests
 
-from leek.common.config import ALERT_TOKEN, ALERT_TYPE
+from leek.common import config
 from leek.common.utils import decimal_to_str
 from multiprocessing import current_process
 
 
 def send_to_dingding(content):
     pre = f"leek => {current_process().pid}:"
-    requests.post("https://oapi.dingtalk.com/robot/send?access_token=" + ALERT_TOKEN,
+    requests.post("https://oapi.dingtalk.com/robot/send?access_token=" + config.ALERT_TOKEN,
                   headers={"Content-Type": "application/json"},
                   data=json.dumps({"msgtype": "text", "text": {"content": "%s %s" % (pre, content)}},
                                   default=decimal_to_str))
@@ -26,9 +26,9 @@ def send_to_console(content):
 
 
 def alert(msg):
-    if ALERT_TYPE == "dingding":
+    if config.ALERT_TYPE == "dingding":
         send_to_dingding(msg)
-    if ALERT_TYPE == "console":
+    if config.ALERT_TYPE == "console":
         send_to_console(msg)
 
 

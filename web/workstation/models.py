@@ -253,7 +253,7 @@ class StrategyConfig(models.Model):
         super().save()
 
 
-if config.KLINE_DB_TYPE == 'CLICKHOUSE':
+if config.DATA_DB.type == 'CLICKHOUSE':
     class Kline(ck_models.ClickhouseModel):
         id = models.AutoField(u'id', primary_key=True)
         interval = ck_models.StringField(u'周期', max_length=5, default="", null=False)
@@ -372,6 +372,29 @@ class RuntimeConfig(models.Model):
         ("NOTSET", 'NOTSET'),
     )
     log_level = models.CharField(u'日志等级', max_length=20, default="INFO", blank=False, choices=LOG_LEVEL_CHOICE)
+    data_dir = models.CharField(u'数据存储目录', max_length=200, default="data", blank=False)
+    download_dir = models.CharField(u'下载数据目录', max_length=200, default="download", blank=False)
+    proxy = models.CharField(u'网络代理(例: http://127.0.0.1:6789)', max_length=200, default=None, blank=True, null=True)
+
+    order_alert = models.BooleanField(u'开单提醒', default=False)
+    min_rate = models.DecimalField(u'最小下单仓位', validators=[MinValueValidator(0), MaxValueValidator(1)],
+                                   max_digits=8, decimal_places=4, default="0.005")
+    rolling_position = models.BooleanField(u'滚仓操作', default=True)
+
+
+    emulation = models.BooleanField(u'回测数据仿真(开启后会使用小级别数据穿插在K线中)', default=False)
+    emulation_interval = models.CharField(u'仿真填充K线', max_length=5, default="5m", choices=DataSourceConfig.CHANNEL_CHOICE)
+    target_interval = models.CharField(u'需仿真K线', max_length=5, default="30m", choices=DataSourceConfig.CHANNEL_CHOICE)
+
+
+    ALERT_TYPE_CHOICE = (
+        ("console", u'控制台输出'),
+        ("dingding", u'钉钉'),
+    )
+    alert_type = models.CharField(u'通知方式', default="console", max_length=30, blank=False, choices=ALERT_TYPE_CHOICE)
+    alert_token = models.CharField(u'通知token', max_length=500, default=None, blank=True,
+                                      null=True)
+
     updated_at = models.DateTimeField(auto_now=True, verbose_name="修改时间")
 
     class Meta:

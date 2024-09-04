@@ -8,8 +8,8 @@ import django.db.models.deletion
 import django.db.models.manager
 import multiselectfield.db.fields
 import workstation.models
+from leek.common import config
 
-from leek.common.config import KLINE_DB_TYPE
 
 
 class Migration(migrations.Migration):
@@ -146,7 +146,7 @@ class Migration(migrations.Migration):
             },
         ),
     ]
-    if KLINE_DB_TYPE == "CLICKHOUSE":
+    if config.DATA_DB.type == "CLICKHOUSE":
         operations.append(
             migrations.CreateModel(
                 name='Kline',

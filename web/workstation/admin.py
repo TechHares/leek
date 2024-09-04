@@ -12,7 +12,7 @@ from leek.common.utils import all_constructor_args, get_cls
 from leek.data.data import get_all_data_cls_list
 from leek.strategy import get_all_strategies_cls_list
 from leek.trade.trade import get_all_trader_cls_list
-from .models import TradeConfig, DataSourceConfig, StrategyConfig, TradeLog, Kline, RuntimeConfig
+from .models import TradeConfig, DataSourceConfig, StrategyConfig, TradeLog, RuntimeConfig
 
 
 # Register your models here.
@@ -286,6 +286,12 @@ class KlineIntervalFilter(admin.SimpleListFilter):
 
 class SettingModelAdmin(admin.ModelAdmin):
     show_save_and_continue = False
+    fieldsets = [
+        ("基础设置", {"fields" : ("log_level", "data_dir", "download_dir", "proxy")}),
+        ("交易设置", {"fields" : ("order_alert", "min_rate", "rolling_position")}),
+        ("回测设置", {"fields" : ("emulation", "emulation_interval", "target_interval")}),
+        ("告警设置", {"fields" : ("alert_type", "alert_token")})
+    ]
 
     def changelist_view(self, request):
         return HttpResponseRedirect("1/change")

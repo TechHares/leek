@@ -47,6 +47,8 @@ class WorkstationConfig(AppConfig):
     def ready(self):
         if os.environ.get("DISABLE_WORKER") == "true":
             return
+        from .config import load_config
+        load_config()
         logger.info("workstation ready")
         if is_worker_process():
             logger.info(f"启动任扫描线程")

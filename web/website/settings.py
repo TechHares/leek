@@ -23,7 +23,7 @@ SECRET_KEY = 'django-insecure-n#xa1p=uaw+8p^5!a7dz_ia1m6d-!9b0uqf+nh^%7b+_w_t19b
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = config.ALLOWED_DOMAINS
+ALLOWED_HOSTS = ["*"]
 # Application definition
 
 INSTALLED_APPS = [
@@ -70,33 +70,10 @@ WSGI_APPLICATION = 'website.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
-resolve = Path(config.DATA_DIR).resolve()
-DB1 = resolve / 'strategy.db'
-Path(config.DOWNLOAD_DIR).resolve().mkdir(parents=True, exist_ok=True)
-resolve.mkdir(parents=True, exist_ok=True)
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': DB1,
-    }
+    'default': config.BIZ_DB.to_django_db_config(),
+    "data": config.DATA_DB.to_django_db_config()
 }
-if config.KLINE_DB_TYPE == "SQLITE":
-    DATABASES["data"] = {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': config.KLINE_DB_PATH,
-    }
-if config.KLINE_DB_TYPE == "CLICKHOUSE":
-    INSTALLED_APPS.append("clickhouse_backend")
-    DATABASES["data"] = {
-        "ENGINE": "clickhouse_backend.backend",
-        "NAME": config.KLINE_DB_DATABASE,
-        "HOST": config.KLINE_DB_HOST,
-        "USER": config.KLINE_DB_USER,
-        "PORT": config.KLINE_DB_PORT,
-    }
-    if config.KLINE_DB_PASSWORD and config.KLINE_DB_PASSWORD != "":
-        DATABASES["data"]["PASSWORD"] = config.KLINE_DB_PASSWORD
-
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 AUTH_PASSWORD_VALIDATORS = [

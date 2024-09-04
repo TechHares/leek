@@ -34,20 +34,20 @@ class LeekRouter:
     def allow_syncdb(self, db, model):
         try:
             if model._meta.db_tablespace in DATABASES:
-                return model._meta.db_tablespace
+                return model._meta.db_tablespace == db
         except Exception:
             pass
 
-        return "default"
+        return True
 
     def allow_migrate(self, db, app_label, model_name=None, **hints):
         try:
             if hints["model"]._meta.db_tablespace in DATABASES:
-                return hints["model"]._meta.db_tablespace
+                return hints["model"]._meta.db_tablespace == db
         except Exception:
             pass
 
-        return "default"
+        return True
 
 
 if __name__ == '__main__':

@@ -24,3 +24,4 @@ efinance~=0.5.2
 scikit-learn~=1.5.1
 service_identity~=24.1.0
 scipy~=1.14.0
+mysqlclient~=2.2.4

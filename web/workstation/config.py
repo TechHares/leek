@@ -33,13 +33,13 @@ def load_config():
 
 def set_log_level(level):
     if logging.getLevelName(level) != logger.level:
-        logger.warn(f"更新日志等级: {level}")
+        logger.warning(f"更新日志等级: {level}")
         logger.setLevel(logging.getLevelName(level))
 
 def set_normal_var(var, value):
     old_value = getattr(config, var)
     if old_value != value:
-        logger.warn(f"更新{var}变量: {old_value} -> {value}")
+        logger.warning(f"更新{var}变量: {old_value} -> {value}")
         setattr(config, var, value)
 
 

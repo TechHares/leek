@@ -183,8 +183,8 @@ class DowV1Strategy(JustFinishKData, PositionRateManager, PositionDirectionManag
         win_loss_rate = (price - pre.lma) / (price - stop_loss_price)
         return abs(win_loss_rate) > self.win_loss_target
 
-    def to_dict(self):
-        d = BaseStrategy.to_dict(self)
+    def marshal(self):
+        d = BaseStrategy.marshal(self)
         p = self.position_manager.quantity_map
         position = [(k, "%s" % p[k].avg_price, "%s" % p[k].quantity_amount) for k in p]
         d["position"] = position

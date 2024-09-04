@@ -1,3 +1,4 @@
+# 建议复制此文件为「db.yaml」，然后在「db.yaml」修改配置
 leek:
   biz_db:                # 业务数据库
     type: sqlite           # 数据库类型 sqlite/mysql

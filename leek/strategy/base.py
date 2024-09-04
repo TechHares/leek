@@ -5,6 +5,7 @@
 # @File    : strategy_old.py
 # @Software: PyCharm
 import inspect
+import json
 import os
 import re
 import threading
@@ -105,6 +106,33 @@ class Position:
                f"quantity={self.quantity_rate},quantity_amount={self.quantity_amount}, " \
                f"fee={self.fee}," \
                f"quantity={self.quantity}, sz={self.sz},cur_price={self.cur_price},value={self.value})"
+
+    def marshal(self):
+        return {
+            "symbol": "%s" % self.symbol,
+            "direction": self.direction.value,
+            "quantity_rate": "%s" % self.quantity_rate,
+            "quantity_amount": "%s" % self.quantity_amount,
+            "quantity": "%s" % self.quantity,
+            "avg_price": "%s" % self.avg_price,
+            "fee": "%s" % self.fee,
+            "value": "%s" % self.value,
+            "cur_price": "%s" % self.cur_price,
+            "sz": self.sz if isinstance(self.sz, int | float) else "%s" % self.sz
+        }
+
+    @staticmethod
+    def unmarshal(data):
+        p = Position(data["symbol"], PositionSide(int(data["direction"])))
+        p.quantity_rate = Decimal(data["quantity_rate"])
+        p.quantity_amount = Decimal(data["quantity_amount"])
+        p.quantity = Decimal(data["quantity"])
+        p.avg_price = Decimal(data["avg_price"])
+        p.fee = Decimal(data["fee"])
+        p.value = Decimal(data["value"])
+        p.cur_price = Decimal(data["cur_price"])
+        p.sz = data["sz"] if isinstance(data["sz"], int | float) else Decimal(data["sz"])
+        return p
 
 
 lock = threading.RLock()
@@ -339,6 +367,33 @@ class PositionManager:
         """
         return self.available_rate > PositionManager.MIN_POSITION and self.available_amount > PositionManager.MIN_POSITION * self.total_amount
 
+    def marshal(self):
+        return {
+            "available_amount": "%s" % self.available_amount,
+            "freeze_amount": "%s" % self.freeze_amount,
+            "used_amount": "%s" % self.used_amount,
+            "available_rate": "%s" % self.available_rate,
+            "freeze_rate": "%s" % self.freeze_rate,
+            "used_rate": "%s" % self.used_rate,
+            "total_amount": "%s" % self.total_amount,
+            "fee": "%s" % self.fee,
+            "__seq_id": self.__seq_id,
+            "quantity_map": {k: v.marshal() for k, v in self.quantity_map.items()}
+        }
+
+    def unmarshal(self, data):
+        self.available_amount = Decimal(data["available_amount"])
+        self.freeze_amount = Decimal(data["freeze_amount"])
+        self.used_amount = Decimal(data["used_amount"])
+        self.available_rate = Decimal(data["available_rate"])
+        self.freeze_rate = Decimal(data["freeze_rate"])
+        self.used_rate = Decimal(data["used_rate"])
+        self.fee = Decimal(data["fee"])
+        self.__seq_id = int(data["__seq_id"])
+        self.quantity_map = {}
+        for k, v in data["quantity_map"].items():
+            self.quantity_map[k] = Position.unmarshal(v)
+
 
 class BaseStrategy(metaclass=ABCMeta):
     """
@@ -422,17 +477,18 @@ class BaseStrategy(metaclass=ABCMeta):
     def shutdown(self):
         pass
 
-    def to_dict(self):
+    def marshal(self):
         return {
             "position_value": "%s" % self.position_manager.position_value,
             "profit": "%s" % (self.position_manager.get_value() - self.position_manager.total_amount),
             "fee": "%s" % self.position_manager.fee,
             "available_amount": "%s" % self.position_manager.available_amount,
-            "运行状态保存": "敬请期待",
+            "position": self.position_manager.marshal(),
         }
 
-    def set_dict_data(self, data):
-        pass
+    def unmarshal(self, data):
+        self.position_manager.unmarshal(data["position"])
+        logger.info(f"加载策略数据成功：{data}")
 
     def notify(self, msg):
         self.bus.publish(EventBus.TOPIC_NOTIFY, msg)

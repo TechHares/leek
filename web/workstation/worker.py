@@ -20,14 +20,16 @@ from leek.runner.simple import SimpleWorkflow
 
 
 class WorkerWorkflow(SimpleWorkflow):
-    def __init__(self, cfg_data_source, cfg_strategy, cfg_trader):
+    def __init__(self, cfg_data_source, cfg_strategy, cfg_trader, run_data):
         super().__init__(cfg_data_source, cfg_strategy, cfg_trader)
+        self.run_data = run_data
 
     def start(self):
         from .config import load_config
         load_config()
         super()._init_config()
-        self.strategy.set_dict_data(self.cfg_strategy["run_data"])
+        if self.run_data and len(self.run_data) > 0:
+            self.strategy.unmarshal(self.run_data)
         BaseWorkflow.start(self)
         self.bus.subscribe(EventBus.TOPIC_POSITION_DATA, self.error_wrapper(self.save_trade_log))
 
@@ -42,7 +44,7 @@ class WorkerWorkflow(SimpleWorkflow):
     def save_run_data(self):
         from .models import StrategyConfig, ProfitLog
         strategy_config = StrategyConfig.objects.get(pk=self.job_id)
-        strategy_config.run_data = self.strategy.to_dict()
+        strategy_config.run_data = self.strategy.marshal()
         logger.debug(f"更新{self.job_id}, 运行数据: {strategy_config.run_data}")
         strategy_config.just_save()
 

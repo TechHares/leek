@@ -74,7 +74,7 @@ def _scheduler():
                 strategy.save()
             elif strategy.status == 2 or (strategy.process_id is None or strategy.process_id not in ids):
                 data = json.loads(
-                    json.dumps([strategy.data_source.to_dict(), strategy.to_dict(), strategy.trade.to_dict()],
+                    json.dumps([strategy.data_source.to_dict(), strategy.to_dict(), strategy.trade.to_dict(), strategy.run_data],
                                default=default))
                 p = Process(target=run_scheduler, args=data, daemon=True)
                 p.start()

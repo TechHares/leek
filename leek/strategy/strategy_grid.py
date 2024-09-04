@@ -157,13 +157,13 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
             f" {self.position_manager.available_amount + self.position_manager.position_value} , {si} {order.amount}")
         self.g.gird = 0
 
-    def to_dict(self):
-        d = super().to_dict()
+    def marshal(self):
+        d = super().marshal()
         d["risk"] = self.risk
         return d
 
-    def set_dict_data(self, data):
-        super().set_dict_data(data)
+    def unmarshal(self, data):
+        super().unmarshal(data)
 
         if "risk" in data:
             self.risk = data["risk"]

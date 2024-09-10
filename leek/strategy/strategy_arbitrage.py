@@ -60,7 +60,7 @@ class FundingStrategy(PositionRateManager, PositionDirectionManager, BaseStrateg
 
     def post_constructor(self):
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA, self._wrap_handle)
-        self.bus.subscribe(EventBus.TOPIC_POSITION_DATA, self.order_handle)
+        self.bus.subscribe(EventBus.TOPIC_POSITION_DATA_AFTER, self.order_handle)
 
     def handle(self):
         # todo 根据资金费收取周期不同 更细节的处理

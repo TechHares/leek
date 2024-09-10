@@ -8,6 +8,7 @@ from django.http import JsonResponse, StreamingHttpResponse, HttpResponseRedirec
 from django.urls import path
 from import_export.admin import ImportExportModelAdmin
 
+from leek.common import config
 from leek.common.utils import all_constructor_args, get_cls
 from leek.data.data import get_all_data_cls_list
 from leek.strategy import get_all_strategies_cls_list
@@ -69,7 +70,14 @@ class TradeConfigAdmin(admin.ModelAdmin):
             return JsonResponse(response_data)
         else:
             return JsonResponse({'error': 'Invalid request'})
-
+    def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
+        try:
+            context["adminform"].form.fields["api_key"].widget.input_type = "password"
+            context["adminform"].form.fields["api_secret_key"].widget.input_type = "password"
+            context["adminform"].form.fields["passphrase"].widget.input_type = "password"
+        except Exception:
+            ...
+        return super().render_change_form(request, context, add, change, form_url, obj)
 
 class DataSourceConfigAdmin(admin.ModelAdmin):
     list_display = ('name', 'data_cls', 'created_time')
@@ -138,7 +146,7 @@ class StrategyConfigAdmin(admin.ModelAdmin):
     list_display = ('name', 'strategy_cls', 'data_source', 'trade', 'total_amount', 'profit', 'fee',
                     'status', 'process_id', 'end_time')
     list_display_links = ('name',)  # 默认
-    readonly_fields = ('run_data',)
+    # readonly_fields = ('run_data',)
     sortable_by = ('status desc', 'created_time desc',)  # 排序
 
     '''分页：每页10条'''
@@ -150,7 +158,7 @@ class StrategyConfigAdmin(admin.ModelAdmin):
 
     def formfield_for_choice_field(self, db_field, request, **kwargs):
         if db_field.name == 'strategy_cls':
-            kwargs['choices'] = get_all_strategies_cls_list()
+            kwargs['choices'] = get_all_strategies_cls_list(config.FILTER_RELEASE_STRATEGY)
 
         if db_field.name == 'status':
             kwargs['choices'] = StrategyConfig.STATUS_CHOICE
@@ -290,7 +298,8 @@ class SettingModelAdmin(admin.ModelAdmin):
         ("基础设置", {"fields" : ("log_level", "data_dir", "download_dir", "proxy")}),
         ("交易设置", {"fields" : ("order_alert", "min_rate", "rolling_position")}),
         ("回测设置", {"fields" : ("emulation", "emulation_interval", "target_interval")}),
-        ("告警设置", {"fields" : ("alert_type", "alert_token")})
+        ("告警设置", {"fields" : ("alert_type", "alert_token")}),
+        ("策略设置", {"fields" : ("filter_release_strategy", "clear_run_data_on_error", "stop_on_error", "allow_share_trading_account")})
     ]
 
     def changelist_view(self, request):

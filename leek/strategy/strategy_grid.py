@@ -48,7 +48,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
 
     def post_constructor(self):
         super().post_constructor()
-        self.bus.subscribe(EventBus.TOPIC_POSITION_DATA, self.handle_position)
+        self.bus.subscribe(EventBus.TOPIC_POSITION_DATA_AFTER, self.handle_position)
 
     def handle(self):
         """
@@ -65,6 +65,14 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         """
         market_data = self.market_data
         price = market_data.close
+        if self.have_position() and self.side != self.position.direction:
+            self.g.order_time = int(datetime.now().timestamp())
+            logger.error(
+                f"SingleGridStrategy {market_data.symbol}持仓与目标方向相反，平仓")
+            self.g.gird = -self.current_grid
+            self.close_position("平仓")
+            return
+
         if price > self.max_price * (1 + self.risk_rate) or price < self.min_price * (1 - self.risk_rate):
             if self.g.order_time is None and self.current_grid > 0:  # 有持仓
                 self.g.order_time = int(datetime.now().timestamp())
@@ -123,12 +131,12 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
         if price > self.max_price or price < self.min_price:
             logger.debug(f"价格超出网格放弃加仓: {self.min_price}~{self.max_price} 当前{price}")
             return
-        dt_gird = min(self.grid, decimal_quantize(dt_price / self.grid_price, 0, 2))  # 防止风控设置过大导致超出网格个数
-        if dt_gird <= self.current_grid:
-            logger.debug(f"无需加仓: {dt_gird} / {self.current_grid}")
+        target_gird = min(self.grid, decimal_quantize(dt_price / self.grid_price, 0, 2))  # 防止风控设置过大导致超出网格个数
+        if target_gird <= self.current_grid:
+            logger.debug(f"无需加仓: {target_gird} / {self.current_grid}")
             return
         if self.risk:  # 已经风控
-            if dt_gird > self.grid - 2:
+            if target_gird > self.grid - 2:
                 return
             self.risk = False
         if self.g.last_add_time and int(
@@ -136,20 +144,21 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
             logger.debug(f"遭遇暴力波动放弃加仓: {DateTime.to_date_str(self.g.last_add_time)} {self.threshold}")
             return
         side = PS.LONG if self.is_long() else PS.SHORT
-        rate = abs(self.current_grid - dt_gird) / self.grid
+        rate = abs(self.current_grid - target_gird) / self.grid
         logger.info(
             f"方向{self.side} 操作方向{side}"
             f" 网格数{self.current_grid}/{self.grid} 加仓：{rate}"
-            f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{dt_gird}"
+            f"价格区间{self.min_price}-{self.max_price} 当前价格{price} 应持仓层数{target_gird}"
         )
-        self.g.gird = abs(self.current_grid - dt_gird)
+        self.g.gird = abs(self.current_grid - target_gird)
         self.g.order_time = self.market_data.current_time
         self.g.last_add_time = self.market_data.current_time
         self.g.last_sub_time = None
         self.create_order(side, rate)
 
     def handle_position(self, order):
-        self.current_grid += self.g.gird
+        if order.transaction_volume > 0:
+            self.current_grid += self.g.gird
         self.g.order_time = None
         si = "卖" if self.side != order.side else "买"
         logger.info(
@@ -160,6 +169,7 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
     def marshal(self):
         d = super().marshal()
         d["risk"] = self.risk
+        d["current_grid"] = "%s" % self.current_grid
         return d
 
     def unmarshal(self, data):
@@ -167,10 +177,17 @@ class SingleGridStrategy(SymbolFilter, PositionSideManager, BaseStrategy):
 
         if "risk" in data:
             self.risk = data["risk"]
+        if "current_grid" in data:
+            self.current_grid = Decimal(data["current_grid"])
+
+
+    def single_ignore(self, single):
+        self.g.order_time = None
 
 
 class RSIGridStrategy(SingleGridStrategy):
     verbose_name = "RSI网格"
+    release = True
 
     def __init__(self, over_buy=80, over_sell=20):
         self.rsi = StochRSI()
@@ -222,6 +239,7 @@ class RSIGridStrategy(SingleGridStrategy):
 
 class RSIGridStrategyV2(RSIGridStrategy):
     verbose_name = "RSI网格V2"
+    release = True
 
     def __init__(self, limit_threshold=3):
         self.limit_threshold = int(limit_threshold)

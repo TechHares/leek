@@ -15,6 +15,7 @@ class ChanStrategy(BaseStrategy):
     参考文献地址： http://www.fxgan.com/chan_fenlei/index.htm#@
                  https://www.bilibili.com/read/cv16235114/
                  https://github.com/DYLANFREE/huangjun.work/blob/master/README.md
+                 https://xueqiu.com/1468953003/78447616
     
     """
 

@@ -6,7 +6,8 @@
 # @Software: PyCharm
 import sys
 import logging
-from leek.common import notify
+
+from leek.common import notify, config
 
 
 class ErrorFilter(logging.Filter):
@@ -15,6 +16,16 @@ class ErrorFilter(logging.Filter):
             notify.alert(record.msg)
         return True
 
+class StrategyNameAdapter(logging.LoggerAdapter):
+    def process(self, msg, kwargs):
+        if 'extra' in kwargs:
+            kwargs['extra']['s_name'] = config.LOGGER_NAME
+        kwargs['extra'] = {'s_name': config.LOGGER_NAME}
+        return msg, kwargs
+
+    @property
+    def level(self):
+        return self.logger.level
 
 def get_logger(name="Default", level="DEBUG",
                formatter="[(process)d-%(thread)d]%(levelname)s %(message)s") -> logging.Logger:
@@ -29,8 +40,9 @@ def get_logger(name="Default", level="DEBUG",
     return lg
 
 
-logger = get_logger("Leek", "DEBUG", "[%(process)d-%(threadName)s] %(asctime)s [%(levelname)s]: %(message)s")
-
+logger = StrategyNameAdapter(get_logger(
+    "Leek", "INFO",
+    "[%(s_name)s-%(process)d-%(threadName)s] %(asctime)s [%(levelname)s]: %(message)s"), {})
 if __name__ == '__main__':
     logger.info("打印日志")
     logger.info("打印日志")

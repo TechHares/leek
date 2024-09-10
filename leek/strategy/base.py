@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Dict
 
 import cachetools
+from twisted.conch.ssh.connection import value
 
 from leek.common import logger, config, notify
 from leek.common import G
@@ -95,8 +96,8 @@ class Position:
         :param time_in_force: 滑点触发时间
         :return: 交易指令
         """
-        order = Order(strategy_id, order_id, order_type, self.symbol, self.value,
-                      price, PositionSide.switch_side(self.direction))
+        order = Order(strategy_id=strategy_id, order_id=order_id, tp=order_type, symbol=self.symbol, amount=self.value,
+                      price=price, side=PositionSide.switch_side(self.direction))
         order.sz = self.sz
         order.pos_type = self.direction
         return order
@@ -150,9 +151,9 @@ class PositionManager:
     """
     仓位管理
     """
-    MIN_POSITION = config.MIN_POSITION
 
-    def __init__(self, bus: EventBus, total_amount: Decimal):
+    def __init__(self, strategy_id, bus: EventBus, total_amount: Decimal):
+        self.strategy_id = strategy_id  # 策略ID
         self.bus = bus  # 总投入
         self.total_amount = Decimal(total_amount)  # 总投入
         if not total_amount or self.total_amount <= 0:
@@ -194,6 +195,19 @@ class PositionManager:
         更新持仓
         :param trade: 订单指令结果
         """
+        if trade.order_id == "" and trade.symbol in self.quantity_map:  # 人工下单 涉及本策略
+            self.bus.publish(EventBus.TOPIC_NOTIFY, "策略仓位涉及人工订单，策略重启：" + str(trade))
+            logger.error("手工订单涉及本策略，策略重启：" + str(trade))
+            self.bus.publish(EventBus.TOPIC_RUNTIME_ERROR, "出现人工订单，策略重启！")
+            return
+        if not trade.order_id.startswith(str(self.strategy_id)):  # 非本策略订单
+            if config.ALLOW_SHARE_TRADING_ACCOUNT:
+                logger.info(f"其它策略订单，忽略 {trade}")
+            else:
+                logger.error("出现非本策略订单，策略重启：" + str(trade))
+                self.bus.publish(EventBus.TOPIC_RUNTIME_ERROR, "出现非本策略订单，策略重启！")
+            return
+
         # logger.info(f"持仓更新: {order}")
         if trade.symbol not in self.quantity_map:
             self.quantity_map[trade.symbol] = Position(trade.symbol, trade.side)
@@ -215,6 +229,7 @@ class PositionManager:
             del self.quantity_map[trade.symbol]
         del self.signal_processing_map[trade.symbol]
         self.logger_print("仓位更新结束", (trade.__str__(), position.__str__()))
+        self.bus.publish(EventBus.TOPIC_POSITION_DATA_AFTER, trade)
 
     def logger_print(self, mark, extend=None):
         self.position_value = Decimal(sum([p.value for p in self.quantity_map.values()]))
@@ -239,6 +254,7 @@ class PositionManager:
                         f"-{signal.signal_name}/{datetime.fromtimestamp(signal.timestamp / 1000)}"
                         f" rate={signal.position_rate}, cls={signal.creator.__name__},"
                         f" price={signal.price}: {signal.memo}")
+            self.bus.publish(EventBus.TOPIC_STRATEGY_SIGNAL_IGNORE, signal)
             return
         logger.info(f"处理策略信号: {signal.symbol}-{signal.signal_name}/{datetime.fromtimestamp(signal.timestamp / 1000)}"
                     f" rate={signal.position_rate}, cls={signal.creator.__name__}, price={signal.price}: {signal.memo}")
@@ -246,8 +262,8 @@ class PositionManager:
         self.__seq_id += 1
         order_id = f"{signal.strategy_id}{'LONG' if signal.side == PositionSide.LONG else 'SHORT'}{self.__seq_id}"
 
-        order = Order(signal.strategy_id, order_id, OT.MarketOrder, signal.symbol, Decimal(0), Decimal(0), signal.price,
-                      signal.side, signal.timestamp)
+        order = Order(signal.strategy_id, order_id, signal.symbol, Decimal(0), Decimal(0), signal.price,
+                      side=signal.side, order_time=signal.timestamp)
 
         p = self.get_position(signal.symbol)
         if p is not None and p.direction != signal.side:  # 平仓
@@ -260,6 +276,7 @@ class PositionManager:
             signal.position_rate = min(signal.position_rate, self.available_rate)
             order.pos_type = signal.side
             amount = self.freeze(order_id, signal.position_rate)
+            self.bus.publish(EventBus.TOPIC_STRATEGY_SIGNAL_IGNORE, signal)
             if amount <= 0:
                 return
             order.amount = amount
@@ -277,7 +294,8 @@ class PositionManager:
         :return: 金额
         """
         rate = decimal_quantize(min(rate, self.available_rate), 3)
-        if rate < PositionManager.MIN_POSITION:
+        if rate < config.MIN_POSITION:
+            logger.error(f"下单仓位比例小于{config.MIN_POSITION}, 冻结0")
             return Decimal(0)
         if config.ROLLING_POSITION:
             freeze_amount = min(decimal_quantize(rate / self.available_rate * self.available_amount, 2),
@@ -285,9 +303,10 @@ class PositionManager:
         else:
             freeze_amount = min(decimal_quantize(rate * self.total_amount, 2), self.available_amount)
 
-        if freeze_amount < PositionManager.MIN_POSITION * self.total_amount < self.available_amount:
-            freeze_amount = PositionManager.MIN_POSITION * self.total_amount
-        if freeze_amount < PositionManager.MIN_POSITION * self.total_amount:
+        if freeze_amount < config.MIN_POSITION * self.total_amount < self.available_amount:
+            freeze_amount = config.MIN_POSITION * self.total_amount
+        if freeze_amount < config.MIN_POSITION * self.total_amount:
+            logger.error(f"下单金额小于{config.MIN_POSITION * self.total_amount}, 冻结0")
             return Decimal(0)
         self.available_rate -= rate
         self.available_amount -= freeze_amount
@@ -365,7 +384,7 @@ class PositionManager:
         """
         判断是否足够余额
         """
-        return self.available_rate > PositionManager.MIN_POSITION and self.available_amount > PositionManager.MIN_POSITION * self.total_amount
+        return self.available_rate > config.MIN_POSITION and self.available_amount > config.MIN_POSITION * self.total_amount
 
     def marshal(self):
         return {
@@ -382,12 +401,18 @@ class PositionManager:
         }
 
     def unmarshal(self, data):
-        self.available_amount = Decimal(data["available_amount"])
-        self.freeze_amount = Decimal(data["freeze_amount"])
         self.used_amount = Decimal(data["used_amount"])
-        self.available_rate = Decimal(data["available_rate"])
-        self.freeze_rate = Decimal(data["freeze_rate"])
         self.used_rate = Decimal(data["used_rate"])
+
+        # 计算可用
+        self.available_rate = Decimal("1") - self.used_rate
+        self.available_amount = self.total_amount - self.used_amount
+        assert self.available_rate >= 0, "已使用金额大于总投入金额， 请检查数据！"
+
+        # 丢弃冻结
+        self.freeze_amount = Decimal("0")
+        self.freeze_rate = Decimal("0")
+
         self.fee = Decimal(data["fee"])
         self.__seq_id = int(data["__seq_id"])
         self.quantity_map = {}
@@ -403,7 +428,7 @@ class BaseStrategy(metaclass=ABCMeta):
     @abstractmethod
     def __init__(self, strategy_id, bus: EventBus, total_amount: Decimal):
         self.bus = bus
-        self.position_manager = PositionManager(bus, total_amount)
+        self.position_manager = PositionManager(strategy_id, bus, total_amount)
 
         # base 内部变量
         self._strategy_id = strategy_id
@@ -426,6 +451,7 @@ class BaseStrategy(metaclass=ABCMeta):
 
     def post_constructor(self):
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA, self._wrap_handle)
+        self.bus.subscribe(EventBus.TOPIC_STRATEGY_SIGNAL_IGNORE, self.single_ignore)
         self.position_manager.post_constructor()
 
         def data_init(symbol, market_datas: list):
@@ -433,9 +459,11 @@ class BaseStrategy(metaclass=ABCMeta):
             self.__g_map[symbol].data_init_status = 2
 
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA_INIT, data_init)
+        def order_notify(msg):
+            if config.ORDER_ALERT:
+                self.notify(msg.__str__())
 
-        if config.ORDER_ALERT:
-            self.bus.subscribe(EventBus.TOPIC_ORDER_DATA, lambda o: notify.alert(o.__str__()))
+        self.bus.subscribe(EventBus.TOPIC_ORDER_DATA, order_notify)
 
     def _wrap_handle(self, market_data: G):
         if market_data.symbol not in self.__g_map:
@@ -492,6 +520,9 @@ class BaseStrategy(metaclass=ABCMeta):
 
     def notify(self, msg):
         self.bus.publish(EventBus.TOPIC_NOTIFY, msg)
+
+    def single_ignore(self, single):
+        ...
 
     def create_order(self, side: PositionSide, position_rate="0.5", memo="", extend=None):
         """
@@ -551,16 +582,17 @@ class BaseStrategy(metaclass=ABCMeta):
 
 class StrategyTest(BaseStrategy):
     verbose_name = "数据打印(测试用)"
+    release = True
 
     def __init__(self):
         pass
 
     def handle(self):
-        logger.debug(f"DATA: {DateTime.to_date_str(self.market_data.timestamp)}, {self.market_data}")
+        logger.info(f"DATA: {DateTime.to_date_str(self.market_data.timestamp)}, {self.market_data}")
 
 
-@cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=600))
-def get_all_strategies_cls_list():
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=6000))
+def get_all_strategies_cls_list(just_release=False):
     files = [f for f in os.listdir(Path(__file__).parent)
              if f.endswith(".py") and f not in ["__init__.py"]]
     classes = []
@@ -576,6 +608,8 @@ def get_all_strategies_cls_list():
         desc = (c[:cls_idx] + "|" + c[cls_idx + 1:], c[cls_idx + 1:])
         if hasattr(cls, "verbose_name"):
             desc = (desc[0], cls.verbose_name)
+        if just_release and (not hasattr(cls, "release") or not cls.release):
+            continue
         res.append(desc)
     return res
 

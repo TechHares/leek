@@ -2,6 +2,14 @@
 ===============
 韭菜量化平台, 基于Python的事件驱动quant平台, 提供从数据获取到交易的整套流程, 以及交易的回测, 策略评估
 
+[![leek](https://img.shields.io/github/license/li-shenglin/leek.svg)](https://github.com/li-shenglin/leek)
+[![leek](https://img.shields.io/github/release/li-shenglin/leek)](https://github.com/li-shenglin/leek)
+![Python Version](https://img.shields.io/badge/python-3.13%2B-blue.svg)
+![Pip Version](https://img.shields.io/badge/pip-2.24.2%2B-green.svg)
+![Django Version](https://img.shields.io/badge/Django-4.2.13%2B-read.svg)
+[![simpleui](https://img.shields.io/badge/developing%20with-Simpleui-2077ff.svg)](https://github.com/newpanjing/simpleui)
+
+## 快速开始
 - [使用文档](docs/0-1.introduction.md)
 - 讨论组：<a href="https://t.me/+lFHR-vTZ6Y1iZTU1">Telegram</a>
 

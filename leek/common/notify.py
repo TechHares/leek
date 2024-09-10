@@ -14,7 +14,7 @@ from multiprocessing import current_process
 
 
 def send_to_dingding(content):
-    pre = f"leek => {current_process().pid}:"
+    pre = f"leek => {config.LOGGER_NAME}({current_process().pid}):"
     requests.post("https://oapi.dingtalk.com/robot/send?access_token=" + config.ALERT_TOKEN,
                   headers={"Content-Type": "application/json"},
                   data=json.dumps({"msgtype": "text", "text": {"content": "%s %s" % (pre, content)}},

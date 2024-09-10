@@ -5,7 +5,9 @@
 # @File    : worker.py
 # @Software: PyCharm
 import logging
+import multiprocessing
 import os
+import queue
 import sys
 import time
 from datetime import datetime
@@ -14,39 +16,47 @@ from pathlib import Path
 import django
 from django.utils import timezone
 
-from leek.common import logger, EventBus, invoke
+from leek.common import logger, EventBus, invoke, config
 from leek.runner.runner import BaseWorkflow
 from leek.runner.simple import SimpleWorkflow
 
 
 class WorkerWorkflow(SimpleWorkflow):
-    def __init__(self, cfg_data_source, cfg_strategy, cfg_trader, run_data):
+    strategy_queue_map = {}
+    strategy_process_map = {}
+
+    def __init__(self, q : multiprocessing.Queue, cfg_data_source, cfg_strategy, cfg_trader):
         super().__init__(cfg_data_source, cfg_strategy, cfg_trader)
-        self.run_data = run_data
+        self.q = q
 
     def start(self):
-        from .config import load_config
+
+        from .config import load_config, set_normal_var
+        config.LOGGER_NAME = self.cfg_strategy["name"]
         load_config()
         super()._init_config()
-        if self.run_data and len(self.run_data) > 0:
-            self.strategy.unmarshal(self.run_data)
+        if "run_data" in self.cfg_strategy and len(self.cfg_strategy["run_data"]) > 0:
+            self.strategy.unmarshal(self.cfg_strategy["run_data"])
         BaseWorkflow.start(self)
-        self.bus.subscribe(EventBus.TOPIC_POSITION_DATA, self.error_wrapper(self.save_trade_log))
-
+        self.bus.subscribe(EventBus.TOPIC_POSITION_DATA_AFTER, self.error_wrapper(self.save_trade_log))
+        self.bus.subscribe(EventBus.TOPIC_RUNTIME_ERROR, lambda e: self.on_error())
+        self.bus.subscribe(EventBus.TOPIC_POSITION_DATA_AFTER, lambda e: self.save_run_data())
         try:
             while self.run_state:
-                time.sleep(5)
-                load_config()
-                self.save_run_data()
+                try:
+                    command = self.q.get(block=True, timeout=5)
+                    logger.info(f"收到命令: {command}")
+                    if command.lower() == "shutdown":
+                        self.shutdown()
+                    if command.lower() == "config_update":
+                        load_config()
+                except queue.Empty:
+                    ...
         except KeyboardInterrupt:
-            pass
-    @invoke(20)
+            ...
+
     def save_run_data(self):
-        from .models import StrategyConfig, ProfitLog
-        strategy_config = StrategyConfig.objects.get(pk=self.job_id)
-        strategy_config.run_data = self.strategy.marshal()
-        logger.debug(f"更新{self.job_id}, 运行数据: {strategy_config.run_data}")
-        strategy_config.just_save()
+        self.update_db(run_data=self.strategy.marshal())
 
         # todo 暂时不做， 直接看第三方
         # value = self.strategy.position_manager.get_value()
@@ -75,12 +85,71 @@ class WorkerWorkflow(SimpleWorkflow):
         #                         quantity=self.strategy.position_map[data.symbol].quantity)
         # self.save_run_data()
 
+    def update_db(self, **kwargs):
+        from .models import StrategyConfig
+        logger.info(f"策略数据更新{self.job_id}, {kwargs}")
+        StrategyConfig.objects.filter(pk=self.job_id).update(**kwargs)
+
+    def on_error(self):
+        logger.info("shutdown")
+        from leek.common import config
+        if config.CLEAR_RUN_DATA_ON_ERROR:
+            self.update_db(run_data={})
+        if config.STOP_ON_ERROR:
+            self.update_db(status=1)
+        self.shutdown()
+
     def shutdown(self):
         super().shutdown()
+        logger.info("进程退出")
         os.abort()
 
+    @staticmethod
+    def send_command(command: any, strategy_id=None):
+        logger.debug(f"发送命令：{strategy_id} -> {command}. {list(WorkerWorkflow.strategy_queue_map.keys())}")
+        if strategy_id is None:
+            for k in WorkerWorkflow.strategy_queue_map:
+                WorkerWorkflow.send_command(command, k)
+            return
+        if strategy_id not in WorkerWorkflow.strategy_queue_map:
+            return
+        try:
+            q = WorkerWorkflow.strategy_queue_map[strategy_id]
+            q.put(command)
+            logger.debug(f"命令发送完成：{strategy_id}, {command}")
+        except BaseException as e:
+            logger.warning(f"命令发送失败：{strategy_id}, {command}", e)
+
+    @staticmethod
+    def refresh_queue(strategy_ids):
+        for k in [k for k in WorkerWorkflow.strategy_queue_map if k not in strategy_ids]:
+            WorkerWorkflow.del_queue(k)
+
+    @staticmethod
+    def del_queue(strategy_id):
+        logger.debug(f"删除信道：{strategy_id}")
+        if strategy_id not in WorkerWorkflow.strategy_queue_map:
+            return
+        q = WorkerWorkflow.strategy_queue_map[strategy_id]
+        pid = WorkerWorkflow.strategy_process_map[strategy_id]
+        try:
+            del WorkerWorkflow.strategy_queue_map[strategy_id]
+            del WorkerWorkflow.strategy_process_map[strategy_id]
+            q.close()
+            logger.debug(f"关闭信道：{strategy_id} => {pid}")
+        except BaseException as e:
+            logger.warning(f"关闭信道异常：{strategy_id}", e)
+
+    @staticmethod
+    def add_queue(strategy_id, process_id, q):
+        if strategy_id in WorkerWorkflow.strategy_queue_map:
+            WorkerWorkflow.del_queue(strategy_id)
+        WorkerWorkflow.strategy_queue_map[strategy_id] = q
+        WorkerWorkflow.strategy_process_map[strategy_id] = process_id
+        logger.debug(f"添加信道：{strategy_id} => {process_id}")
 
 def run_scheduler(*arg):
+    os.environ.setdefault("DISABLE_WORKER", "true")
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "website.settings")
     django.setup()
     sys.path.append(f'{Path(__file__).resolve().parent.parent.parent}')

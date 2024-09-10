@@ -4,17 +4,18 @@ import sys
 import time
 from datetime import datetime
 from decimal import Decimal
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 from pathlib import Path
 from threading import Thread
 
 import psutil
 from django.apps import AppConfig
 
+from web.workstation.worker import WorkerWorkflow
+
 sys.path.append(f'{Path(__file__).resolve().parent.parent.parent}')
 
 from leek.common import logger, config
-
 
 def is_worker_process():
     if os.name == 'nt' or os.name == 'posix':
@@ -37,24 +38,25 @@ def is_worker_process():
     else:
         return os.getpgrp() == os.getpid() or os.getppid() == os.getpgrp()
 
-
 class WorkstationConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'workstation'
     verbose_name = "策略工作台"
     verbose_name_plural = verbose_name
 
+
     def ready(self):
-        if os.environ.get("DISABLE_WORKER") == "true":
+        if os.environ.get("DISABLE_WORKER") == "true" or "makemigrations" in sys.argv or "migrate" in sys.argv:
             return
+
         from .config import load_config
         load_config()
+        config.LOGGER_NAME = "WEB"
         logger.info("workstation ready")
         if is_worker_process():
             logger.info(f"启动任扫描线程")
             t = Thread(target=_scheduler, daemon=True)
             t.start()
-
 
 def _scheduler():
     from .models import StrategyConfig
@@ -62,6 +64,7 @@ def _scheduler():
     while True:
         time.sleep(20)
         queryset = StrategyConfig.objects.filter(status__in=(2, 3))
+        WorkerWorkflow.refresh_queue([strategy.id for strategy in queryset])
         logger.debug(f"扫描任务: %s", StrategyConfig.objects.filter(status__in=(2, 3)).count())
         children = psutil.Process().children(recursive=True)
         ids = [x.pid for x in children if x.status() != psutil.STATUS_ZOMBIE and "python" in x.name().lower()]
@@ -74,15 +77,20 @@ def _scheduler():
                 strategy.save()
             elif strategy.status == 2 or (strategy.process_id is None or strategy.process_id not in ids):
                 data = json.loads(
-                    json.dumps([strategy.data_source.to_dict(), strategy.to_dict(), strategy.trade.to_dict(), strategy.run_data],
+                    json.dumps([strategy.data_source.to_dict(), strategy.to_dict(), strategy.trade.to_dict()],
                                default=default))
-                p = Process(target=run_scheduler, args=data, daemon=True)
+                queue = Queue()
+                args = [queue]
+                args.extend(data)
+                p = Process(target=run_scheduler, args=args, daemon=True)
                 p.start()
                 ids.append(p.pid)
-                logger.info(f"启动策进程，process_id={p.pid}")
+                logger.info(f"启动策进程，id={strategy.id}, process_id={p.pid}")
+                WorkerWorkflow.add_queue(strategy.id, p.pid, queue)
                 strategy.process_id = p.pid
                 strategy.status = 3
                 strategy.just_save()
+
 
 
 def default(obj):

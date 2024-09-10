@@ -8,8 +8,6 @@ import time
 import unittest
 from datetime import datetime
 
-import ccxt
-
 from leek.common import EventBus
 from leek.common.utils import DateTime
 from leek.data import DataSource, WSDataSource
@@ -65,10 +63,10 @@ class TestBase(unittest.TestCase):
         time.sleep(30)
 
     def test_kline1(self):
-        source = OkxKlineDataSource("1", ["5m"], "BTC-USDT-SWAP")
+        source = OkxKlineDataSource("2", ["5m"], "BTC-USDT-SWAP")
         bus = EventBus()
         DataSource.__init__(source, bus)
-        datas = source.data_init_hook(["BTC-USDT-SWAP", "4h", 120])
+        datas = source.data_init_hook({k: v for k, v in zip(["symbol", "interval", "size"], ["BTC-USDT-SWAP", "4h", 120])})
         for data in datas:
             print(datetime.fromtimestamp(data.timestamp / 1000).strftime("%Y-%m-%d %H:%M:%S"), data)
 
@@ -78,18 +76,6 @@ class TestBase(unittest.TestCase):
         # kline = source.get_kline("BTC-USDT")
         # for k in kline:
         #     print(DateTime.to_date_str(k[0]), k[1], k[2])
-
-    def test_cctx(self):
-        okx = ccxt.okx({
-            "enableRateLimit": True,
-            "options": {
-                "defaultType": "swap",
-                "fetchMarkets": ["swap"]
-            }
-        })
-
-        markets = okx.fetch_markets({"instType": "SWAP", "instId": "BTC-USDT-SWAP"})
-        print(markets[0]["info"])
 
 
 if __name__ == '__main__':

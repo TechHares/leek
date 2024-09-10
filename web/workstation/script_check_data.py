@@ -134,6 +134,7 @@ def binary_search(sorted_list, target):
 
 
 """
+-- optimize table workstation_kline final
 -- ck简单校验K线数量
 with tsp as(SELECT arrayElement(array1, number) AS interval, arrayElement(array2, number) AS deta_ts FROM (select ['1m', '3m', '5m', '15m', '30m', '1h', '4h', '6h', '8h', '12h', '1d'] array1,[60000,180000,300000,900000,1800000,3600000,14400000,21600000,28800000,43200000,86400000] array2) a CROSS JOIN numbers(1, 11) AS n),
 r as (select symbol,interval,min(timestamp) start,max(timestamp) end, count(*) act from  workstation_kline group by symbol,interval),

@@ -14,7 +14,8 @@ def load_config():
     if not RuntimeConfig.objects.filter(id=1).exists():
         return
     cfg = RuntimeConfig.objects.get(id=1)
-
+    update_config(cfg)
+def update_config(cfg):
     set_log_level(cfg.log_level)
     set_normal_var("DATA_DIR", config.build_path(cfg.data_dir))
     set_normal_var("DOWNLOAD_DIR", config.build_path(cfg.download_dir))
@@ -30,6 +31,11 @@ def load_config():
     set_normal_var("BACKTEST_EMULATION", cfg.emulation)
     set_normal_var("BACKTEST_EMULATION_INTERVAL", cfg.emulation_interval)
     set_normal_var("BACKTEST_TARGET_INTERVAL", cfg.target_interval)
+
+    set_normal_var("FILTER_RELEASE_STRATEGY", cfg.filter_release_strategy)
+    set_normal_var("CLEAR_RUN_DATA_ON_ERROR", cfg.clear_run_data_on_error)
+    set_normal_var("ALLOW_SHARE_TRADING_ACCOUNT", cfg.allow_share_trading_account)
+    set_normal_var("STOP_ON_ERROR", cfg.stop_on_error)
 
 def set_log_level(level):
     if logging.getLevelName(level) != logger.level:

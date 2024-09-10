@@ -64,7 +64,6 @@ class BaseWorkflow(object):
         self.job_id = job_id
         self.bus: EventBus = EventBus()
         self.run_state = True
-        self.bus.subscribe(EventBus.TOPIC_RUNTIME_ERROR, lambda e: self.shutdown())
 
     def start(self):
         try:

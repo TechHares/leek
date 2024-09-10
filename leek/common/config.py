@@ -84,15 +84,47 @@ class DBConfig:
             return r
         return {}
 
+    def to_client_db_config(self):
+        if self.type == "SQLITE":
+            data_dir = Path(self.path).parent.resolve()
+            data_dir.mkdir(parents=True, exist_ok=True)
+            return Path(self.path).resolve()
+        if self.type == "MYSQL":
+            return {
+                'host': self.host,
+                'port': self.port,
+                'user': self.user,
+                'database': self.database,
+                'password': self.password,
+            }
+        if self.type == "CLICKHOUSE":
+            args = {
+                "host": self.host,
+                "port": self.port,
+                "database": self.database,
+                "user": self.user,
+            }
+            if self.password and self.password != "":
+                args["password"] = self.password
+            return args
+        return {}
+
 # 数据库
 BIZ_DB = DBConfig(cfg.get("biz_db"))  # 业务数据库
 DATA_DB = DBConfig(cfg.get("data_db")) # k线数据库
+if BIZ_DB.type == DATA_DB.type:
+    if BIZ_DB.type == "SQLITE":
+        assert BIZ_DB.path != DATA_DB.path, "业务数据库和K线数据库不能使用同一个"
+    else:
+        assert BIZ_DB.host != DATA_DB.host or BIZ_DB.port != DATA_DB.port or DATA_DB.database != BIZ_DB.database, "业务数据库和K线数据库不能使用同一个"
 
 # 基础配置
 DATA_DIR = build_path("data")
 DOWNLOAD_DIR = build_path("download")
+LOGGER_NAME = "leek"
 PROXY_HOST = None
 PROXY_PORT = None
+PROXY = None
 
 # 交易配置
 ORDER_ALERT = False
@@ -108,16 +140,24 @@ BACKTEST_EMULATION = False
 BACKTEST_TARGET_INTERVAL = "1m"
 BACKTEST_EMULATION_INTERVAL = "5m"
 
+# 策略设置
+FILTER_RELEASE_STRATEGY = True
+CLEAR_RUN_DATA_ON_ERROR = True
+ALLOW_SHARE_TRADING_ACCOUNT = False
+STOP_ON_ERROR = False
+
 def set_proxy(proxy_url):
+    global PROXY_HOST, PROXY_PORT, PROXY
     if not proxy_url:
         return
+    PROXY = proxy_url
     arr = proxy_url.split("//")
     x = arr[0]
     if len(arr) == 2:
         x = arr[1]
-    global PROXY_HOST, PROXY_PORT
     PROXY_HOST, PROXY_PORT = x.split(":")
 
+VERSION = (0, 1, 5)
 if __name__ == '__main__':
     print(BIZ_DB)
     print(PROXY_HOST)

@@ -55,9 +55,17 @@ class TradeMode(Enum):
     """
     交易模式
     """
-    ISOLATED = 1  # 保证金模式-逐仓
-    CROSS = 2  # 保证金模式-全仓
-    CASH = 3  # 非保证金模式-非保证金
+    ISOLATED = "isolated"  # 保证金模式-逐仓
+    CROSS = "cross"  # 保证金模式-全仓
+    CASH = "cash"  # 非保证金模式-非保证金
+    SPOT_ISOLATED = "spot_isolated" # 现货-带单
+
+class PosMode(Enum):
+    """
+    持仓方式: 仅适用交割/永续
+    """
+    LONG_SHORT_MODE = "long_short_mode"
+    NET_MODE = "net_mode"
 
 
 class TradeInsType(Enum):
@@ -77,10 +85,10 @@ class Order:
     交易指令
     """
 
-    def __init__(self, strategy_id: str, order_id, tp: OrderType, symbol: str, amount: Decimal = 0.0,
-                 vol: Decimal = 0.0, price: Decimal = None, side: PositionSide = PositionSide.LONG,
+    def __init__(self, strategy_id: str, order_id, symbol: str, amount: Decimal = 0.0,
+                 vol: Decimal = 0.0, price: Decimal = None, tp: OrderType = None, side: PositionSide = PositionSide.LONG,
                  order_time: datetime = None, trade_ins_type: TradeInsType = TradeInsType.SWAP,
-                 trade_mode: TradeMode = TradeMode.ISOLATED, sz=None, pos_type=None, lever=1):
+                 trade_mode: TradeMode = None, sz=None, pos_type=None, lever=None, ccy=None):
         self.strategy_id = strategy_id  # 策略ID
         self.order_id = order_id  # 订单ID
         self.trade_ins_type = trade_ins_type  # 交易标的类型
@@ -92,6 +100,7 @@ class Order:
         self.vol = vol  # 报单数量
         self.side = side  # 交易方向
         self.lever = lever  # 杠杆倍数
+        self.ccy = ccy  # 保证金币种
         self.order_time = order_time  # 时间
         if self.order_time is None:
             self.order_time = int(time.time()*1000)

@@ -12,10 +12,12 @@ from clickhouse_backend import models as ck_models
 from leek.data.data import get_all_data_cls_list
 from leek.strategy import get_all_strategies_cls_list
 from leek.trade.trade import get_all_trader_cls_list
+from web.workstation.config import update_config
+from web.workstation.worker import WorkerWorkflow
 
 
 class TradeConfig(models.Model):
-    id = models.AutoField(u'id', primary_key=True)
+    id = models.BigAutoField(u'id', primary_key=True)
     name = models.CharField(u'名称', max_length=200, unique=True)
 
     trader_cls = models.CharField(u'执行器类型', null=False, max_length=200, choices=get_all_trader_cls_list())
@@ -40,19 +42,35 @@ class TradeConfig(models.Model):
     api_key = models.CharField(u'API Key', max_length=200, default="", blank=True)
     api_secret_key = models.CharField(u'Secret Key', max_length=200, default="", blank=True)
     passphrase = models.CharField(u'密码', max_length=200, default="", blank=True)
-    leverage = models.IntegerField(u'杠杆倍数', default="3", blank=True)
+    leverage = models.IntegerField(u'默认杠杆倍数', default="3", blank=True)
+
     FLAG_CHOICE = (
         ("1", u"模拟盘"),
         ("0", u'实盘'),
         ("2", u"实盘(AWS)"),
     )
     work_flag = models.CharField(u'盘口', max_length=2, choices=FLAG_CHOICE, default="0")
+
+    #                  , order_type="limit", trade_ins_type=3
     TD_MODE_CHOICE = (
         ("isolated", u'逐仓'),
         ("cross", u"全仓"),
         ("cash", u'非保证金'),
+        ("spot_isolated", u'现货带单'),
     )
-    td_mode = models.CharField(u'交易模式', default="isolated", choices=TD_MODE_CHOICE, max_length=20)
+    td_mode = models.CharField(u'默认交易模式', default="isolated", choices=TD_MODE_CHOICE, max_length=20)
+    ccy = models.CharField(u'全仓默认保证金币种(不做全仓可不填)', default=None, null=True, blank=True, max_length=20)
+    ORDER_TYPE_CHOICE = (
+        ("limit", u'限价'),
+        ("market", u"市价"),
+    )
+    order_type = models.CharField(u'默认下单类型', default="market", choices=ORDER_TYPE_CHOICE, max_length=20)
+    slippage_level = models.IntegerField(u'现货/杠杆市价单滑点幅度(1-400档， 设置0直接下市价单)',
+                                                     validators=[MinValueValidator(0),
+                                                                 MaxValueValidator(400)],
+                                                     default=0)
+    TRADE_INS_TYPE_CHOICE = ((1, u'现货'), (2, u'杠杆'), (3, u'合约'), (4, u'期货'), (5, u'期权'))
+    trade_ins_type = models.IntegerField(u'默认交易产品类型', default=3, choices=TRADE_INS_TYPE_CHOICE)
     # =====================================OKX================================================
 
     created_time = models.DateTimeField(u'创建时间', auto_now_add=True)
@@ -69,7 +87,7 @@ class TradeConfig(models.Model):
 
 
 class DataSourceConfig(models.Model):
-    id = models.AutoField(u'id', primary_key=True)
+    id = models.BigAutoField(u'id', primary_key=True)
     name = models.CharField(u'名称', max_length=200, unique=True)
 
     data_cls = models.CharField(u'数据源', null=False, max_length=200, choices=get_all_data_cls_list())
@@ -124,16 +142,17 @@ class DataSourceConfig(models.Model):
 
 
 def time_now():
-    return datetime.datetime.now()
+    return datetime.datetime.now() + datetime.timedelta(days=30)
 
 
 class StrategyConfig(models.Model):
-    id = models.AutoField(u'id', primary_key=True)
+    id = models.BigAutoField(u'id', primary_key=True)
     name = models.CharField(u'策略名称', max_length=200, unique=True)
     total_amount = models.DecimalField(u'投入总资产', max_digits=36, decimal_places=12, default="1000")
 
     # 加载策略列表
-    strategy_cls = models.CharField(u'策略', null=False, max_length=200, choices=get_all_strategies_cls_list(),
+    strategy_cls = models.CharField(u'策略', null=False, max_length=200,
+                                    choices=get_all_strategies_cls_list(),
                                     default="")
     # =====================================单向单标的网格================================================
     symbol = models.CharField(u'标的物', max_length=200, default="", blank=True)
@@ -239,11 +258,7 @@ class StrategyConfig(models.Model):
         if self.id and self.id > 0:
             st = StrategyConfig.objects.get(id=self.id)
             if st.process_id and st.process_id > 0:
-                try:
-                    psutil.Process(st.process_id).terminate()
-                    logger.info(f"策略{self.name}进程{st.process_id}已终止")
-                except psutil.NoSuchProcess:
-                    pass
+                WorkerWorkflow.send_command("shutdown", self.id)
                 self.process_id = 0
         if self.status == 1 or self.run_data is None:
             self.run_data = {}
@@ -255,7 +270,7 @@ class StrategyConfig(models.Model):
 
 if config.DATA_DB.type == 'CLICKHOUSE':
     class Kline(ck_models.ClickhouseModel):
-        id = models.AutoField(u'id', primary_key=True)
+        id = models.BigAutoField(u'id', primary_key=True)
         interval = ck_models.StringField(u'周期', max_length=5, default="", null=False)
         timestamp = ck_models.UInt64Field(u'时间戳', default=0, null=False)
         symbol = ck_models.StringField(u'标的', max_length=20, default="", null=False)
@@ -289,7 +304,7 @@ if config.DATA_DB.type == 'CLICKHOUSE':
 
 else:
     class Kline(models.Model):
-        id = models.AutoField(u'id', primary_key=True)
+        id = models.BigAutoField(u'id', primary_key=True)
         interval = models.CharField(u'周期', max_length=5, default="", null=False)
         timestamp = models.BigIntegerField(u'时间戳', default=0, null=False)
         symbol = models.CharField(u'标的', max_length=20, default="", null=False)
@@ -318,7 +333,7 @@ else:
 
 
 class TradeLog(models.Model):
-    id = models.AutoField(u'id', primary_key=True)
+    id = models.BigAutoField(u'id', primary_key=True)
     order_id = models.CharField(u'订单ID', max_length=200, default="", null=False)
     strategy_id = models.BigIntegerField(u'策略ID', default=0, null=False)
     type = models.IntegerField(u'类型', default=0, null=False)
@@ -345,7 +360,7 @@ class TradeLog(models.Model):
 
 
 class ProfitLog(models.Model):
-    id = models.AutoField(u'id', primary_key=True)
+    id = models.BigAutoField(u'id', primary_key=True)
     strategy_id = models.BigIntegerField(u'策略ID', default=0, null=False)
     timestamp = models.BigIntegerField(u'时间戳', default=None, null=False)
     value = models.DecimalField(u'价值', max_digits=18, decimal_places=8, default=0, null=False)
@@ -362,7 +377,7 @@ class ProfitLog(models.Model):
 
 
 class RuntimeConfig(models.Model):
-    id = models.AutoField(u'id', primary_key=True)
+    id = models.BigAutoField(u'id', primary_key=True)
     LOG_LEVEL_CHOICE = (
         ("CRITICAL", 'CRITICAL'),
         ("ERROR", 'ERROR'),
@@ -386,6 +401,10 @@ class RuntimeConfig(models.Model):
     emulation_interval = models.CharField(u'仿真填充K线', max_length=5, default="5m", choices=DataSourceConfig.CHANNEL_CHOICE)
     target_interval = models.CharField(u'需仿真K线', max_length=5, default="30m", choices=DataSourceConfig.CHANNEL_CHOICE)
 
+    filter_release_strategy = models.BooleanField(u'只显示已发布策略(经过大量实盘的测试，PS： !=赚钱)', default=False)
+    clear_run_data_on_error = models.BooleanField(u'运行异常时清空策略run_data', default=True)
+    stop_on_error = models.BooleanField(u'运行异常时停止策略', default=False)
+    allow_share_trading_account = models.BooleanField(u'允许策略间共享交易账户(开启后多个策略可使用同一个账户)', default=False)
 
     ALERT_TYPE_CHOICE = (
         ("console", u'控制台输出'),
@@ -396,6 +415,13 @@ class RuntimeConfig(models.Model):
                                       null=True)
 
     updated_at = models.DateTimeField(auto_now=True, verbose_name="修改时间")
+
+    def save(
+        self, force_insert=False, force_update=False, using=None, update_fields=None
+    ):
+        super().save(force_insert, force_update, using, update_fields)
+        update_config(self)
+        WorkerWorkflow.send_command("config_update")
 
     class Meta:
         verbose_name = "设置"

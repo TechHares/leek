@@ -92,5 +92,5 @@ class BacktestTrader(Trader):
 if __name__ == '__main__':
     trader = BacktestTrader()
     Trader.__init__(trader, EventBus(), get_logger("d"))
-    print(trader.order(Order("1", "1", OrderType.MarketOrder, "BTCUSDT", Decimal("100"), Decimal("20.369"),
+    print(trader.order(Order("1", "1", "BTCUSDT", Decimal("100"), Decimal("20.369"),
                              PositionSide.LONG)))

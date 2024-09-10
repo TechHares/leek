@@ -6,7 +6,6 @@
 # @Software: PyCharm
 import json
 import random
-import sqlite3
 from datetime import datetime
 from decimal import Decimal
 import efinance as ef
@@ -45,15 +44,7 @@ class BacktestDataSource(DataSource):
 
     def _ck_run(self):
         from clickhouse_driver import Client
-        args = {
-            "host": config.KLINE_DB_HOST,
-            "port": config.KLINE_DB_PORT,
-            "database": config.KLINE_DB_DATABASE,
-            "user": config.KLINE_DB_USER,
-        }
-        if config.KLINE_DB_PASSWORD and config.KLINE_DB_PASSWORD != "":
-            args["password"] = config.KLINE_DB_PASSWORD
-        client = Client(**args)
+        client = Client(**config.DATA_DB.to_client_db_config())
         sql = f"select count(*) from workstation_kline" \
               f" where interval in [{self._emulation_interval()}] and timestamp >= {self.start_time} and timestamp <= " \
               f"{self.end_time} and symbol in (%s)" % \
@@ -74,8 +65,44 @@ class BacktestDataSource(DataSource):
             return "'%s', '%s'" % (self.interval, config.BACKTEST_EMULATION_INTERVAL)
         return "'%s'" % self.interval
 
+    def _mysql_run(self):
+        import MySQLdb
+        conn = MySQLdb.connect(**config.DATA_DB.to_client_db_config())
+        cursor = conn.cursor()
+        sql = f"select count(*) from workstation_kline" \
+              f" where `interval` in ({self._emulation_interval()}) and `timestamp` >= {self.start_time} and `timestamp` <= " \
+              f"{self.end_time} and symbol in (%s) order by `timestamp`" % \
+              (",".join(["'%s'" % symbol for symbol in self.symbols]))
+        cursor.execute(sql)
+        self.count = cursor.fetchone()[0]
+
+        sql = sql.replace("count(*)", "`timestamp`,symbol,open,high,low,close,volume,amount,`interval`, `timestamp` + CASE "
+                                      " WHEN `interval`='1m' THEN 60000"
+                                      " WHEN `interval`='3m' THEN 180000"
+                                      " WHEN `interval`='5m' THEN 300000"
+                                      " WHEN `interval`='15m' THEN 900000"
+                                      " WHEN `interval`='30m' THEN 1800000"
+                                      " WHEN `interval`='1h' THEN 3600000"
+                                      " WHEN `interval`='4h' THEN 14400000"
+                                      " WHEN `interval`='6h' THEN 21600000"
+                                      " WHEN `interval`='8h' THEN 28800000"
+                                      " WHEN `interval`='12h' THEN 43200000"
+                                      " WHEN `interval`='1d' THEN 86400000"
+                                      " ELSE 0"
+                                      " END"
+                                      " end_timestamp")
+        cursor.execute(sql)
+        def generator():
+            while rows := cursor.fetchmany(200):
+                for row in rows:
+                    yield row
+            cursor.close()
+
+        return conn, generator()
+
     def _sqlite_run(self):
-        conn = sqlite3.connect(config.KLINE_DB_PATH)
+        import sqlite3
+        conn = sqlite3.connect(config.DATA_DB.path)
         cursor = conn.cursor()
         sql = f"select count(*) from workstation_kline" \
               f" where interval in ({self._emulation_interval()}) and timestamp >= {self.start_time} and timestamp <= " \
@@ -111,30 +138,32 @@ class BacktestDataSource(DataSource):
 
     def get_all_symbol(self):
         sql = "select distinct symbol from workstation_kline"
-        if config.KLINE_DB_TYPE == "CLICKHOUSE":
+        if config.DATA_DB.type == "CLICKHOUSE":
             from clickhouse_driver import Client
-            args = {
-                "host": config.KLINE_DB_HOST,
-                "port": config.KLINE_DB_PORT,
-                "database": config.KLINE_DB_DATABASE,
-                "user": config.KLINE_DB_USER,
-            }
-            if config.KLINE_DB_PASSWORD and config.KLINE_DB_PASSWORD != "":
-                args["password"] = config.KLINE_DB_PASSWORD
-            client = Client(**args)
+            client = Client(**config.DATA_DB.to_client_db_config())
             res = client.execute(sql)
             return [a[0] for a in res]
-        elif config.KLINE_DB_TYPE == "SQLITE":
-            conn = sqlite3.connect(config.KLINE_DB_PATH)
+        elif config.DATA_DB.type == "SQLITE":
+            import sqlite3
+            conn = sqlite3.connect(config.DATA_DB.to_client_db_config())
             cursor = conn.cursor()
+            cursor.execute(sql)
+            return [a[0] for a in cursor.fetchall()]
+        elif config.DATA_DB.type == "MYSQL":
+            import MySQLdb
+            conn = MySQLdb.connect(**config.DATA_DB.to_client_db_config())
+            cursor = conn.cursor()
+            cursor.execute(sql)
             return [a[0] for a in cursor.fetchall()]
 
     def _run(self):
         try:
             conn, cursor = None, None
-            if config.KLINE_DB_TYPE == "CLICKHOUSE":
+            if config.DATA_DB.type == "CLICKHOUSE":
                 conn, cursor = self._ck_run()
-            elif config.KLINE_DB_TYPE == "SQLITE":
+            elif config.DATA_DB.type == "MYSQL":
+                conn, cursor = self._mysql_run()
+            elif config.DATA_DB.type == "SQLITE":
                 conn, cursor = self._sqlite_run()
 
             cur = 0

@@ -121,7 +121,7 @@ class ChanKManager:
                 tmp.is_finish = False
                 if last.is_finish:
                     tmp.image = last
-                self.add_k(last)
+                self.add_k(tmp)
             else:
                 self[-1].merge(chan_k)
         else:

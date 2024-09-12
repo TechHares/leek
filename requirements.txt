@@ -25,3 +25,4 @@ scikit-learn~=1.5.1
 service_identity~=24.1.0
 scipy~=1.14.0
 mysqlclient~=2.2.4
+xgboost~=2.1.1

@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# @Time    : 2024/9/11 20:14
+# @Time    : 2024/9/12 17:50
 # @Author  : shenglin.li
-# @File    : xg.py
+# @File    : __init__.py.py
 # @Software: PyCharm
-def xa(a):
-    print(a)
+"""
+特征处理模块
+"""
+
 if __name__ == '__main__':
-    eval("xa('b')")
+    pass

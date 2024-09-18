@@ -362,6 +362,8 @@ class Corr(RollingExpression):
     def _calculate(self, x, y):
         x_ = [e[0] for e in list(self.cache)] + [x]
         y_ = [e[1] for e in list(self.cache)] + [y]
+        if all([v == y for v in y_]):
+            return 0
         return np.corrcoef(x_, y_)[0, 1]
 
     def __str__(self):
@@ -398,9 +400,21 @@ class Sum(FullRollingExpression):
         return f"sum({self.v_func}, {self.n})"
 
 
+class IfZero(Expression):
+    def __init__(self, v, default):
+        super().__init__()
+        self.v = v
+        self.default = default
+
+    def next(self, k: G):
+        value = self.get_real_value(self.v, k)
+        return value if value != 0 else self.default
+
+
 Expressions.register("ref", Ref)
 Expressions.register("value", Value)
 Expressions.register("larger", Larger)
+Expressions.register("ifzero", IfZero)
 Expressions.register("smaller", Smaller)
 Expressions.register("abs", Abs)
 Expressions.register("sma", Sma)

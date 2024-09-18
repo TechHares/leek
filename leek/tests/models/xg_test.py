@@ -188,7 +188,7 @@ class TestXG:
             features[f"roll_idxmin{window}"] = f"idxmin($low, {window}) / {window}"
             features[f"roll_imxd{window}"] = f"(idxmin($low, {window}) - idxmin($low, {window})) / {window}"
             features[f"roll_corr{window}"] = f"corr($close, log($volume+1), {window})"
-            features[f"roll_cord{window}"] = f"corr($close/ref($close,1), log($volume/ref($volume, 1)+1), {window})"
+            features[f"roll_cord{window}"] = f"corr($close/ref($close,1), log($volume/(ref($volume, 1) + 1e-20)+1), {window})"
             features[f"roll_cntp{window}"] = f"count($close>ref($close, 1), {window}) / {window}"
             features[f"roll_cntn{window}"] = f"count($close<ref($close, 1), {window}) / {window}"
             features[f"roll_cntd{window}"] = f"(count($close>ref($close, 1), {window}) - count($close<ref($close, 1), {window})) / {window}"

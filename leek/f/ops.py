@@ -219,6 +219,8 @@ class R2(FullRollingExpression):
         # 计算R-squared
         ss_res = np.sum((y - yhat) ** 2)
         ss_tot = np.sum((y - np.mean(y)) ** 2)
+        if ss_tot == 0:
+            return 1
         return 1 - (ss_res / ss_tot)
 
     def __str__(self):

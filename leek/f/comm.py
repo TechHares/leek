@@ -52,7 +52,11 @@ class Expression(abc.ABC):
         return self.__rdiv__(other)
 
     def __call__(self, *args, **kwargs):
-        return self.next(k=args[0])
+        try:
+            return self.next(k=args[0])
+        except BaseException as e:
+            e.add_note(f"异常表达式: {self} ctx={args[0]}")
+            raise e
 
     def __gt__(self, other):
         return Ops.ops(self, other, ">")

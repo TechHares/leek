@@ -7,12 +7,18 @@
 import csv
 import os.path
 import unittest
+from datetime import datetime
 from decimal import Decimal
+from os import write
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import tqdm
 from sklearn.linear_model import LinearRegression
+
+from leek.common import G
+from leek.f.ops import Processor
 from leek.runner.view import ViewWorkflow
 
 
@@ -146,7 +152,84 @@ class TestXG:
         print("完成")
         df.to_csv(f"features.csv")
 
+    def test_init_feature_by_expression(self):
+        features =  {}
+        for i in range(1, 60):
+            features[f"vp_close{i}"] = f'ref($close, {i}) / $close'
+            features[f"vp_open{i}"] = f'ref($open, {i}) / $close'
+            features[f"vp_high{i}"] = f'ref($high, {i}) / $close'
+            features[f"vp_low{i}"] = f'ref($low, {i}) / $close'
+            features[f"vp_vwap{i}"] = f'ref($vwap, {i}) / $close'
+            features[f"vp_volume{i}"] = f'ref($volume, {i}) / ($volume + 1e-20)'
+        # k线
+        features["k_mid"] = f"($close-$open)/$open"
+        features["k_len"] = f"($high-$low)/$open"
+        features["k_mid2"] = f"($close-$open)/($high-$low + 1e-20)"
+        features["k_up"] = f"($high-larger($open, $close))/$open"
+        features["k_up2"] = f"($high-larger($open, $close))/($high-$low + 1e-20)"
+        features["k_low"] = f"(smaller($open, $close)-$low)/$open"
+        features["k_low2"] = f"(smaller($open, $close)-$low)/($high-$low + 1e-20)"
+        features["k_sft"] = f"(2*$close-$high-$low)/$open"
+        features["k_sft2"] = f"(2*$close-$high-$low)/($high-$low + 1e-20)"
+        for window in [5, 10, 20, 30, 60]:
+            features[f"roll_sma{window}"] = f"sma($close, {window}) / $close"
+            features[f"roll_std{window}"] = f"std($close, {window}) / $close"
+            features[f"roll_beta{window}"] = f"($close - ref($close, {window})) / $close"
+            features[f"roll_high{window}"] = f"max($high, {window}) / $close"
+            features[f"roll_low{window}"] = f"min($low, {window}) / $close"
+            features[f"roll_beta{window}"] = f"slope($close, {window}) / $close"
+            features[f"roll_rsqr{window}"] = f"r2($close, {window})"
+            features[f"roll_resi{window}"] = f"resi($close, {window})"
+            features[f"roll_qltu{window}"] = f"quantile($close, {window}, 0.8) / $close"
+            features[f"roll_qltd{window}"] = f"quantile($close, {window}, 0.2) / $close"
+            features[f"roll_rank{window}"] = f"rank($close, {window})"
+            features[f"roll_rsv{window}"] = f"($close-min($low, {window}))/(max($high, {window})-min($low, {window})+1e-12)"
+            features[f"roll_idxmax{window}"] = f"idxmax($high, {window}) / {window}"
+            features[f"roll_idxmin{window}"] = f"idxmin($low, {window}) / {window}"
+            features[f"roll_imxd{window}"] = f"(idxmin($low, {window}) - idxmin($low, {window})) / {window}"
+            features[f"roll_corr{window}"] = f"corr($close, log($volume+1), {window})"
+            features[f"roll_cord{window}"] = f"corr($close/ref($close,1), log($volume/ref($volume, 1)+1), {window})"
+            features[f"roll_cntp{window}"] = f"count($close>ref($close, 1), {window}) / {window}"
+            features[f"roll_cntn{window}"] = f"count($close<ref($close, 1), {window}) / {window}"
+            features[f"roll_cntd{window}"] = f"(count($close>ref($close, 1), {window}) - count($close<ref($close, 1), {window})) / {window}"
+            features[f"roll_sump{window}"] = f"sum(larger($close-ref($close, 1), 0), {window})/(sum(abs($close-ref($close, 1)), {window})+1e-12)"
+            features[f"roll_sumn{window}"] = f"sum(larger(ref($close, 1)-$close, 0), {window})/(sum(abs($close-ref($close, 1)), {window})+1e-12)"
+            features[f"roll_sumd{window}"] = f"(sum(larger($close-ref($close, 1), 0), {window}) - sum(larger(ref($close, 1)-$close, 0), {window}))/(sum(abs($close-ref($close, 1)), {window})+1e-12)"
+            features[f"roll_vma{window}"] = f"sma($volume, {window}) / ($volume+1e-20)"
+            features[f"roll_vstd{window}"] = f"std($volume, {window}) / ($volume+1e-20)"
+            features[f"roll_vwma{window}"] = f"std(abs($close/ref($close, 1)-1)*$volume, {window})/(sma(abs($close/ref($close, 1)-1)*$volume, {window})+1e-20)"
+            features[f"roll_vsump{window}"] = f"sum(larger($volume-ref($volume, 1), 0), {window}) / (sum(abs($volume-ref($volume, 1)), {window})+1e-20)"
+            features[f"roll_vsumn{window}"] = f"sum(larger(ref($volume, 1)-$volume, 0), {window}) / (sum(abs($volume-ref($volume, 1)), {window})+1e-20)"
+            features[f"roll_vsumd{window}"] = f"(sum(larger($volume-ref($volume, 1), 0), {window}) - sum(larger(ref($volume, 1)-$volume, 0), {window})) / (sum(abs($volume-ref($volume, 1)), {window})+1e-20)"
+        process = Processor.wrapper_processor(features)
+        with (open(f"{Path(__file__).parent}/xrp.csv", "r") as r):
+            reader = csv.DictReader(r)
+            writer = None
+            l = list(reader)
+            it = tqdm.tqdm(total=len(l))
+            with open(f"{Path(__file__).parent}/xrp_features.csv", "w") as w:
+                for row in l:
+                    it.update()
+                    k = G(**{
+                        'timestamp': int(row["timestamp"]),
+                        'open': float(row["open"]),
+                        'high': float(row["high"]),
+                        'low': float(row["low"]),
+                        'close': float(row["close"]),
+                        'volume': float(row["volume"]),
+                        'amount': float(row["amount"]),
+                        'interval': row["interval"]
+                    })
+                    process(k)
+
+                    if writer is None:
+                        writer = csv.DictWriter(w, fieldnames=list(k.__json__().keys()))
+                        writer.writeheader()
+                    writer.writerow(k.__json__())
 
 if __name__ == '__main__':
     # TestXG().test_animal_k()
-    TestXG().test_init_feature()
+    # TestXG().test_init_feature()
+    start = datetime.now()
+    TestXG().test_init_feature_by_expression()
+    print(datetime.now() - start)

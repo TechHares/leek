@@ -49,8 +49,8 @@ class Value(Expression):
 
     def next(self, k: G):
         if "vwap" == self.filed_name:
-            return k.amount / k.volume if k.volume > 0 else k.close
-        return getattr(k, self.filed_name)
+            return float(k.amount / k.volume) if k.volume > 0 else float(k.close)
+        return float(getattr(k, self.filed_name))
 
     def __str__(self):
         return f"${self.filed_name}"

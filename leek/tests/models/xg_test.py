@@ -17,12 +17,13 @@ import pandas as pd
 import tqdm
 from sklearn.linear_model import LinearRegression
 
-from leek.common import G
+from leek.common import G, config
 from leek.f.ops import Processor
 from leek.runner.view import ViewWorkflow
+from leek.t import *
 
 
-class TestXG:
+class TestXG():
 
     def test_animal_k(self):
         workflow = ViewWorkflow(None, "1m", "2019-07-17 08:20", "2024-09-17 20:30", "XRP-USDT-SWAP")
@@ -227,9 +228,118 @@ class TestXG:
                         writer.writeheader()
                     writer.writerow(k.__json__())
 
+    def test_init_label_by_chan(self):
+        bi_manager = ChanBIManager(bi_valid_method=BiFXValidMethod.STRICT)
+        zs_manager = ChanZSManager(max_level=2, enable_expand=False, enable_stretch=False)
+        bsp = ChanBSPoint(b1_zs_num=1)
+        with open(f"{Path(__file__).parent}/xrp.csv", "r") as r:
+            reader = csv.DictReader(r)
+            res = []
+            for row in reader:
+                res.append(G(**{
+                    'timestamp': int(row["timestamp"]),
+                    'open': Decimal(row["open"]),
+                    'high': Decimal(row["high"]),
+                    'low': Decimal(row["low"]),
+                    'close': Decimal(row["close"]),
+                    'volume': Decimal(row["volume"]),
+                    'amount': Decimal(row["amount"]),
+                    'interval': row["interval"],
+                    'finish': 1
+                }))
+        for d in res:
+            bi_manager.update(d)
+            if not bi_manager.is_empty():
+                bi = bi_manager[-1]
+                bi.mark_on_data()
+                zs_manager.update(bi)
+                bsp.calc_bsp(
+                    zs_manager.cur_zs if zs_manager.cur_zs is not None and zs_manager.cur_zs.is_satisfy else None,
+                    bi, bi.chan_k_list[-1])
+
+        # seg_manager = ChanSegmentManager()
+
+        zs_manager1 = ChanZSManager(max_level=2, enable_expand=False, enable_stretch=False)
+        bsp1 = ChanBSPoint(b1_zs_num=1, max_interval_k=20000)
+        for bi in bi_manager:
+            for ck in bi.chan_k_list:
+                ck.mark_on_data()
+            # seg_manager.update(bi)
+            zs_manager1.update(bi)
+            if bi.next is not None:
+                cur_zs = zs_manager1.cur_zs if zs_manager1.cur_zs is not None and zs_manager1.cur_zs.is_satisfy else None
+                if cur_zs is None and 1 in zs_manager1.zs_dict:
+                    zsd = zs_manager1.zs_dict[1]
+                    if len(zsd) > 0:
+                        cur_zs = zsd[-1]
+
+                bsp1.calc_bsp(cur_zs, bi.next, bi.next.chan_k_list[2])
+
+        bsp.mark_data()
+        bsp1.b1 = [b for b in bsp1.b1 if b in bsp.b1]
+        bsp1.s1 = [s for s in bsp1.s1 if s in bsp.s1]
+        bsp1.b2 = [b for b in bsp1.b2 if b in bsp.b2]
+        bsp1.s2 = [s for s in bsp1.s2 if s in bsp.s2]
+        bsp1.b3 = [b for b in bsp1.b3 if b in bsp.b3]
+        bsp1.s3 = [s for s in bsp1.s3 if s in bsp.s3]
+        bsp1.mark_data("_")
+        df = pd.DataFrame([r.__json__() for r in res])
+        print(df.columns.tolist())
+        df['bsp'] = df['buy_point'].combine_first(df['sell_point'])
+        df['real_bsp'] = df['buy_point_'].combine_first(df['sell_point_'])
+
+        df = df.dropna(subset=['bsp'])
+        df['label'] = np.where(pd.notnull(df['real_bsp']), 1, 0)
+
+        df['chan_high'] = df['chan_high'] / df['open']
+        df['chan_low'] = df['chan_low'] / df['open']
+        df['chan_fx_left_high'] = df['chan_fx_left_high'] / df['open']
+        df['chan_fx_left_low'] = df['chan_fx_left_low'] / df['open']
+        df['chan_fx_point_high'] = df['chan_fx_point_high'] / df['open']
+        df['chan_fx_point_low'] = df['chan_fx_point_low'] / df['open']
+        df['chan_fx_right_high'] = df['chan_fx_right_high'] / df['open']
+        df['chan_fx_right_low'] = df['chan_fx_right_low'] / df['open']
+        df.to_csv("xrp_chan_features.csv", header=True, columns=['timestamp', 'chan_high', 'chan_low', 'chan_fx_type', 'chan_fx_score', 'chan_fx_left_high', 'chan_fx_left_low', 'chan_fx_point_high', 'chan_fx_point_low', 'chan_fx_right_high', 'chan_fx_right_low', 'bsp', "label"])
+
+
+    def test_merge_feature(self):
+        # timestamp,open,high,low,close,volume,amount,interval,finish
+        chan_f_map = {}
+        reader = csv.DictReader(open("xrp_chan_features.csv"))
+        for row in reader:
+            assert row['timestamp'] not in chan_f_map
+            chan_f_map[row['timestamp']] = row
+
+        reader = csv.DictReader(open("xrp_features.csv"))
+        writer = None
+        tq = tqdm.tqdm(total=1945441)
+        for row in reader:
+            tq.update(1)
+            if row['timestamp'] not in chan_f_map:
+                continue
+            chan_f = chan_f_map[row['timestamp']]
+            row.update(chan_f)
+            del row["timestamp"]
+            del row[""]
+            del row["open"]
+            del row["high"]
+            del row["low"]
+            del row["close"]
+            del row["volume"]
+            del row["amount"]
+            del row["interval"]
+            del row["finish"]
+            if writer is None:
+                writer = csv.DictWriter(open(f"{config.DATA_DIR}/features.csv", "w"), fieldnames=list(row.keys()))
+                writer.writeheader()
+            writer.writerow(row)
+
+
 if __name__ == '__main__':
     # TestXG().test_animal_k()
     # TestXG().test_init_feature()
     start = datetime.now()
-    TestXG().test_init_feature_by_expression()
+    # TestXG().test_init_feature_by_expression()
+    # TestXG().test_init_label_by_chan()
+    TestXG().test_merge_feature()
     print(datetime.now() - start)

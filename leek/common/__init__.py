@@ -31,11 +31,15 @@ class G(object):
             object.__setattr__(self, name, None)
         return object.__getattribute__(self, name)
 
+    def get(self, name):
+        items = self.__dict__
+        if name not in items:
+            return None
+        return object.__getattribute__(self, name)
+
     def __json__(self):
         return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
 
-    def __str__(self):
-        return str(self.__json__())
 
 
 __all__ = ["EventBus", "logger", "get_logger", "config", "G", "IdGenerator", "StateMachine", "locked", "invoke"]

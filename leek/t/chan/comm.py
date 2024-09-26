@@ -29,6 +29,7 @@ class ChanUnion(metaclass=abc.ABCMeta):
         self.idx = 0  # 序号
         self.pre = None  # 前一个元素
         self.next = None  # 后一个元素
+        self.zs = None  # 所属中枢
 
     @property
     def start_value(self):

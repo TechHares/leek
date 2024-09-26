@@ -108,9 +108,10 @@ class ChanFXManager:
         if (self.fx.is_top and self.right.low < self.left.low) or (self.fx.is_bottom and self.right.high > self.left.high):
             score += 1
             # 破左元素 30% 以上
-            if ((self.fx.is_top and (self.left.low - self.right.low) / (self.left.high - self.left.low) > 0.3 )
-                    or (self.fx.is_bottom and (self.right.high - self.left.high) / (self.left.high - self.left.low) > 0.3)):
-                score += 1
+            if self.left.high - self.left.low > 0:
+                if ((self.fx.is_top and (self.left.low - self.right.low) / (self.left.high - self.left.low) > 0.3 )
+                        or (self.fx.is_bottom and (self.right.high - self.left.high) / (self.left.high - self.left.low) > 0.3)):
+                    score += 1
 
         # 二三元素之间交集很少
         cross = min(self.point.high, self.right.high) - max(self.point.low, self.right.low)

@@ -70,7 +70,7 @@ class PositionDirectionManager:
     头寸方向(多/空/多和空)
     """
 
-    def __init__(self, direction: PositionSide = PositionSide.FLAT):
+    def __init__(self, direction: PositionSide | int | str = PositionSide.FLAT):
         """
         :param direction: 头寸方向
         """

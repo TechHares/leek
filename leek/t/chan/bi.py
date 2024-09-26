@@ -72,7 +72,20 @@ class ChanBI(ChanUnion):
                 if not ck.is_up and k.low == value:
                     return k
             return ck.klines[-1]
-
+        if len(self.chan_k_list) > 3:
+            fx = ChanFXManager()
+            fx.next(self.chan_k_list[-3])
+            fx.next(self.chan_k_list[-2])
+            fx.next(self.chan_k_list[-1])
+            if fx.fx is not None:
+                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_type", fx.fx.value)
+                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_score", fx.score)
+                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_left_high", fx.left.high)
+                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_left_low", fx.left.low)
+                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_point_high", fx.point.high)
+                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_point_low", fx.point.low)
+                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_right_high", fx.right.high)
+                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_right_low", fx.point.low)
         if mark_start:
             mark_data(find_origin_k(self.chan_k_list[1], self.start_value), mark_field, self.start_value)
         if mark_end:
@@ -231,7 +244,7 @@ class ChanBIManager:
             self.create_bi(self.__fx_manager.fx)
             return
 
-        # logger.debug(f"笔 {self[-2].idx}:  {self[-2].k_idx} 延伸 {self[-1].k_idx}")
+        # logger.info(f"笔 {self[-2].idx}:  {self[-2].k_idx} 延伸 {self[-1].k_idx}")
         self[-2].merge(self[-1])
         del self.__chan_bi_list[-1]
         self.create_bi(self.__fx_manager.fx)

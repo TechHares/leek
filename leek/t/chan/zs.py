@@ -124,18 +124,38 @@ class ChanZS(ChanUnion):
                 return None
 
             if ele.direction == self.direction:  # 走势完成 & 笔方向与中枢方向相同
-                if idx >= 5 and ((self.is_up and self.element_list[idx-2].high >= self.high) or
-                                       (not self.is_up and self.element_list[idx-2].low <= self.low)):
-                    self.out_ele = self.element_list[idx-2]
-                    self.element_list = self.element_list[:idx-2]
+                tmp_out_ele_idx = 0
+                for i in range(len(self.element_list)):
+                    if self.element_list[i].direction != self.direction:
+                        continue
+                    if self.is_up  and self.element_list[i].high >= self.high:
+                        tmp_out_ele_idx = i
+                        break
+                    if not self.is_up and self.element_list[i].low <= self.low:
+                        tmp_out_ele_idx = i
+                        break
+
+                if tmp_out_ele_idx >= 3:
+                    self.out_ele = self.element_list[tmp_out_ele_idx]
+                    self.element_list = self.element_list[:tmp_out_ele_idx]
                     self.is_finish = True
                     return True
                 return False
             if ele.direction != self.direction:  # 走势完成 & 笔方向与中枢方向不同
-                self.out_ele = self.element_list[idx-2]
-                self.element_list = self.element_list[:idx-2]
+                self.out_ele = self.element_list[idx-1]
+                self.element_list = self.element_list[:idx-1]
                 self.is_finish = True
                 return True
+
+    def simulation_compute(self):
+        """
+        todo: 假设当前所有元素已完成 进行模拟计算
+        :return:
+        """
+        if not self.is_satisfy:
+            return
+        zs = self.__copy__()
+        zs_element_list = zs.element_list
 
     def update_line(self) -> bool:
         self.up_line = min([ele.high for ele in self.element_list[:3]])
@@ -172,9 +192,11 @@ class ChanZS(ChanUnion):
 
 
 class ChanZSManager:
-    def __init__(self, just_cal_list: bool = True, max_level=3):
+    def __init__(self, just_cal_list: bool = True, max_level=3, enable_expand=True, enable_stretch=True):
         self.just_cal_list = just_cal_list
         self.max_level = max_level
+        self.enable_expand = enable_expand
+        self.enable_stretch = enable_stretch
 
         self.zs_dict: Dict[int, List[ChanZS]] = {}
         self._idx = 0
@@ -199,7 +221,7 @@ class ChanZSManager:
         if res:  # 中枢完成 开启下一段
             self.add_zs(self.cur_zs)
             self.zs_expand()
-            self.tmp_list = self.tmp_list[self.tmp_list.index(self.cur_zs.out_ele) + 1:]
+            self.tmp_list = self.tmp_list[self.tmp_list.index(self.cur_zs.out_ele):]
         # 中枢破坏
         self.cur_zs = None
         self.update(chan)
@@ -214,6 +236,8 @@ class ChanZSManager:
         self.cur_zs = ChanZS(self.tmp_list[0])
         self._idx += 1
         self.cur_zs.idx = self._idx
+        if self.cur_zs.level in self.zs_dict and len(self.zs_dict[self.cur_zs.level]) > 0:
+            self.zs_dict[self.cur_zs.level][-1].link_next(self.cur_zs, False)
 
         tmp = self.tmp_list[1:]
         self.tmp_list = []
@@ -249,6 +273,8 @@ class ChanZSManager:
         :param
         :return:
         """
+        if not self.enable_expand:
+            return
         expand_res = []
         for level in self.zs_dict:
             if level >= self.max_level:
@@ -273,7 +299,7 @@ class ChanZSManager:
         中枢延伸指中枢没有结束之前，可以继续上下波动，这种情况下，所有围绕走势中枢产生的前后两个次级波动都必须至少有一个触及走势中枢的区间。另外要注意，一旦中枢延伸出现9段，中枢就会升级。
         :return:
         """
-        if self.cur_zs is None:
+        if self.cur_zs is None or not self.enable_stretch:
             return
 
         zs = self.cur_zs

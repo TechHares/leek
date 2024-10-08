@@ -9,10 +9,10 @@ import sys
 from pathlib import Path
 
 # 检查环境
-if sys.version_info < (3, 12):
-    print("请使用Python3.12及以上版本")
-    print("请使用Python3.12及以上版本")
-    print("请使用Python3.12及以上版本")
+if sys.version_info < (3, 13):
+    print("请使用Python3.13及以上版本")
+    print("请使用Python3.13及以上版本")
+    print("请使用Python3.13及以上版本")
     sys.exit(1)
 from django.core.management import execute_from_command_line
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'website.settings')

@@ -16,6 +16,10 @@ def execute_cmd(cmd):
         if output == '' and process.poll() is not None:
             break
         if output:
+            if "finished with status 'error'" in output:
+                print(output.strip())
+                print("请检查依赖包是否安装成功")
+                sys.exit(1)
             print(output.strip())
 
 

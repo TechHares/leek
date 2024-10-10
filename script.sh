@@ -28,6 +28,8 @@ case $action in
     restart)
         echo "Restarting the service..."
         stop_service
+        echo "Waiting for 5 seconds..."
+        sleep 5
         start_service
         ;;
     *)

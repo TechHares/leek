@@ -195,9 +195,9 @@ class PositionManager:
         更新持仓
         :param trade: 订单指令结果
         """
-        if trade.order_id == "" and trade.symbol in self.quantity_map:  # 人工下单 涉及本策略
+        if trade.order_id == "" and trade.symbol in self.quantity_map and trade.state != "canceled":  # 人工下单 涉及本策略
             self.bus.publish(EventBus.TOPIC_NOTIFY, "策略仓位涉及人工订单，策略重启：" + str(trade))
-            logger.error("手工订单涉及本策略，策略重启：" + str(trade))
+            # logger.error("手工订单涉及本策略，策略重启：" + str(trade))
             self.bus.publish(EventBus.TOPIC_RUNTIME_ERROR, "出现人工订单，策略重启！")
             return
         if not trade.order_id.startswith(str(self.strategy_id)):  # 非本策略订单

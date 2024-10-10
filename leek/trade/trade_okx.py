@@ -346,6 +346,7 @@ class OkxTrader(Trader):
         if data["state"] == "canceled":
             logger.error(f"订单已撤单: {data['order_id']}, 取消原因: {data['cancel_source']}")
             pos_trade = self.__empty_trade(data["symbol"], PS.SHORT if data["side"] == "sell" else PS.LONG, data["order_id"])
+            pos_trade.state = "canceled"
             logger.info(f"OKX交易回调：{pos_trade}")
             self._trade_callback(pos_trade)
             return

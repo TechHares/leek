@@ -40,6 +40,9 @@ class G(object):
     def __json__(self):
         return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
 
+    def __copy__(self):
+        return self.__class__(**self.__json__())
+
 
 
 __all__ = ["EventBus", "logger", "get_logger", "config", "G", "IdGenerator", "StateMachine", "locked", "invoke"]

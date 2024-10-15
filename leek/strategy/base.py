@@ -225,7 +225,7 @@ class PositionManager:
             position.quantity_rate -= self.signal_processing_map[trade.symbol]
 
         # 更新可用资金
-        if position.quantity == 0:
+        if position.quantity == 0 or position.quantity_rate == 0:
             del self.quantity_map[trade.symbol]
         del self.signal_processing_map[trade.symbol]
         self.logger_print("仓位更新结束", (trade.__str__(), position.__str__()))
@@ -270,8 +270,8 @@ class PositionManager:
             order.pos_type = PositionSide.switch_side(signal.side)
             signal.position_rate = min(signal.position_rate, p.quantity_rate)
             if p.sz is not None:
-                order.sz = p.sz * signal.position_rate / p.quantity_rate
                 logger.info(f"平仓sz计算：all={p.sz}, sz={p.sz} * {signal.position_rate} / {p.quantity_rate} = {order.sz}")
+                order.sz = p.sz * signal.position_rate / p.quantity_rate
         else:
             signal.position_rate = min(signal.position_rate, self.available_rate)
             order.pos_type = signal.side
@@ -433,7 +433,7 @@ class BaseStrategy(metaclass=ABCMeta):
         # base 内部变量
         self._strategy_id = strategy_id
         self._seq_id = 0
-        self.__g_map: Dict[str, G] = {}  # 保存不同标的变量
+        self.g_map: Dict[str, G] = {}  # 保存不同标的变量
 
         # 当前标的策略上文变量
         self.g: G = None  # 任意信息容器
@@ -456,7 +456,7 @@ class BaseStrategy(metaclass=ABCMeta):
 
         def data_init(symbol, market_datas: list):
             self._data_init(market_datas)
-            self.__g_map[symbol].data_init_status = 2
+            self.g_map[symbol].data_init_status = 2
 
         self.bus.subscribe(EventBus.TOPIC_TICK_DATA_INIT, data_init)
         def order_notify(msg):
@@ -466,9 +466,9 @@ class BaseStrategy(metaclass=ABCMeta):
         self.bus.subscribe(EventBus.TOPIC_ORDER_DATA, order_notify)
 
     def _wrap_handle(self, market_data: G):
-        if market_data.symbol not in self.__g_map:
-            self.__g_map[market_data.symbol] = G(data_init_status=0)
-        self.g = self.__g_map[market_data.symbol]
+        if market_data.symbol not in self.g_map:
+            self.g_map[market_data.symbol] = G(data_init_status=0)
+        self.g = self.g_map[market_data.symbol]
         self.position = self.position_manager.get_position(symbol=market_data.symbol)
 
         while not self.test_mode and self.g.data_init_status != 2:

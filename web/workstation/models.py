@@ -198,6 +198,15 @@ class StrategyConfig(models.Model):
     long_period = models.IntegerField(u'趋势线计算周期', default="60")
     smoothing_period = models.IntegerField(u'平滑周期', default="9")
     factory = models.IntegerField(u'扩展系数', default="2")
+    period = models.IntegerField(u'RSI平滑周期', default="10")
+    k_smoothing_factor = models.IntegerField(u'StochK平滑周期', default="10")
+    d_smoothing_factor = models.IntegerField(u'StochD平滑周期', default="10")
+    k_num = models.IntegerField(u'MACD周期聚合', default="10")
+    min_histogram_num = models.IntegerField(u'最小MACD能量柱数', default="10")
+    position_num = models.IntegerField(u'分仓', default="2")
+    open_change_rate = models.DecimalField(u'加仓变化率限制', max_digits=8, decimal_places=6, default="0.01")
+    close_change_rate = models.DecimalField(u'平仓变化率限制', max_digits=8, decimal_places=6, default="0.01")
+    close_position_when_direction_change = models.BooleanField(u'趋势反转时优先平仓', default=True)
     PRICE_TYPE_CHOICE = (
         (1, u"收盘价"),
         (2, u"最高价"),
@@ -221,6 +230,8 @@ class StrategyConfig(models.Model):
     take_profit_period = models.IntegerField(u'vmma计算周期(平仓)', default="10")
     over_buy = models.IntegerField(u'超买阈值', default="80", validators=[MinValueValidator(0), MaxValueValidator(100)])
     over_sell = models.IntegerField(u'超卖阈值', default="20", validators=[MinValueValidator(0), MaxValueValidator(100)])
+    peak_over_buy = models.IntegerField(u'极限超买阈值', default="90", validators=[MinValueValidator(0), MaxValueValidator(100)])
+    peak_over_sell = models.IntegerField(u'极限超卖阈值', default="10",validators=[MinValueValidator(0), MaxValueValidator(100)])
     TRADE_TYPE_CHOICE = (
         (0, u"顺势|反转"),
         (1, u"顺势"),

@@ -8,6 +8,8 @@ import abc
 from abc import abstractmethod
 from collections import deque
 
+from leek.common import G
+
 
 class T(metaclass=abc.ABCMeta):
     def __init__(self, max_cache=100):
@@ -22,5 +24,39 @@ class T(metaclass=abc.ABCMeta):
         return list(self.cache)[-n:]
 
 
+class MERGE(T):
+    """
+    K线合并(周期升级)
+    """
+
+    def __init__(self, window=9, max_cache=100):
+        T.__init__(self, max_cache)
+        self.window = window
+        self.q = deque(maxlen=window)
+
+    def update(self, data):
+        if len(self.q) > 0 and self.q[-1].finish == 0:
+            self.q.pop()
+
+        self.q.append(data)
+        ls = list(self.q)
+        r = G(symbol=data.symbol,
+              interval=f"{data.interval}({self.window})",
+              timestamp=ls[0].timestamp,
+              current_time=data.current_time,
+              open=ls[0].open,
+              high=max(d.high for d in ls),
+              low=min(d.low for d in ls),
+              close=data.close,
+              volume=sum(d.volume for d in ls),
+              amount=sum(d.amount for d in ls),
+              finish=0
+              )
+        if len(ls) == self.window and data.finish == 1:
+            r.finish = 1
+            self.q.clear()
+            self.cache.append(r)
+
+        return r
 if __name__ == '__main__':
     pass

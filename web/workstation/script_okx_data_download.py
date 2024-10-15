@@ -39,6 +39,7 @@ def download_okx_kline(start_date, end_date, symbols=None, intervals=None, skip=
             for ticker in tickers["data"]:
                 if ticker["instId"].endswith("-USDT-" + inst_type):
                     symbols.append(ticker["instId"])
+    symbols.sort()
     bar = tqdm.tqdm(total=len(symbols), desc="OKX数据")
     print(symbols)
     for symbol in symbols:

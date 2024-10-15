@@ -39,8 +39,13 @@ class PositionSide(Enum):
     def switch(self):
         return self.switch_side(self)
 
+    @property
     def is_long(self):
         return self == PositionSide.LONG
+
+    @property
+    def is_short(self):
+        return self == PositionSide.SHORT
 
 
 class OrderType(Enum):

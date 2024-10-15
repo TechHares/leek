@@ -78,10 +78,10 @@ class FundingStrategy(PositionRateManager, PositionDirectionManager, BaseStrateg
                 return
             hold = holds[0]
             rate = Decimal(hold.fundingRate)
-            if self.swap_position.direction.is_long() and rate > 0:  # 费率反向 平
+            if self.swap_position.direction.is_long and rate > 0:  # 费率反向 平
                 self.close_funding_position()
                 return
-            if self.swap_position.direction.is_short() and rate < 0:  # 费率反向 平
+            if self.swap_position.direction.is_short and rate < 0:  # 费率反向 平
                 self.close_funding_position()
                 return
 
@@ -125,7 +125,7 @@ class FundingStrategy(PositionRateManager, PositionDirectionManager, BaseStrateg
 
             # 确定对冲方式
             hedging_trade_mode = TradeMode.CROSS
-            if side.is_long():  # 合约开多
+            if side.is_long:  # 合约开多
                 if self.trade_tool == 1:  # 合约+币币 无法对冲 不交易
                     return
             else:  # 合约开空

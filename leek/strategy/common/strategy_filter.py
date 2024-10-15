@@ -77,7 +77,7 @@ class StopLoss(Filter):
     def pre(self, market_data: G, position) -> bool:
         if position is None:
             return True
-        rate = (position.avg_price - market_data.close) / position.avg_price
+        rate = market_data.close / position.avg_price - 1
         if position.direction == PositionSide.SHORT:
             rate *= -1
 

@@ -10,10 +10,12 @@ from decimal import Decimal
 
 import pandas as pd
 
-from leek.common import G
+from leek.common import G, logger
 from leek.strategy import *
 from leek.strategy.common import *
 from leek.strategy.common.strategy_common import PositionRateManager
+from leek.strategy.common.strategy_filter import JustFinishKData
+from leek.t import MACD
 from leek.trade.trade import PositionSide
 
 
@@ -138,6 +140,65 @@ class MacdStrategy(PositionRateManager, BaseStrategy):
             self.g.risk_context = G(res=deque(maxlen=10), amplify=Decimal("1"))
         risk_context = self.g.risk_context
         super().create_order(side, Decimal(self.max_single_position) * risk_context.amplify, memo, extend)
+
+
+class MacdReverseStrategy(PositionRateManager, StopLoss, JustFinishKData, PositionDirectionManager, BaseStrategy):
+    verbose_name = "MACD反转择时"
+
+    def __init__(self, fast_period=12, slow_period=26, moving_period=9, min_histogram_num=3):
+        self.fast_period = int(fast_period)
+        self.slow_period = int(slow_period)
+        self.moving_period = int(moving_period)
+        self.min_histogram_num = int(min_histogram_num)
+
+    def data_init_params(self, market_data):
+        return {
+            "symbol": market_data.symbol,
+            "interval": market_data.interval,
+            "size": self.slow_period + self.moving_period + self.min_histogram_num + 2
+        }
+
+    def _data_init(self, market_datas: list):
+        for market_data in market_datas:
+            self.market_data = market_data
+            self._calculate()
+
+    def _calculate(self):
+        if self.g.macd_t is None:
+            self.g.macd_t = MACD(fast_period=self.fast_period, slow_period=self.slow_period,
+                                 moving_period=self.moving_period, max_cache=100)
+
+        dif, dea = self.g.macd_t.update(self.market_data)
+        self.market_data.dif = dif
+        self.market_data.dea = dea
+        self.market_data.histogram = dif - dea
+
+        # 定方向
+        direction = None
+        lst = self.g.macd_t.last(n=self.min_histogram_num + 2)
+        dea_lst = [x[1] for x in lst]
+        his_lst = [x[0] - x[1] for x in lst]
+        if self.market_data.histogram < 0 and len([his for his in his_lst if his > 0]) >= self.min_histogram_num \
+                and len([dea for dea in dea_lst if dea > 0]) >= self.min_histogram_num:  # 转空
+            direction = PositionSide.SHORT if self.can_short() else None
+        if self.market_data.histogram > 0 and len([his for his in his_lst if his < 0]) >= self.min_histogram_num \
+                and len([dea for dea in dea_lst if dea < 0]) >= self.min_histogram_num:  # 转多
+            direction = PositionSide.LONG if self.can_long() else None
+
+        if direction:
+            self.g.direction = direction
+        logger.info(
+            f"指标计算结果: dif={dif}, dea={dea}, histogram={self.market_data.histogram}, price={self.market_data.close} dir={self.g.direction}")
+
+    def handle(self):
+        self._calculate()
+        if self.g.direction is None:
+            return None
+
+        if self.have_position() and self.g.direction != self.position.direction:
+            self.close_position()
+        if not self.have_position():
+            return self.create_order(self.g.direction, position_rate=self.max_single_position)
 
 
 if __name__ == '__main__':

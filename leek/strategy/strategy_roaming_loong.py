@@ -16,12 +16,15 @@ from threading import Thread
 import numpy as np
 
 from leek.common import logger, G
+from leek.common.utils import DateTime
 from leek.runner.evaluation import RoamingLoongEvaluationWorkflow
 from leek.runner.view import ViewWorkflow
 from leek.strategy import *
 from leek.strategy.common.decision import STDecisionNode, OBVDecisionNode, MADecisionNode, MACDDecisionNode, \
     VolumeDecisionNode, BollDecisionNode, MomDecisionNode, PVTDecisionNode
-from leek.strategy.common.strategy_common import PositionRateManager
+from leek.strategy.common.strategy_common import PositionRateManager, PositionDirectionManager
+from leek.strategy.common.strategy_filter import JustFinishKData, StopLoss
+from leek.t import StochRSI, MACD, MERGE
 from leek.trade.trade import PositionSide
 
 
@@ -269,6 +272,210 @@ class RoamingLoong1Strategy(AbcRoamingLoongStrategy):
             self.close_position()
 
 
+class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopLoss, JustFinishKData, BaseStrategy):
+    verbose_name = "游龙二"
+    """
+    大周期MACD定方向 小周期StochRSI进出场 分仓增加容错率
+    """
+
+    def __init__(self, window=14, period=14, k_smoothing_factor=3, d_smoothing_factor=3, fast_period=12,
+                 slow_period=26, smoothing_period=9, k_num=3, min_histogram_num=9, position_num=3, open_change_rate="0.01",
+                 close_change_rate="0.01", peak_over_sell=5, over_sell=20, peak_over_buy=95, over_buy=80,
+                 close_position_when_direction_change=True):
+        # RSI指标
+        self.window = int(window)
+        self.period = int(period)
+        self.k_smoothing_factor = int(k_smoothing_factor)
+        self.d_smoothing_factor = int(d_smoothing_factor)
+        # MACD指标
+        self.fast_period = int(fast_period)
+        self.slow_period = int(slow_period)
+        self.smoothing_period = int(smoothing_period)
+        # 方向判断
+        self.k_num = int(k_num)
+        self.min_histogram_num = int(min_histogram_num)
+
+        # 开平仓条件
+        self.position_num = int(position_num)  # 分仓数
+        self.open_change_rate = Decimal(open_change_rate)  # 开仓价格变动比
+        self.close_change_rate = Decimal(close_change_rate)  # 平仓价格变动比
+        self.peak_over_sell = int(peak_over_sell)  # 极限超卖
+        self.over_sell = int(over_sell)  # 超卖
+        self.peak_over_buy = int(peak_over_buy)  # 极限超买
+        self.over_buy = int(over_buy)  # 超买
+        self.close_position_when_direction_change = str(close_position_when_direction_change).lower() in ["true", 'on', 'open', '1'] # 方向改变有仓先平
+
+    def data_init_params(self, market_data):
+        return {
+            "symbol": market_data.symbol,
+            "interval": market_data.interval,
+            "size": max(self.window, self.period, self.k_num * (self.slow_period + self.smoothing_period + self.min_histogram_num)) + 2
+        }
+
+    def _data_init(self, market_datas: list):
+        for market_data in market_datas:
+            self.market_data = market_data
+            self._calculate()
+
+    def _calculate(self):
+        if self.g.rsi_t is None:
+            self.g.rsi_t = StochRSI(window=self.window, period=self.period, k_smoothing_factor=self.k_smoothing_factor,
+                                    d_smoothing_factor=self.d_smoothing_factor)
+
+            self.g.macd_t = MACD(fast_period=self.fast_period, slow_period=self.slow_period,
+                                 moving_period=self.smoothing_period, max_cache=100)
+            self.g.k_merge = MERGE(window=self.k_num, max_cache=5)
+
+        k, d = self.g.rsi_t.update(self.market_data)
+        self.market_data.k = k
+        self.market_data.d = d
+
+        merge_k = self.g.k_merge.update(self.market_data)
+        dif, dea = self.g.macd_t.update(merge_k)
+        if any([x is None for x in [k, d, dif, dea]]):
+            return
+
+        self.market_data.dif = dif
+        self.market_data.dea = dea
+        self.market_data.histogram = dif - dea
+        # 定方向
+
+        direction = None
+        lst = self.g.macd_t.last(n=self.min_histogram_num + 2)
+        dea_lst = [x[1] for x in lst]
+        his_lst = [x[0] - x[1] for x in lst]
+        if self.market_data.histogram < 0 and len([his for his in his_lst if his > 0]) >= self.min_histogram_num \
+                and len([dea for dea in dea_lst if dea > 0]) >= self.min_histogram_num:  # 转空
+            direction = PositionSide.SHORT if self.can_short() else None
+        if self.market_data.histogram > 0 and len([his for his in his_lst if his < 0]) >= self.min_histogram_num \
+                and len([dea for dea in dea_lst if dea < 0]) >= self.min_histogram_num:  # 转多
+            direction = PositionSide.LONG if self.can_long() else None
+
+        if direction:
+            self.g.direction = direction
+        logger.debug(f"指标计算结果: k={k}, d={d}, dif={dif}, dea={dea}, histogram={self.market_data.histogram}, price={self.market_data.close} dir={self.g.direction}")
+
+        self.market_data.direction = self.g.direction
+
+
+    def handle(self):
+        self._calculate()
+        if self.g.direction is None: # 方向未定， 如方向没有过度阶段， 此处不处理
+            return None
+
+        if self.close_position_when_direction_change and self.have_position() and self.close_all_position_when_direction_change():
+            return
+        lg = logger.debug
+        if self.is_over_buy() or self.is_over_sell():
+            lg = logger.info
+        lg(f"开平仓条件: {self.market_data.symbol}{DateTime.to_date_str(self.market_data.timestamp)} 当前方向={self.g.direction.name}"
+           f" 头寸={self.position.direction.name if self.have_position() else '无'}, "
+           f"over_sell={self.is_over_sell()}, over_buy={self.is_over_buy()}, p={self.g.position_num}")
+        if self.is_over_sell(): # 小级别超卖
+            # 需要开仓的条件：（无头寸 | 头寸为多仓位未到达上限) & 当前做多
+            if self.g.direction.is_long and (not self.have_position() or self.is_long_position()):
+                self.open_pos()
+                return
+            # 需要平仓的条件: 头寸为空
+            if self.have_position() and self.is_short_position():
+                self.close_pos()
+                return
+
+        if self.is_over_buy(): # 小级别超买
+            # 需要开仓的条件：（无头寸 | 头寸为空仓位未到达上限) & 当前做空
+            if self.g.direction.is_short and (not self.have_position() or self.is_short_position()):
+                self.open_pos()
+                return
+
+            # 需要平仓的条件: 头寸为多
+            if self.have_position() and self.is_long_position():
+                self.close_pos()
+                return
+
+    def change_rate(self):
+        if self.g.last_price is None or not self.have_position():
+            return Decimal("100")
+
+        if self.is_long_position():
+            return  self.g.last_price / self.market_data.close - Decimal("1") # 为负时 处于盈利
+        else:
+            return  self.market_data.close / self.g.last_price  - Decimal("1") # 为负时 处于盈利
+
+    def open_pos(self):
+        if self.g.position_num is None:
+            self.g.position_num = 0
+
+        # 仓位满了
+        if self.g.position_num >= self.position_num:
+            logger.debug(f"仓位已满， 放弃开仓")
+            return
+
+        change_rate = self.change_rate()
+        # 变化率不够
+        if change_rate < self.open_change_rate:
+            logger.debug(f"变化率不够， 放弃开仓, cur={change_rate}")
+            return
+
+        logger.info(f"{self.market_data.symbol}加仓{self.g.position_num} -> {self.g.position_num + 1}, 上次操作价格{self.g.last_price}, 当前价格{self.market_data.close}")
+        self.g.last_price = self.market_data.close
+        self.g.position_num += 1
+        rate = self.max_single_position / self.position_num
+        self.create_order(side=self.g.direction, position_rate=rate, memo="开仓")
+
+
+    def close_pos(self):
+        if self.close_all_position_when_direction_change():  # 逆向 - 全平
+            return
+        change_rate = self.change_rate() * -1
+        if change_rate < self.close_change_rate:
+            logger.debug(f"变化率不够， 放弃减仓， cur={change_rate}")
+            return
+        assert self.g.position_num > 0, f"平仓时遇到错误仓位{self.g.position_num}"
+        logger.info(f"{self.market_data.symbol}减仓{self.g.position_num} -> {self.g.position_num - 1}, 上次操作价格{self.g.last_price}, 当前价格{self.market_data.close}")
+        self.g.last_price = self.market_data.close
+        self.g.position_num -= 1
+        self.close_position(memo="平仓", rate=self.max_single_position / self.position_num if self.g.position_num > 0 else "1")
+
+
+    def close_all_position_when_direction_change(self):
+        if self.position.direction != self.g.direction:  # 有持仓，且方向改变
+            logger.info(f"{self.market_data.symbol}方向改变，平仓{self.position.direction}")
+            self.close_position(memo=f"方向改变，平{self.position.direction}")
+            return True
+
+    def close_position(self, memo="", extend=None, rate="1"):
+        if Decimal(rate) > self.position.quantity_rate:
+            self.g.position_num = 0
+            self.g.last_price = None
+        super().close_position(memo, extend, rate)
+
+
+    def is_over_sell(self):
+        """
+        超卖判断
+        :return:
+        """
+        return (self.market_data.d < self.market_data.k < self.over_sell
+                or (self.market_data.k < self.peak_over_sell and self.market_data.d < self.peak_over_sell))
+
+
+    def is_over_buy(self):
+        """
+        超买判断
+        :return:
+        """
+        return (self.market_data.d > self.market_data.k > self.over_buy
+                or (self.market_data.k > self.peak_over_buy and self.market_data.d > self.peak_over_buy))
+
+
+    def unmarshal(self, data):
+        ...
+
+
+    def marshal(self):
+        marshal = super().marshal()
+        marshal["g"] = {}
+        return marshal
 if __name__ == '__main__':
     pass
 """

@@ -5,14 +5,10 @@
 # @File    : strategy_rsj.py
 # @Software: PyCharm
 from collections import deque
-from decimal import Decimal
 
 from leek.strategy import BaseStrategy
-from leek.strategy.common import StopLoss
-from leek.strategy.common.decision import STDecisionNode
 from leek.strategy.common.strategy_common import PositionRateManager, PositionDirectionManager
 from leek.strategy.common.strategy_filter import DynamicRiskControl, JustFinishKData
-from leek.t import StochRSI
 from leek.trade.trade import PositionSide
 
 
@@ -194,44 +190,8 @@ class RSIStrategy(PositionDirectionManager, PositionRateManager, DynamicRiskCont
         return None
 
 
-# class StochRSIStrategy(PositionDirectionManager, PositionRateManager, StopLoss, JustFinishKData, BaseStrategy):
-#     verbose_name = "StochRSI择时"
-#
-#     def __init__(self, window=14, period=14, k_smoothing_factor=3, d_smoothing_factor=3):
-#         self.window = int(window)
-#         self.period = int(period)
-#         self.k_smoothing_factor = int(k_smoothing_factor)
-#         self.d_smoothing_factor = int(d_smoothing_factor)
-#
-#         self.position_num = 3  # 分仓数
-#         self.open_position_rate = Decimal("0.01") # 开仓价格变动比
-#         self.close_position_rate = Decimal("0.006") # 平仓价格变动比
-#         self.peak_over_sell = 5 # 极限超卖
-#         self.over_sell = 20 # 超卖
-#         self.peak_over_buy = 95 # 极限超买
-#         self.over_buy = 80 # 超买
-#     def data_init_params(self, market_data):
-#         return {
-#             "symbol": market_data.symbol,
-#             "interval": market_data.interval,
-#             "size": max(self.window, self.period) + 2
-#         }
-#
-#     def _data_init(self, market_datas: list):
-#         for market_data in market_datas:
-#             self.market_data = market_data
-#             self._calculate()
-#     def _calculate(self):
-#         if self.g.rsi_t is None:
-#             self.g.rsi_t = StochRSI(window=self.window, period=self.period, k_smoothing_factor=self.k_smoothing_factor,
-#                                   d_smoothing_factor=self.d_smoothing_factor)
-#
-#         k, d = self.g.rsi_t.update(self.market_data)
-#         self.market_data.k = k
-#         self.market_data.d = d
-#
-#     def handle(self):
-#         self._calculate()
+
+
 
 if __name__ == '__main__':
     pass

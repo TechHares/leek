@@ -49,6 +49,7 @@ class WorkerWorkflow(SimpleWorkflow):
                     if command.lower() == "shutdown":
                         self.shutdown()
                     if command.lower() == "config_update":
+                        time.sleep(1)
                         load_config()
                 except queue.Empty:
                     ...

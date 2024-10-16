@@ -15,7 +15,7 @@ from threading import Thread
 
 import numpy as np
 
-from leek.common import logger, G
+from leek.common import logger, G, EventBus
 from leek.common.utils import DateTime
 from leek.runner.evaluation import RoamingLoongEvaluationWorkflow
 from leek.runner.view import ViewWorkflow
@@ -305,6 +305,10 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
         self.over_buy = int(over_buy)  # 超买
         self.close_position_when_direction_change = str(close_position_when_direction_change).lower() in ["true", 'on', 'open', '1'] # 方向改变有仓先平
 
+    def post_constructor(self):
+        super().post_constructor()
+        self.bus.subscribe(EventBus.TOPIC_POSITION_DATA_AFTER, self.handle_position)
+
     def data_init_params(self, market_data):
         return {
             "symbol": market_data.symbol,
@@ -365,10 +369,7 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
 
         if self.close_position_when_direction_change and self.have_position() and self.close_all_position_when_direction_change():
             return
-        lg = logger.debug
-        if self.is_over_buy() or self.is_over_sell():
-            lg = logger.info
-        lg(f"开平仓条件: {self.market_data.symbol}{DateTime.to_date_str(self.market_data.timestamp)} 当前方向={self.g.direction.name}"
+        logger.debug(f"开平仓条件: {self.market_data.symbol}{DateTime.to_date_str(self.market_data.timestamp)} 当前方向={self.g.direction.name}"
            f" 头寸={self.position.direction.name if self.have_position() else '无'}, "
            f"over_sell={self.is_over_sell()}, over_buy={self.is_over_buy()}, p={self.g.position_num}")
         if self.is_over_sell(): # 小级别超卖
@@ -449,12 +450,24 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
             self.g.last_price = None
         super().close_position(memo, extend, rate)
 
+    def handle_position(self, order):
+        if order.transaction_volume == 0:
+            g = self.g_map[order.symbol]
+            if g.position_num is not None and g.position_num > 0:
+                g.position_num -= 1
 
     def is_over_sell(self):
         """
         超卖判断
         :return:
         """
+        # 价格超卖
+        if self.g.last_price is not None and self.g.last_price / self.market_data.close - 1 > (self.open_change_rate + self.close_change_rate):
+            return True
+
+        # 指标超卖
+        if self.market_data.k is None or self.market_data.d is None:
+            return False
         return (self.market_data.d < self.market_data.k < self.over_sell
                 or (self.market_data.k < self.peak_over_sell and self.market_data.d < self.peak_over_sell))
 
@@ -464,24 +477,41 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
         超买判断
         :return:
         """
+        # 价格超买
+        if self.g.last_price is not None and self.market_data.close / self.g.last_price - 1 > (self.open_change_rate + self.close_change_rate):
+            return True
+
+        # 指标超买
+        if self.market_data.k is None or self.market_data.d is None:
+            return False
         return (self.market_data.d > self.market_data.k > self.over_buy
                 or (self.market_data.k > self.peak_over_buy and self.market_data.d > self.peak_over_buy))
 
 
     def unmarshal(self, data):
-        ...
+        super().unmarshal(data)
+        if "g" not in data:
+            return
+        for symbol in data["g"]:
+            g = data["g"][symbol]
+            self.g_map[symbol] = G(
+                direction=PositionSide(g["direction"]),
+                position_num=int(g["position_num"]),
+                last_price=Decimal(g["last_price"])
+            )
 
 
     def marshal(self):
         marshal = super().marshal()
         marshal["g"] = {}
+        for symbol in self.g_map:
+            g = self.g_map[symbol]
+            marshal["g"][symbol] = {
+                "direction": g.direction.value,
+                "position_num": g.position_num,
+                "last_price": "%s" % g.last_price,
+            }
         return marshal
+
 if __name__ == '__main__':
     pass
-"""
-处理策略信号: RSRUSDT-CLOSE_LONG/2022-06-08 04:50:00 rate=1, cls=RoamingLoong1Strategy, price=0.00972: 
-[77233-Thread-9] 2024-04-28 16:29:57,866 [INFO]: 策略资产[仓位更新]: 1837.06=可用(103.31/0.100) + 冻结(0.00 / 0.000) + 已用(933.23 / 0.900) + 市值(1733.74), 已花费手续费: 0E-10  数据: {'transaction_price': Decimal('0.00972'), 'sz': Decimal('14311.129499'), 'cct': 1, 'transaction_volume': Decimal('14311.129499'), 'transaction_amount': Decimal('139.11'), 'fee': Decimal('0E-10'), 'order_id': 'T0SHORT1741', 'lever': 1, 'pnl': 0, 'cancel_source': '', 'symbol': 'RSRUSDT', 'ct_val': 1, 'side': <PositionSide.SHORT: 2>} 
-[77233-Thread-9] 2024-04-28 16:29:57,866 [INFO]: 策略资产[释放仓位]: 1801.72=可用(242.42/0.200) + 冻结(0.00 / 0.000) + 已用(829.54 / 0.800) + 市值(1559.29), 已花费手续费: 0E-10  数据: (Decimal('0.100'), Decimal('139.10417873303100'), Decimal('0E-10')) 
-[77233-Thread-9] 2024-04-28 16:29:57,866 [INFO]: 策略资产[仓位更新结束]: 1837.06=可用(242.42/0.200) + 冻结(0.00 / 0.000) + 已用(829.54 / 0.800) + 市值(1594.63), 已花费手续费: 0E-10  数据: {'transaction_price': Decimal('0.00972'), 'sz': Decimal('14311.129499'), 'cct': 1, 'transaction_volume': Decimal('14311.129499'), 'transaction_amount': Decimal('139.11'), 'fee': Decimal('0E-10'), 'order_id': 'T0SHORT1741', 'lever': 1, 'pnl': 0, 'cancel_source': '', 'symbol': 'RSRUSDT', 'ct_val': 1, 'side': <PositionSide.SHORT: 2>} 
-
-"""

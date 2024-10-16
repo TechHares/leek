@@ -259,6 +259,20 @@ class RSIGridStrategyV2(RSIGridStrategy):
         super(RSIGridStrategyV2, self).close_position(memo, extend, rate=rate)
         self.risk = False
 
+    def marshal(self):
+        marshal = RSIGridStrategy.marshal(self)
+        g = {}
+        for k in self.g_map:
+            g[k] = self.g_map[k].limit
+        marshal["g_map"] = g
+        return marshal
+
+    def unmarshal(self, data):
+        RSIGridStrategy.unmarshal(self, data)
+        if "g_map" in data:
+            for k, v in data["g_map"].items():
+                self.g_map[k].limit = int(v)
+
 
 if __name__ == '__main__':
     pass

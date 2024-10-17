@@ -16,6 +16,7 @@ from threading import Thread
 import numpy as np
 
 from leek.common import logger, G, EventBus
+from leek.common.unmarshal import get_dict_decimal
 from leek.common.utils import DateTime
 from leek.runner.evaluation import RoamingLoongEvaluationWorkflow
 from leek.runner.view import ViewWorkflow
@@ -514,12 +515,9 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
                 g.direction = PositionSide(d["direction"])
             if "position_num" in d and d["position_num"]:
                 g.position_num = int(d["position_num"])
-            if "last_price" in d and d["last_price"]:
-                g.last_price = Decimal(d["last_price"])
-            if "last_high" in d and d["last_high"]:
-                g.last_high = Decimal(d["last_high"])
-            if "last_low" in d and d["last_low"]:
-                g.last_low = Decimal(d["last_low"])
+            g.last_price = get_dict_decimal(d, "last_price")
+            g.last_high = get_dict_decimal(d, "last_high")
+            g.last_low = get_dict_decimal(d, "last_low")
 
 
     def marshal(self):

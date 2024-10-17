@@ -15,7 +15,8 @@ from web.workstation.worker import WorkerWorkflow
 
 sys.path.append(f'{Path(__file__).resolve().parent.parent.parent}')
 
-from leek.common import logger, config
+from leek.common import logger, config, invoke
+
 
 def is_worker_process():
     if os.name == 'nt' or os.name == 'posix':
@@ -58,6 +59,12 @@ class WorkstationConfig(AppConfig):
             t = Thread(target=_scheduler, daemon=True)
             t.start()
 
+
+@invoke()
+def up_run_data():
+    WorkerWorkflow.send_command("marshal")
+
+
 def _scheduler():
     from .models import StrategyConfig
     from .worker import run_scheduler
@@ -66,6 +73,7 @@ def _scheduler():
         queryset = StrategyConfig.objects.filter(status__in=(2, 3))
         WorkerWorkflow.refresh_queue([strategy.id for strategy in queryset])
         logger.debug(f"扫描任务: %s", StrategyConfig.objects.filter(status__in=(2, 3)).count())
+        up_run_data()
         children = psutil.Process().children(recursive=True)
         ids = [x.pid for x in children if x.status() != psutil.STATUS_ZOMBIE and "python" in x.name().lower()]
         for x in children:

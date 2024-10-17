@@ -12,6 +12,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from random import uniform
 
 import django
 from django.utils import timezone
@@ -51,6 +52,9 @@ class WorkerWorkflow(SimpleWorkflow):
                     if command.lower() == "config_update":
                         time.sleep(1)
                         load_config()
+                    if command.lower() == "marshal":
+                        time.sleep(round(uniform(0, 3), 1))
+                        self.save_run_data()
                 except queue.Empty:
                     ...
         except KeyboardInterrupt:

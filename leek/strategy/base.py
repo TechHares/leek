@@ -548,7 +548,6 @@ class BaseStrategy(metaclass=ABCMeta):
         position_signal.strategy_id = self._strategy_id
         position_signal.memo = memo
         position_signal.extend = extend
-        self.g.price = self.market_data.close * (1 if side == PositionSide.LONG else -1)
         self.bus.publish(EventBus.TOPIC_STRATEGY_SIGNAL, position_signal)
 
     def have_position(self):
@@ -576,7 +575,9 @@ class BaseStrategy(metaclass=ABCMeta):
         position_signal.memo = memo
         position_signal.extend = extend
         self.bus.publish(EventBus.TOPIC_STRATEGY_SIGNAL, position_signal)
-        return self.market_data.close * (1 if self.position.direction == PositionSide.LONG else -1) > self.g.price
+        return (self.position.direction.is_long and self.market_data.close > self.position.avg_price) or (
+            self.position.direction.is_short and self.market_data.close < self.position.avg_price
+        )
 
     def is_long_position(self):
         return self.position.direction == PositionSide.LONG

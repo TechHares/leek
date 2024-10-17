@@ -360,6 +360,10 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
         logger.debug(f"指标计算结果: k={k}, d={d}, dif={dif}, dea={dea}, histogram={self.market_data.histogram}, price={self.market_data.close} dir={self.g.direction}")
 
         self.market_data.direction = self.g.direction
+        if self.g.last_high is not None:
+            self.g.last_high = max(self.g.last_high, self.market_data.high)
+        if self.g.last_low is not None:
+            self.g.last_low = min(self.g.last_low, self.market_data.low)
 
 
     def handle(self):
@@ -419,6 +423,8 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
 
         logger.info(f"{self.market_data.symbol}加仓{self.g.position_num} -> {self.g.position_num + 1}, 上次操作价格{self.g.last_price}, 当前价格{self.market_data.close}")
         self.g.last_price = self.market_data.close
+        self.g.last_high = self.market_data.high
+        self.g.last_low = self.market_data.low
         self.g.position_num += 1
         rate = self.max_single_position / self.position_num
         self.create_order(side=self.g.direction, position_rate=rate, memo="开仓")
@@ -429,13 +435,20 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
             return
         change_rate = self.change_rate() * -1
         if change_rate < self.close_change_rate:
-            logger.debug(f"变化率不够， 放弃减仓， cur={change_rate}")
-            return
+            if self.is_long_position():
+                abs_change_rate = (self.g.last_high / self.market_data.close - 1) if self.g.last_high else 0
+            else:
+                abs_change_rate = (1 - self.g.last_low / self.market_data.close) if self.g.last_low else 0
+            if abs_change_rate < self.open_change_rate + self.close_change_rate:
+                logger.debug(f"变化率不够， 放弃减仓， cur={change_rate}")
+                return
         assert self.g.position_num > 0, f"平仓时遇到错误仓位{self.g.position_num}"
         logger.info(f"{self.market_data.symbol}减仓{self.g.position_num} -> {self.g.position_num - 1}, 上次操作价格{self.g.last_price}, 当前价格{self.market_data.close}")
         self.g.last_price = self.market_data.close
+        self.g.last_high = self.market_data.high
+        self.g.last_low = self.market_data.low
         self.g.position_num -= 1
-        self.close_position(memo="平仓", rate=self.max_single_position / self.position_num if self.g.position_num > 0 else "1")
+        self.close_position(memo="平仓", rate=(self.max_single_position / self.position_num) if self.g.position_num > 0 else "1")
 
 
     def close_all_position_when_direction_change(self):
@@ -448,6 +461,8 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
         if Decimal(rate) > self.position.quantity_rate:
             self.g.position_num = 0
             self.g.last_price = None
+            self.g.last_low = None
+            self.g.last_high = None
         super().close_position(memo, extend, rate)
 
     def handle_position(self, order):
@@ -462,8 +477,8 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
         :return:
         """
         # 价格超卖
-        if self.g.last_price is not None and self.g.last_price / self.market_data.close - 1 > (self.open_change_rate + self.close_change_rate):
-            return True
+        # if self.g.last_price is not None and self.g.last_price / self.market_data.close - 1 > (self.open_change_rate + self.close_change_rate):
+        #     return True
 
         # 指标超卖
         if self.market_data.k is None or self.market_data.d is None:
@@ -478,8 +493,8 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
         :return:
         """
         # 价格超买
-        if self.g.last_price is not None and self.market_data.close / self.g.last_price - 1 > (self.open_change_rate + self.close_change_rate):
-            return True
+        # if self.g.last_price is not None and self.market_data.close / self.g.last_price - 1 > (self.open_change_rate + self.close_change_rate):
+        #     return True
 
         # 指标超买
         if self.market_data.k is None or self.market_data.d is None:

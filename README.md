@@ -9,6 +9,12 @@
 ![Django Version](https://img.shields.io/badge/Django-4.2.13%2B-read.svg)
 [![simpleui](https://img.shields.io/badge/developing%20with-Simpleui-2077ff.svg)](https://github.com/newpanjing/simpleui)
 
+## 特色
+1. 系统基于事件构建易于扩展策略或者其他组件
+2. 丰富的指标和策略可供学习和研究
+3. 表达式引擎支持自定义指标和特征，对代码不熟悉的同学友好
+4. 模型训练、模型预测、模型评估全过程支持
+
 ## 快速开始
 - [使用文档](docs/0-1.introduction.md)
 - 讨论组：<a href="https://t.me/+lFHR-vTZ6Y1iZTU1">Telegram</a>

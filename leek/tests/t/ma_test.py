@@ -9,7 +9,7 @@ import unittest
 import pandas as pd
 
 from leek.runner.view import ViewWorkflow
-from leek.t import DK, MA
+from leek.t import DK, MA, SuperSmoother, UltimateOscillator
 from plotly.subplots import make_subplots
 import plotly.graph_objs as go
 
@@ -39,6 +39,32 @@ class TestKDJ(unittest.TestCase):
         print(len(df))
         fig.show()
 
+    def test_super(self):
+        workflow = ViewWorkflow(None, "15m", "2024-10-07 14:30", "2024-10-10 18:30", "ULTI-USDT-SWAP")
+        data = workflow.get_data("ULTI-USDT-SWAP")
+        p = 10
+        p1 = 20
+        ss = SuperSmoother(p)
+        ss1 = SuperSmoother(p1)
+        ma = MA(p)
+        ma1 = MA(p1)
+        # uo = UltimateOscillator(p)
+        for d in data:
+            d.ss1 = ss.update(d)
+            d.ss2 = ss1.update(d)
+            # d.uo = uo.update(d)
+            d.ma1 = ma.update(d)
+            d.ma2 = ma1.update(d)
+        df = pd.DataFrame([x.__json__() for x in data])
+        df['Datetime'] = pd.to_datetime(df['timestamp'] + 8 * 60 * 60 * 1000, unit='ms')
+        fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['ss1'], mode='lines', name='ss5', line=dict(color='black', width=1)),row=1, col=1)
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['ss2'], mode='lines', name='ss20', line=dict(color='black', width=2)),row=1, col=1)
+        # fig.add_trace(go.Scatter(x=df['Datetime'], y=df['uo'], mode='lines', name='uo', line=dict(color='orange', width=1)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['ma1'], mode='lines', name='ma5', line=dict(color='green', width=1)), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['ma2'], mode='lines', name='ma20', line=dict(color='green', width=2)), row=1, col=1)
+        workflow.draw(fig=fig, df=df)
+        fig.show()
 
 if __name__ == '__main__':
     unittest.main()

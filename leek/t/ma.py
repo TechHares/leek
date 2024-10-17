@@ -8,6 +8,8 @@ import math
 from collections import deque
 from decimal import Decimal
 
+import numpy as np
+
 from leek.t.t import T
 
 
@@ -179,6 +181,76 @@ class LLT(T):
                 self.pre_pre_llt = self.pre_llt
                 self.pre_close = data.close
                 self.pre_llt = llt
+
+
+class SuperSmoother(T):
+    """
+    Super Smoother（超级平滑器）算法实现
+    """
+
+    def __init__(self, window=10, max_cache=100):
+        T.__init__(self, max_cache)
+        self.window = window
+
+        # 系数
+        a1 = np.exp(-1.414 * np.pi / self.window)
+        b1 = 2 * a1 * np.cos(1.414 * np.pi / self.window)
+        self.c2 = Decimal(b1)
+        self.c3 = Decimal(-a1 * a1)
+        self.c1 = 1 - self.c2 - self.c3
+
+        self.pre_close = None
+
+    def update(self, data):
+        ss = None
+        try:
+            if self.pre_close is None:
+                ss = data.close
+            elif len(self.cache) == 1:
+                ss = self.c1 * (data.close + self.pre_close) / 2 + self.c2 * list(self.cache)[-1] + self.c3 * list(self.cache)[-1]
+            else:
+                ss = self.c1 * (data.close + self.pre_close) / 2 + self.c2 * list(self.cache)[-1] + self.c3 * list(self.cache)[-2]
+            return ss
+        finally:
+            if data.finish == 1:
+                self.cache.append(ss)
+                self.pre_close = data.close
+
+
+class UltimateOscillator(T):
+    """
+    Ultimate Oscillator（超级振荡器） 算法实现
+    过于灵敏
+    """
+
+    def __init__(self, window=10, max_cache=100):
+        T.__init__(self, max_cache)
+        self.window = window
+
+        # 系数
+        a1 = np.exp(-1.414 * np.pi / self.window)
+        b1 = 2 * a1 * np.cos(1.414 * np.pi / self.window)
+        self.c2 = Decimal(b1)
+        self.c3 = Decimal(-a1 * a1)
+        self.c1 = (1 + self.c2 - self.c3) / 4
+
+        self.q = deque(maxlen=self.window)
+
+    def update(self, data):
+        ss = None
+        try:
+            if len(self.cache) < 4:
+                ss = data.close
+            else:
+                us = list(self.cache)
+                prices = list(self.q)
+                ss = ((1 - self.c1) * data.close + (2 * self.c1 - self.c2) * prices[-1] - (self.c1 + self.c3)
+                      * prices[-2] + us[-1] * self.c2 + us[-2] * self.c3)
+            return ss
+        finally:
+            if data.finish == 1:
+                self.cache.append(ss)
+                self.q.append(data.close)
 
 
 if __name__ == '__main__':

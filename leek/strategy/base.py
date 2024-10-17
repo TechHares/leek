@@ -524,6 +524,11 @@ class BaseStrategy(metaclass=ABCMeta):
     def single_ignore(self, single):
         ...
 
+    def get_g(self, symbol):
+        if symbol not in self.g_map:
+            self.g_map[symbol] = G(data_init_status=0)
+        return self.g_map[symbol]
+
     def create_order(self, side: PositionSide, position_rate="0.5", memo="", extend=None):
         """
         创建订单

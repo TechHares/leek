@@ -508,12 +508,18 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
         if "g" not in data:
             return
         for symbol in data["g"]:
-            g = data["g"][symbol]
-            self.g_map[symbol] = G(
-                direction=PositionSide(g["direction"]) if g["direction"] else None,
-                position_num=int(g["position_num"]),
-                last_price=Decimal(g["last_price"])
-            )
+            d = data["g"][symbol]
+            g = self.get_g(symbol)
+            if "direction" in d and d["direction"]:
+                g.direction = PositionSide(d["direction"])
+            if "position_num" in d and d["position_num"]:
+                g.position_num = int(d["position_num"])
+            if "last_price" in d and d["last_price"]:
+                g.last_price = Decimal(d["last_price"])
+            if "last_high" in d and d["last_high"]:
+                g.last_high = Decimal(d["last_high"])
+            if "last_low" in d and d["last_low"]:
+                g.last_low = Decimal(d["last_low"])
 
 
     def marshal(self):

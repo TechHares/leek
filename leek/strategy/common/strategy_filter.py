@@ -85,6 +85,9 @@ class StopLoss(Filter):
             self.close_position(memo=f"止损平仓：阈值={self.stop_loss_rate} "
                                      f"触发价格={market_data.close}"
                                      f" 平均持仓价={position.avg_price} 触发比例={rate}")
+            logger.error(f"止损平仓：阈值={self.stop_loss_rate} "
+                                     f"触发价格={market_data.close}"
+                                     f" 平均持仓价={position.avg_price} 触发比例={rate}")
             return False
         return True
 

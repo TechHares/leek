@@ -5,7 +5,10 @@
 # @File    : strategy_roamin_loong2_test.py
 # @Software: PyCharm
 import decimal
+import json
 import unittest
+from decimal import Decimal
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -19,6 +22,7 @@ from leek.strategy import BaseStrategy
 from leek.strategy.common.strategy_common import PositionRateManager, PositionDirectionManager
 from leek.strategy.common.strategy_filter import JustFinishKData, StopLoss
 from leek.strategy.strategy_roaming_loong import RoamingLoong1Strategy, AbcRoamingLoongStrategy, RoamingLoong2Strategy
+from leek.t import ATR
 from leek.tests.strategy.symbol_choose_test import draw_fig
 from leek.trade.trade import PositionSide
 
@@ -27,19 +31,19 @@ class TestRoaminLoong1(unittest.TestCase):
 
     def test_handle(self):
         # logger.setLevel("DEBUG")
-        strategy = RoamingLoong2Strategy(window=14, period=14, k_smoothing_factor=3, d_smoothing_factor=3, fast_period=14,
-                                         slow_period=30, smoothing_period=16, k_num=9, min_histogram_num=9, position_num=3, open_change_rate="0.01",
-                                         close_change_rate="0.01", peak_over_sell=5, over_sell=20, peak_over_buy=95, over_buy=80,
-                                         close_position_when_direction_change=False)
+        strategy = RoamingLoong2Strategy(**json.load(open(f"{Path(__file__).parent}/roamingloong1.json", 'r', encoding='utf-8')))
         JustFinishKData.__init__(strategy, True)
         StopLoss.__init__(strategy, "0.05")
         PositionRateManager.__init__(strategy, "1")
         PositionDirectionManager.__init__(strategy, PositionSide.FLAT)
-        workflow = ViewWorkflow(strategy, "5m", "2024-09-21 14:30", "2024-10-24 18:30", "ULTI-USDT-SWAP")
+        workflow = ViewWorkflow(strategy, "5m", "2024-10-07 23:30", "2024-10-17 23:30", "ULTI-USDT-SWAP")
         workflow.start()
+        atr = ATR()
+        for d in workflow.kline_data_g:
+            d.atr = atr.update(d)
         df = pd.DataFrame([x.__json__() for x in workflow.kline_data_g])
         df['Datetime'] = pd.to_datetime(df['timestamp'] + 8 * 60 * 60 * 1000, unit='ms')
-        fig = make_subplots(rows=5, cols=1, shared_xaxes=True)
+        fig = make_subplots(rows=6, cols=1, shared_xaxes=True)
         workflow.draw(fig=fig, df=df)
         df["benchmark"] = df["close"] / df.iloc[1]["close"]
         df["profit"] = df["balance"] / decimal.Decimal("1000")
@@ -59,6 +63,13 @@ class TestRoaminLoong1(unittest.TestCase):
             go.Scatter(x=df['Datetime'], y=df['dea'], mode='lines', name='dea', line={"color": "orange", "width": 1}),
             row=5, col=1)
         fig.add_trace(go.Bar(x=df['Datetime'], y=df['histogram'], marker={"color": np.where(df['histogram'] > 0, 'green', 'red')}, name='His'), row=5, col=1)
+
+        df["open_rate"] = Decimal("0.005")
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df["open_rate"], mode='lines',
+                                 line=dict(color='black', width=1), name=''), row=6, col=1)
+
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df["atr"]/df["close"], mode='lines',
+                                 line=dict(color='orange', width=1), name=''), row=6, col=1)
         fig.update_xaxes(rangeslider_visible=False, row=1, col=1)
         # 显示图表
         fig.show()
@@ -70,36 +81,10 @@ class TestRoaminLoong1(unittest.TestCase):
         for k_num in k_nums:
             for min_histogram_num in min_histogram_nums:
                 for position_num in position_nums:
-                    workflow = SymbolChooseWorkflow(RoamingLoong2Strategy, {
-                        "max_single_position": "1",
-                        "total_amount": "1000",
-                        "just_finish_k": True,
-                        "direction": "4",
-                        "stop_loss_rate": "0.05",
-
-                        "window": 14,
-                        "period": 14,
-                        "k_smoothing_factor": 3,
-                        "d_smoothing_factor": 3,
-
-                        "fast_period": 14,
-                        "slow_period": 30,
-                        "smoothing_period": 10,
-
-                        "k_num": k_num,
-                        "min_histogram_num": min_histogram_num,
-
-                        "position_num": position_num,
-                        "open_change_rate": "0.008",
-                        "close_change_rate": "0.006",
-                        "peak_over_sell": 4,
-                        "peak_over_buy": 96,
-                        "over_sell": 20,
-                        "over_buy": 80,
-                        "close_position_when_direction_change": "true",
-                    }, "5m", "2024-10-05 14:30", "2024-10-15 18:30", [])
+                    workflow = SymbolChooseWorkflow(RoamingLoong2Strategy,
+                    eval(open(f"{Path(__file__).parent}/roamingloong2.json", 'r', encoding='utf-8').read())
+                    , "5m", "2024-10-07 23:30", "2024-10-17 23:30", [])
                     workflow.start(sort_func=draw_fig(f"loong, k_num={k_num}, min_histogram_num={min_histogram_num}, position_num={position_num}"))
-
 
 
 if __name__ == '__main__':

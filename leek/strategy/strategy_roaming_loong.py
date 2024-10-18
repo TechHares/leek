@@ -25,7 +25,7 @@ from leek.strategy.common.decision import STDecisionNode, OBVDecisionNode, MADec
     VolumeDecisionNode, BollDecisionNode, MomDecisionNode, PVTDecisionNode
 from leek.strategy.common.strategy_common import PositionRateManager, PositionDirectionManager
 from leek.strategy.common.strategy_filter import JustFinishKData, StopLoss
-from leek.t import StochRSI, MACD, MERGE
+from leek.t import StochRSI, MACD, MERGE, ATR
 from leek.trade.trade import PositionSide
 
 
@@ -273,7 +273,7 @@ class RoamingLoong1Strategy(AbcRoamingLoongStrategy):
             self.close_position()
 
 
-class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopLoss, JustFinishKData, BaseStrategy):
+class RoamingLoong2Strategy(PositionDirectionManager, StopLoss, PositionRateManager, JustFinishKData, BaseStrategy):
     verbose_name = "游龙二"
     """
     大周期MACD定方向 小周期StochRSI进出场 分仓增加容错率
@@ -305,7 +305,7 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
         self.peak_over_buy = int(peak_over_buy)  # 极限超买
         self.over_buy = int(over_buy)  # 超买
         self.close_position_when_direction_change = str(close_position_when_direction_change).lower() in ["true", 'on', 'open', '1'] # 方向改变有仓先平
-        self.abs_threshold = (self.close_change_rate + self.open_change_rate) * Decimal(threshold)
+        self.abs_threshold = Decimal(threshold)
 
     def post_constructor(self):
         super().post_constructor()
@@ -323,6 +323,20 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
             self.market_data = market_data
             self._calculate()
 
+    def _stop_loss(self):
+        if not self.have_position():
+            return
+
+        rate = self.position.avg_price / self.market_data.close if self.is_long_position() else self.market_data.close / self.position.avg_price
+        rate -= 1
+        if rate > self.g.open_change_rate * (self.position_num + 1):
+            logger.error(f"open_change_rate止损平仓：阈值={self.g.open_change_rate * (self.position_num + 1)} "
+                         f"触发价格={self.market_data.close}"
+                         f" 平均持仓价={self.position.avg_price}")
+            self.close_position("open_change_rate止损")
+            self.g.risk = self.position_num + 1
+            return True
+
     def _calculate(self):
         if self.g.rsi_t is None:
             self.g.rsi_t = StochRSI(window=self.window, period=self.period, k_smoothing_factor=self.k_smoothing_factor,
@@ -331,6 +345,7 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
             self.g.macd_t = MACD(fast_period=self.fast_period, slow_period=self.slow_period,
                                  moving_period=self.smoothing_period, max_cache=100)
             self.g.k_merge = MERGE(window=self.k_num, max_cache=5)
+            self.g.atr = ATR(window=self.window)
 
         k, d = self.g.rsi_t.update(self.market_data)
         self.market_data.k = k
@@ -344,8 +359,14 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
         self.market_data.dif = dif
         self.market_data.dea = dea
         self.market_data.histogram = dif - dea
-        # 定方向
+        self.market_data.atr = self.g.atr.update(self.market_data)
+        if self.market_data.atr:
+            r = self.market_data.atr / self.market_data.close * Decimal("2")
+            self.g.open_change_rate = max(r * self.open_change_rate, Decimal("0.004"))
+            self.g.close_change_rate = max(r * self.close_change_rate, Decimal("0.004"))
 
+
+        # 定方向
         direction = None
         lst = self.g.macd_t.last(n=self.min_histogram_num + 2)
         dea_lst = [x[1] for x in lst]
@@ -360,6 +381,8 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
         if direction:
             self.g.direction = direction
         logger.debug(f"指标计算结果: k={k}, d={d}, dif={dif}, dea={dea}, histogram={self.market_data.histogram}, price={self.market_data.close} dir={self.g.direction}")
+        if self.market_data.finish != 0 and self.g.risk:
+            self.g.risk -= 1
 
         self.market_data.direction = self.g.direction
         if self.g.last_high is not None:
@@ -370,8 +393,10 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
 
     def handle(self):
         self._calculate()
-        if self.g.direction is None: # 方向未定， 如方向没有过度阶段， 此处不处理
-            return None
+        if self.g.direction is None or (self.g.risk is not None and self.g.risk > 0): # 方向未定， 如方向没有过度阶段， 此处不处理
+            return
+        if self._stop_loss():
+            return
 
         if self.close_position_when_direction_change and self.have_position() and self.close_all_position_when_direction_change():
             return
@@ -429,7 +454,7 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
 
         change_rate = self.change_rate()
         # 变化率不够
-        if change_rate < self.open_change_rate and (self.g.position_num > 1 or (self.g.position_num <= 1 and self.abs_change_rate() < self.abs_threshold)):
+        if change_rate < self.g.open_change_rate and (self.g.position_num > 1 or (self.g.position_num <= 1 and self.abs_change_rate() < self.abs_threshold)):
             logger.debug(f"变化率不够， 放弃开仓, cur={change_rate}")
             return
 
@@ -446,7 +471,7 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
         if self.close_all_position_when_direction_change():  # 逆向 - 全平
             return
         change_rate = self.change_rate() * -1
-        if change_rate < self.close_change_rate and (self.g.position_num <= 1 or self.abs_change_rate() < self.abs_threshold):
+        if change_rate < self.g.close_change_rate and (self.g.position_num <= 1 or self.abs_change_rate() < self.abs_threshold):
             logger.debug(f"变化率不够， 放弃减仓， cur={change_rate} pnum={self.g.position_num}, abs_rate={self.abs_change_rate()}")
             return
         assert self.g.position_num > 0, f"平仓时遇到错误仓位{self.g.position_num}"
@@ -465,7 +490,7 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
             return True
 
     def close_position(self, memo="", extend=None, rate="1"):
-        if Decimal(rate) > self.position.quantity_rate:
+        if Decimal(rate) >= self.position.quantity_rate:
             self.g.position_num = 0
             self.g.last_price = None
             self.g.last_low = None
@@ -524,7 +549,6 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
             g.last_price = get_dict_decimal(d, "last_price")
             g.last_high = get_dict_decimal(d, "last_high")
             g.last_low = get_dict_decimal(d, "last_low")
-
 
     def marshal(self):
         marshal = super().marshal()

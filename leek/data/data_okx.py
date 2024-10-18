@@ -72,6 +72,7 @@ class OkxKlineDataSource(WSDataSource):
         res = []
         while len(res) < params["size"]:
             candlesticks = api.get_history_candlesticks(instId=symbol, bar=interval, limit=limit, after=ts)
+            logger.info(f"instId={symbol}, bar={interval}, limit={limit}, after={ts}  res={candlesticks}")
             for row in candlesticks["data"]:
                 data = G(symbol=params["symbol"],
                          interval=params["interval"],

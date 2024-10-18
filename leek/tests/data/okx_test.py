@@ -63,10 +63,10 @@ class TestBase(unittest.TestCase):
         time.sleep(30)
 
     def test_kline1(self):
-        source = OkxKlineDataSource("2", ["5m"], "BTC-USDT-SWAP")
+        source = OkxKlineDataSource("2", ["5m"], "DYDX-USDT-SWAP,")
         bus = EventBus()
         DataSource.__init__(source, bus)
-        datas = source.data_init_hook({k: v for k, v in zip(["symbol", "interval", "size"], ["BTC-USDT-SWAP", "4h", 120])})
+        datas = source.data_init_hook({k: v for k, v in zip(["symbol", "interval", "size"], ["DYDX-USDT-SWAP", "5m", 120])})
         for data in datas:
             print(datetime.fromtimestamp(data.timestamp / 1000).strftime("%Y-%m-%d %H:%M:%S"), data)
 

@@ -60,7 +60,7 @@ class WorkstationConfig(AppConfig):
             t.start()
 
 
-@invoke()
+@invoke(interval=10)
 def up_run_data():
     WorkerWorkflow.send_command("marshal")
 

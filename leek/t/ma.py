@@ -204,12 +204,13 @@ class SuperSmoother(T):
     def update(self, data):
         ss = None
         try:
+            lst = list(self.cache)
             if self.pre_close is None:
                 ss = data.close
             elif len(self.cache) == 1:
-                ss = self.c1 * (data.close + self.pre_close) / 2 + self.c2 * list(self.cache)[-1] + self.c3 * list(self.cache)[-1]
+                ss = self.c1 * (data.close + self.pre_close) / 2 + self.c2 * lst[-1] + self.c3 * lst[-1]
             else:
-                ss = self.c1 * (data.close + self.pre_close) / 2 + self.c2 * list(self.cache)[-1] + self.c3 * list(self.cache)[-2]
+                ss = self.c1 * (data.close + self.pre_close) / 2 + self.c2 * lst[-1] + self.c3 * lst[-2]
             return ss
         finally:
             if data.finish == 1:

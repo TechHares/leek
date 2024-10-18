@@ -281,7 +281,7 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
 
     def __init__(self, window=14, period=14, k_smoothing_factor=3, d_smoothing_factor=3, fast_period=12,
                  slow_period=26, smoothing_period=9, k_num=3, min_histogram_num=9, position_num=3, open_change_rate="0.01",
-                 close_change_rate="0.01", peak_over_sell=5, over_sell=20, peak_over_buy=95, over_buy=80,
+                 close_change_rate="0.01", peak_over_sell=5, over_sell=20, peak_over_buy=95, over_buy=80, threshold="0.8",
                  close_position_when_direction_change=True):
         # RSI指标
         self.window = int(window)
@@ -305,6 +305,7 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
         self.peak_over_buy = int(peak_over_buy)  # 极限超买
         self.over_buy = int(over_buy)  # 超买
         self.close_position_when_direction_change = str(close_position_when_direction_change).lower() in ["true", 'on', 'open', '1'] # 方向改变有仓先平
+        self.abs_threshold = (self.close_change_rate + self.open_change_rate) * Decimal(threshold)
 
     def post_constructor(self):
         super().post_constructor()
@@ -407,6 +408,16 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
         else:
             return  self.market_data.close / self.g.last_price  - Decimal("1") # 为负时 处于盈利
 
+    def abs_change_rate(self):
+        if not self.have_position() or self.g.last_high is None or self.g.last_low is None:
+            return 0
+
+        if self.is_long_position():
+            abs_change_rate = (self.g.last_high / self.market_data.close - 1)
+        else:
+            abs_change_rate = (1 - self.g.last_low / self.market_data.close)
+        return abs_change_rate
+
     def open_pos(self):
         if self.g.position_num is None:
             self.g.position_num = 0
@@ -418,7 +429,7 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
 
         change_rate = self.change_rate()
         # 变化率不够
-        if change_rate < self.open_change_rate:
+        if change_rate < self.open_change_rate and (self.g.position_num > 1 or (self.g.position_num <= 1 and self.abs_change_rate() < self.abs_threshold)):
             logger.debug(f"变化率不够， 放弃开仓, cur={change_rate}")
             return
 
@@ -435,14 +446,9 @@ class RoamingLoong2Strategy(PositionDirectionManager, PositionRateManager, StopL
         if self.close_all_position_when_direction_change():  # 逆向 - 全平
             return
         change_rate = self.change_rate() * -1
-        if change_rate < self.close_change_rate:
-            if self.is_long_position():
-                abs_change_rate = (self.g.last_high / self.market_data.close - 1) if self.g.last_high else 0
-            else:
-                abs_change_rate = (1 - self.g.last_low / self.market_data.close) if self.g.last_low else 0
-            if abs_change_rate < self.open_change_rate + self.close_change_rate:
-                logger.debug(f"变化率不够， 放弃减仓， cur={change_rate}")
-                return
+        if change_rate < self.close_change_rate and (self.g.position_num <= 1 or self.abs_change_rate() < self.abs_threshold):
+            logger.debug(f"变化率不够， 放弃减仓， cur={change_rate} pnum={self.g.position_num}, abs_rate={self.abs_change_rate()}")
+            return
         assert self.g.position_num > 0, f"平仓时遇到错误仓位{self.g.position_num}"
         logger.info(f"{self.market_data.symbol}减仓{self.g.position_num} -> {self.g.position_num - 1}, 上次操作价格{self.g.last_price}, 当前价格{self.market_data.close}")
         self.g.last_price = self.market_data.close

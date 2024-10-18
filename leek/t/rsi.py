@@ -16,7 +16,7 @@ class RSI(T):
     """
 
     def __init__(self, window=14, max_cache=100):
-        T.__init__(self, max(max_cache, max_cache))
+        T.__init__(self, max(window, max_cache))
         self.window = window
         self.q = deque(maxlen=window)
 

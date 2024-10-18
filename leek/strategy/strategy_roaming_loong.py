@@ -446,6 +446,8 @@ class RoamingLoong2Strategy(PositionDirectionManager, StopLoss, PositionRateMana
     def open_pos(self):
         if self.g.position_num is None:
             self.g.position_num = 0
+        if not self.enough_amount():
+            return
 
         # 仓位满了
         if self.g.position_num >= self.position_num:

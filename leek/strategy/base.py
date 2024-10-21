@@ -63,7 +63,7 @@ class Position:
             quantity_value = self.avg_price * self.quantity + order.transaction_volume * order.transaction_price
             self.sz += order.sz
             self.quantity += order.transaction_volume
-            self.avg_price = decimal_quantize(quantity_value / self.quantity, 8)
+            self.avg_price = decimal_quantize(quantity_value / self.quantity, 18)
             self.quantity_amount += order.transaction_amount
             return_amount = order.transaction_amount
         else:

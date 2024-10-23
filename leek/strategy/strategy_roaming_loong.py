@@ -327,6 +327,10 @@ class RoamingLoong2Strategy(PositionDirectionManager, StopLoss, PositionRateMana
         if not self.have_position():
             return
 
+        if self.position.direction.is_long and max(self.market_data.k, self.market_data.d) < self.over_sell:
+            return
+        if self.position.direction.is_short and min(self.market_data.k, self.market_data.d) > self.over_buy:
+            return
         rate = self.position.avg_price / self.market_data.close if self.is_long_position() else self.market_data.close / self.position.avg_price
         rate -= 1
         if rate > self.g.open_change_rate * (self.position_num + 1):

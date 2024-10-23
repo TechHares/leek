@@ -36,7 +36,7 @@ class TestRoaminLoong1(unittest.TestCase):
         StopLoss.__init__(strategy, "0.05")
         PositionRateManager.__init__(strategy, "1")
         PositionDirectionManager.__init__(strategy, PositionSide.FLAT)
-        workflow = ViewWorkflow(strategy, "5m", "2024-10-07 23:30", "2024-10-17 23:30", "ULTI-USDT-SWAP")
+        workflow = ViewWorkflow(strategy, "5m", "2024-10-19 23:30", "2024-10-21 23:30", "SATS-USDT-SWAP")
         workflow.start()
         atr = ATR()
         for d in workflow.kline_data_g:
@@ -75,17 +75,21 @@ class TestRoaminLoong1(unittest.TestCase):
         fig.show()
 
     def test_handle2(self):
+        # 最近24H成交额>x的标的
+        # 取前20
+        # 剔除合约面过大的标的
+        # 检查利润曲线
         k_nums = [9]
-        min_histogram_nums = [12]
+        min_histogram_nums = [9]
         position_nums = [3]
         for k_num in k_nums:
             for min_histogram_num in min_histogram_nums:
                 for position_num in position_nums:
                     workflow = SymbolChooseWorkflow(RoamingLoong2Strategy,
                     eval(open(f"{Path(__file__).parent}/roamingloong2.json", 'r', encoding='utf-8').read())
-                    , "5m", "2024-10-07 23:30", "2024-10-17 23:30", [])
+                    , "5m", "2024-10-20 23:30", "2024-10-23 23:30")
                     workflow.start(sort_func=draw_fig(f"loong, k_num={k_num}, min_histogram_num={min_histogram_num}, position_num={position_num}"))
 
 
 if __name__ == '__main__':
-    pass
+   pass

@@ -8,10 +8,11 @@ from leek.common import G
 from leek.strategy import BaseStrategy
 from leek.strategy.common.strategy_common import PositionRateManager, PositionDirectionManager
 from leek.strategy.common.strategy_filter import DynamicRiskControl, JustFinishKData
+from leek.t import TDSequence, StochRSI, ATR, MA, EMA
 from leek.trade.trade import PositionSide
 
 
-class TDStrategy(PositionDirectionManager, DynamicRiskControl, PositionRateManager, BaseStrategy):
+class TDStrategy(PositionDirectionManager, PositionRateManager, BaseStrategy):
     verbose_name = "TD组合"
 
     """
@@ -128,6 +129,70 @@ class TDStrategy(PositionDirectionManager, DynamicRiskControl, PositionRateManag
                 ctx.buy_count = 0
                 ctx.loss_price = ctx.low_in_count
                 self.create_order(PositionSide.LONG, self.max_single_position)
+
+
+class TDSeqStrategy(PositionDirectionManager, PositionRateManager, BaseStrategy):
+    verbose_name = "TD序列"
+    def __init__(self):
+        ...
+
+    def _calculate(self):
+        if self.g.td_cal is None:
+            self.g.td_cal = TDSequence(perfect_countdown=True)
+            self.g.rsi_t = StochRSI()
+            self.g.atr = ATR()
+            self.g.atrma = EMA(10)
+        k, d = self.g.rsi_t.update(self.market_data)
+        self.market_data.k = k
+        self.market_data.d = d
+        self.market_data.atr = self.g.atr.update(self.market_data)
+        if self.market_data.atr:
+            self.market_data.atr = self.market_data.atr / self.market_data.close
+        self.market_data.atrma = self.g.atrma.update(G(close=self.market_data.atr, finish=self.market_data.finish))
+        return self.g.td_cal.update(self.market_data)
+
+    def is_over_sell(self):
+        return True
+        # if self.market_data.k is None or self.market_data.d is None:
+        #     return False
+        # return self.market_data.d < self.market_data.k < 20 or max(self.market_data.k, self.market_data.d) < 5
+
+
+    def is_over_buy(self):
+        # if self.market_data.k is None or self.market_data.d is None:
+        #     return False
+        # return self.market_data.d > self.market_data.k > 80 or min(self.market_data.k, self.market_data.d) > 95
+        return True
+
+
+    def _stop_loss(self):
+        if self.is_long_position() and self.market_data.close < self.g.stop_loss_price:
+            self.close_position("止损(多)")
+            return True
+        if self.is_short_position() and self.market_data.close > self.g.stop_loss_price:
+            self.close_position("止损(空)")
+            return True
+
+    def handle(self):
+        td = self._calculate()
+        # todo 画图debug
+        self.market_data.countdown = td.countdown
+        if self.have_position():
+            if self._stop_loss():
+                return
+            if td.setup_direction == PositionSide.SHORT and self.is_long_position():
+                self.close_position("出局(多)")
+            elif td.setup_direction == PositionSide.LONG and self.is_short_position():
+                self.close_position("出局(空)")
+        elif self.market_data.atr > self.market_data.atrma:
+            if td.countdown == 26 and self.can_short() and self.is_over_buy():
+                self.g.stop_loss_price = 2 * td.countdown_peak_bar.high - td.countdown_peak_bar.low
+                if self.market_data.close < self.g.stop_loss_price:
+                    self.create_order(PositionSide.SHORT, self.max_single_position)
+            if td.countdown == -26 and self.can_long() and self.is_over_sell():
+                self.g.stop_loss_price = 2 * td.countdown_peak_bar.low - td.countdown_peak_bar.high
+                if self.market_data.close > self.g.stop_loss_price:
+                    self.create_order(PositionSide.LONG, self.max_single_position)
 
 
 if __name__ == '__main__':

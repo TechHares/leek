@@ -8,7 +8,8 @@
 __all__ = ["ATR", "RSRS", "SAR", "KDJ", "MA", "EMA", "BollBand", "DK", "LLT", "KAMA", "FRAMA", "StochRSI", "RSI",
            "ChanKManager", "ChanK", "ChanUnion", "ChanBIManager", "ChanBI", "ChanFeature", "ChanSegment",
            "ChanSegmentManager", "BiFXValidMethod", "ChanFX", "ChanDirection", "ChanZSManager", "ChanZS",
-           "ChanBSPoint", "ChanFXManager", "MACD", "MERGE", "SuperSmoother", "UltimateOscillator", "Reflex", "TrendFlex"]
+           "ChanBSPoint", "ChanFXManager", "MACD", "MERGE", "SuperSmoother", "UltimateOscillator", "Reflex", "TrendFlex",
+           "DeMarker", "TDSequence"]
 
 from leek.t.atr import ATR
 from leek.t.boll import BollBand
@@ -16,6 +17,7 @@ from leek.t.chan.bsp import ChanBSPoint
 from leek.t.chan.enums import BiFXValidMethod, ChanFX, ChanDirection
 from leek.t.chan.fx import ChanFXManager
 from leek.t.chan.zs import ChanZSManager, ChanZS
+from leek.t.de_mark import DeMarker, TDSequence
 from leek.t.dk import DK
 from leek.t.dsp import Reflex, TrendFlex
 from leek.t.kdj import KDJ

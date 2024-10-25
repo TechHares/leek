@@ -31,7 +31,7 @@ class TestDeMark(unittest.TestCase):
         fig.show()
 
     def test_td_seq(self):
-        workflow = ViewWorkflow(None, "1h", "2024-07-09", "2024-10-24", "ULTI-USDT-SWAP")
+        workflow = ViewWorkflow(None, "30m", "2024-07-09", "2024-10-24", "CRV-USDT-SWAP")
         data = workflow.get_data(workflow.benchmark)
         tds = TDSequence(perfect_countdown=True)
         stoch_rsi = StochRSI()

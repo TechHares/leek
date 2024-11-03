@@ -15,7 +15,7 @@ from leek.t import StochRSI, RSI
 class TestQQEMod(unittest.TestCase):
 
     def test_handle2(self):
-        workflow = ViewWorkflow(None, "4H", "2024-02-08 00:30", "2024-10-20 23:30", "ETH-USDT-SWAP")
+        workflow = ViewWorkflow(None, "4H", "2024-02-08 00:30", "2024-11-03 23:30", "ETH-USDT-SWAP")
         #workflow = ViewWorkflow(None, "5m", "2024-10-15 00:30", "2024-10-20 23:30", "ETH-USDT-SWAP")
         qqe_mod = QQEMod()
         #super_trend = SuperTrend()

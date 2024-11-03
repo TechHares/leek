@@ -1,0 +1,18 @@
+# 建议复制此文件为「db.yaml」，然后在「db.yaml」修改配置
+leek:
+  biz_db:                # 业务数据库
+    type: sqlite           # 数据库类型 sqlite/mysql
+    path: data/leek.db     # sqlite 文件位置
+    host: localhost        # mysql host
+    port: 3306             # mysql port
+    database: leek         # mysql 数据库名
+    user: root             # mysql user
+    password: 123456       # mysql password.
+  data_db:               # 历史K线数据库
+    type: clickhouse       # 数据库类型 sqlite/clickhouse/mysql
+    path: data/data.db     # sqlite 文件位置
+    database: default      # clickhouse数据库名
+    host: localhost        # clickhouse/mysql host
+    port: 19000             # clickhouse/mysql port
+    user: default          # clickhouse/mysql user
+    password:              # database/mysql password, default empty.

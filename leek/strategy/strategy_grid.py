@@ -271,8 +271,7 @@ class RSIGridStrategyV2(RSIGridStrategy):
         RSIGridStrategy.unmarshal(self, data)
         if "g_map" in data:
             for k, v in data["g_map"].items():
-                if v:
-                    self.get_g(k).limit = int(v)
+                self.get_g(k).limit = int(v) if v else 0
 
 
 if __name__ == '__main__':

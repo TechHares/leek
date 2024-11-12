@@ -226,7 +226,7 @@ class RSIGridStrategy(SingleGridStrategy):
         if self.can(self.side.switch()):
             super().sub_position(dt_price)
         else:
-            logger.debug(f"{self.side}方向RSI未到条件 不加仓")
+            logger.debug(f"{self.side}方向RSI未到条件 不减仓")
 
     def can(self, side: PS):
         if self.k is None or self.d is None:

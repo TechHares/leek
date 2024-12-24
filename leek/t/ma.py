@@ -34,7 +34,7 @@ class MA(T):
             ma = sum([self.vfunc(d) for d in ls], self.vfunc(data)) / self.window
             return ma
         finally:
-            if (finish_v is not None and finish_v) or data.finish == 1:
+            if finish_v or (finish_v is None and data.finish == 1):
                 self.q.append(data)
                 self.cache.append(ma)
 
@@ -60,7 +60,7 @@ class EMA(T):
             ma = self.alpha * self.vfunc(data) + (1 - self.alpha) * self.pre_ma
             return ma
         finally:
-            if (finish_v is not None and finish_v) or data.finish == 1:
+            if finish_v or (finish_v is None and data.finish == 1):
                 self.pre_ma = ma
                 self.cache.append(ma)
 
@@ -91,7 +91,7 @@ class WMA(T):
             ma = w_sum / self.weights
             return ma
         finally:
-            if (finish_v is not None and finish_v) or data.finish == 1:
+            if finish_v or (finish_v is None and data.finish == 1):
                 self.q.append(self.vfunc(data))
                 self.cache.append(ma)
 

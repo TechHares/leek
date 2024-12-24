@@ -21,7 +21,7 @@ class TestTD(unittest.TestCase):
         self.strategy = DMIStrategy()
         # workflow = ViewWorkflow(self.strategy, "5m", "2024-12-24 00:00", "2024-12-24 10:30", "ETH-USDT-SWAP")
         workflow = ViewWorkflow(self.strategy, "5m", "2024-12-01 00:00", "2024-12-24 10:30", "CRV-USDT-SWAP")
-        PositionRateManager.__init__(self.strategy, "1")
+        # PositionRateManager.__init__(self.strategy, "1")
         DynamicRiskControl.__init__(self.strategy, window=14, atr_coefficient="2", stop_loss_rate="0.02")
         JustFinishKData.__init__(self.strategy, True)
         workflow.start()

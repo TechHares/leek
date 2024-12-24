@@ -14,7 +14,7 @@ from leek.t import DMI, StochRSI
 from leek.trade.trade import PositionSide
 
 
-class DMIStrategy(DynamicRiskControl, JustFinishKData, PositionRateManager, BaseStrategy):
+class DMIStrategy(DynamicRiskControl, JustFinishKData, BaseStrategy):
     verbose_name = "DMI择时例子"
 
     def __init__(self):
@@ -46,7 +46,7 @@ class DMIStrategy(DynamicRiskControl, JustFinishKData, PositionRateManager, Base
     def __calculate(self):
         if self.symbol is None:
             self.symbol = self.market_data.symbol
-        assert self.symbol==self.market_data.symbol
+        assert self.symbol==self.market_data.symbol, "不支持多个标的"
         last = self.dmi.last(1)
         if len(last) > 0:
             self.g.pre_adx = last[0][0]

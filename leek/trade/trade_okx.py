@@ -313,7 +313,7 @@ class OkxTrader(Trader):
         res = self.client.place_order(**args)
         logger.info(f"[{order.strategy_id} - 下单], response: {res}")
         if res["code"] != "0":
-            logger.error(f"下单失败: {json.dumps(res)}")
+            logger.error(f"下单失败:{order}, {json.dumps(res)}")
 
             pos_trade = self.__empty_trade(order.symbol, order.side, order.order_id)
             logger.info(f"OKX交易回调：{pos_trade}")
@@ -344,7 +344,7 @@ class OkxTrader(Trader):
 
     def __trade_callback(self, data):
         if data["state"] == "canceled":
-            logger.error(f"订单已撤单: {data['order_id']}, 取消原因: {data['cancel_source']}")
+            logger.warning(f"订单已撤单: {data['order_id']}, 取消原因: {data['cancel_source']}")
             pos_trade = self.__empty_trade(data["symbol"], PS.SHORT if data["side"] == "sell" else PS.LONG, data["order_id"])
             pos_trade.state = "canceled"
             logger.info(f"OKX交易回调：{pos_trade}")

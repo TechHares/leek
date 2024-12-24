@@ -165,6 +165,17 @@ class DateTime(object):
         return int(datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S').timestamp() * 1000)
 
     @staticmethod
+    def to_datetime(ts):
+        """
+        将时间戳转换为时间
+        :param ts: 时间戳
+        :return:
+        """
+        if ts is None:
+            return None
+        return datetime.fromtimestamp(ts / 1000)
+
+    @staticmethod
     def to_date_str(ts, pattern=PATTERN_SECOND):
         """
         将时间戳转换为时间

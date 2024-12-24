@@ -7,6 +7,7 @@
 """
 公共工具包
 """
+from leek.common.enums import KlineLevel
 from leek.common.log import logger, get_logger
 from leek.common.event import EventBus
 from leek.common import config
@@ -45,7 +46,7 @@ class G(object):
 
 
 
-__all__ = ["EventBus", "logger", "get_logger", "config", "G", "IdGenerator", "StateMachine", "locked", "invoke"]
+__all__ = ["EventBus", "logger", "get_logger", "config", "G", "IdGenerator", "StateMachine", "locked", "invoke", "KlineLevel"]
 
 if __name__ == '__main__':
     g = G()

@@ -405,9 +405,11 @@ class PositionManager:
         self.used_rate = Decimal(data["used_rate"])
 
         # 计算可用
-        self.available_rate = Decimal("1") - self.used_rate
         self.available_amount = self.total_amount - self.used_amount
-        assert self.available_rate >= 0, "已使用金额大于总投入金额， 请检查数据！"
+        assert self.available_amount >= 0, "已使用金额大于总投入金额， 请检查数据！"
+
+        self.used_rate = self.used_amount / self.total_amount
+        self.available_rate = self.available_amount / self.total_amount
 
         # 丢弃冻结
         self.freeze_amount = Decimal("0")
@@ -418,6 +420,9 @@ class PositionManager:
         self.quantity_map = {}
         for k, v in data["quantity_map"].items():
             self.quantity_map[k] = Position.unmarshal(v)
+
+        for k, v in self.quantity_map.items():
+            v.quantity_rate = v.quantity_amount / self.total_amount
 
 
 class BaseStrategy(metaclass=ABCMeta):
@@ -594,7 +599,9 @@ class StrategyTest(BaseStrategy):
         pass
 
     def handle(self):
-        logger.info(f"DATA: {DateTime.to_date_str(self.market_data.timestamp)}, {self.market_data}")
+        logger.debug(f"DATA: {DateTime.to_date_str(self.market_data.timestamp)}, {self.market_data}")
+        if not self.have_position():
+            self.create_order(PositionSide.LONG, "0.6")
 
 
 @cachetools.cached(cache=cachetools.TTLCache(maxsize=20, ttl=6000))

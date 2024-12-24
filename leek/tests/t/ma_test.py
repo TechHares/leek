@@ -9,11 +9,11 @@ import unittest
 import pandas as pd
 
 from leek.runner.view import ViewWorkflow
-from leek.t import DK, MA, SuperSmoother, UltimateOscillator
+from leek.t import DK, MA, SuperSmoother, UltimateOscillator, HMA
 from plotly.subplots import make_subplots
 import plotly.graph_objs as go
 
-from leek.t import LLT, KAMA, FRAMA
+from leek.t import LLT, KAMA, FRAMA, WMA
 
 
 class TestKDJ(unittest.TestCase):
@@ -63,6 +63,22 @@ class TestKDJ(unittest.TestCase):
         # fig.add_trace(go.Scatter(x=df['Datetime'], y=df['uo'], mode='lines', name='uo', line=dict(color='orange', width=1)), row=1, col=1)
         fig.add_trace(go.Scatter(x=df['Datetime'], y=df['ma1'], mode='lines', name='ma5', line=dict(color='green', width=1)), row=1, col=1)
         fig.add_trace(go.Scatter(x=df['Datetime'], y=df['ma2'], mode='lines', name='ma20', line=dict(color='green', width=2)), row=1, col=1)
+        workflow.draw(fig=fig, df=df)
+        fig.show()
+
+    def test_wma(self):
+        workflow = ViewWorkflow(None, "15m", "2024-10-07 14:30", "2024-10-10 18:30", "ULTI-USDT-SWAP")
+        data = workflow.get_data("ULTI-USDT-SWAP")
+        ss = HMA(7)
+        ss1 = HMA(50)
+        for d in data:
+            d.ss1 = ss.update(d)
+            d.ss2 = ss1.update(d)
+        df = pd.DataFrame([x.__json__() for x in data])
+        df['Datetime'] = pd.to_datetime(df['timestamp'] + 8 * 60 * 60 * 1000, unit='ms')
+        fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['ss1'], mode='lines', name='ss1', line=dict(color='orange', width=1)),row=1, col=1)
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['ss2'], mode='lines', name='ss2', line=dict(color='black', width=1)),row=1, col=1)
         workflow.draw(fig=fig, df=df)
         fig.show()
 

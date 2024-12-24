@@ -8,9 +8,13 @@
 DeMark 系列指标
 """
 from collections import deque
+from dataclasses import dataclass
+
+from twisted.protocols.amp import Decimal
 
 from leek.common import G
 from leek.models.xg import data_process
+from leek.t.atr import ATR
 from leek.t.ma import MA
 from leek.t.t import T
 from leek.trade.trade import PositionSide
@@ -48,6 +52,7 @@ class DeMarker(T):
             if data.finish == 1:
                 self.pre = data
                 self.cache.append(de_mark)
+
 
 class TDSequence(T):
     """
@@ -108,7 +113,7 @@ class TDSequence(T):
         self.countdown = 0
 
     def __copy__(self):
-        copy = TDSequence(demark_len=self.demark_len, setup_bias=self.setup_bias, reverse_bias = self.reverse_bias,
+        copy = TDSequence(demark_len=self.demark_len, setup_bias=self.setup_bias, reverse_bias=self.reverse_bias,
                           countdown_bias=self.countdown_bias,
                           max_countdown=self.max_countdown, perfect_countdown=self.perfect_countdown,
                           perfect_set_up=self.perfect_set_up, max_cache=self.cache.maxlen)
@@ -167,7 +172,6 @@ class TDSequence(T):
             if self.countdown_peak_bar is None or data.high > self.countdown_peak_bar.high:
                 self.countdown_peak_bar = data
 
-
         if (self.setup_direction.is_long and data.close >= self.break_line) or (
                 self.setup_direction.is_short and data.close <= self.break_line):
             self._reset()
@@ -181,14 +185,14 @@ class TDSequence(T):
                 self.countdown *= 2
             return
 
-        if self.setup_direction.is_long and data.close < lst[-1-self.countdown_bias].low:
+        if self.setup_direction.is_long and data.close < lst[-1 - self.countdown_bias].low:
             if self.perfect_countdown and abs(self.countdown) == self.max_countdown - 1:
                 if data.low <= self.eight_count_close:
                     return
             self.countdown -= 1
             if self.countdown == -8:
                 self.eight_count_close = data.close
-        if self.setup_direction.is_short and data.close >= lst[-1-self.countdown_bias].high:
+        if self.setup_direction.is_short and data.close >= lst[-1 - self.countdown_bias].high:
             if self.perfect_countdown and self.countdown == self.max_countdown - 1:
                 if data.high >= self.eight_count_close:
                     return
@@ -201,17 +205,16 @@ class TDSequence(T):
     def _check_reversed(self):
         lst = list(self.q)
         if self.setup_direction.is_long:
-            return len(lst) > self.reverse_bias+1 and lst[-1].low >= lst[-1-self.reverse_bias].close
+            return len(lst) > self.reverse_bias + 1 and lst[-1].low >= lst[-1 - self.reverse_bias].close
         else:
-            return len(lst) > self.reverse_bias+1 and lst[-1].high <= lst[-1-self.reverse_bias].close
-
+            return len(lst) > self.reverse_bias + 1 and lst[-1].high <= lst[-1 - self.reverse_bias].close
 
     def _setup(self):
         if len(self.q) < self.demark_len + self.setup_bias:
             return False
 
         lst = list(self.q)
-        if all([lst[self.setup_bias+i].close < lst[i].close for i in range(self.demark_len)]):
+        if all([lst[self.setup_bias + i].close < lst[i].close for i in range(self.demark_len)]):
             if self.perfect_set_up and max(lst[-1].low, lst[-2].low) <= max(lst[-3].low, lst[-4].low):
                 return False
             self.countdown = 0
@@ -220,7 +223,7 @@ class TDSequence(T):
             self.td_line = lst[self.setup_bias].high
             self.break_line = max([x.high for x in lst[self.setup_bias:]])
             return True
-        if all([lst[self.setup_bias+i].close > lst[i].close for i in range(self.demark_len)]):
+        if all([lst[self.setup_bias + i].close > lst[i].close for i in range(self.demark_len)]):
             if self.perfect_set_up and min(lst[-1].high, lst[-2].high) >= min(lst[-3].high, lst[-4].high):
                 return False
             self.countdown = 0
@@ -308,11 +311,13 @@ class TDSequenceV2(T):
     （4）K线X+1的最低价比开盘价低一个交易单位
     这是德马克建议的止损触发，实际交易中，最好是跌破止损价位就离场，而不要坐等其他条件成立。
    """
+
     def __init__(self):
         T.__init__(self, 0)
 
     def update(self, data):
         ...
+
 
 class TDCombo(T):
     """
@@ -342,6 +347,161 @@ class TDCombo(T):
 
     def update(self, data):
         ...
+
+
+@dataclass
+class TDPoint:
+    k: any
+    value: Decimal | float
+    idx: int
+    is_low: bool = False
+    confirm: bool = False
+
+
+@dataclass
+class TDLine:
+    p1: TDPoint
+    p2: TDPoint
+    start: int
+    end: int
+    delta: Decimal | float
+
+    @property
+    def confirm(self):
+        return self.p1.confirm and self.p2.confirm
+
+    def call_value(self, idx: int):
+        return self.p1.value + self.delta * (idx - self.p1.idx)
+
+
+class TDTrendLine(T):
+    """
+    TD趋势线
+    Thomas DeMark 的第一项发明简化了寻找构建趋势线所需价格极值的过程。
+    他决定使用日线图表来寻找最大价格的蜡烛条, 即高于前一天, 且高于随后 定义天数 (我将使用这个词来指代蜡烛条用于确定 TD 点存在)。
+    如果满足该条件, 则可在图表上构建基于定义蜡烛条最大价格上的 TD 点。
+    因此, 如果定义天数的最小值低于之前一天和随后几天的最小值, 则可在图表上构建基于定义蜡烛条最小价格上的 TD 点。
+
+    此处实现采用前后N根K线的计算TD点。
+    """
+
+    def __init__(self, n=10, atr_mult=10, just_confirm=True):
+        """
+        初始化
+        :param n: TD前后确定的K线长度
+        :param atr_mult: 上下轨距离超过ATR * atr_mult的倍数之后破坏当前趋势通道
+        :param just_confirm: 是否只范围已经确认TD形成的趋势线，(未确认即K线向后的长度还不足N根，该点有可能成为TD点)
+        """
+        T.__init__(self, 0)
+        self.just_confirm = just_confirm
+        self.n = n
+        self.idx = 0  # 对K线编索引号
+        self.last_timestamp = 0  # 上一个K线的时间戳
+        self.data_list = deque(maxlen=2 * n + 1)  # 存储历史数据
+        self.atr_mult = atr_mult
+
+        self.atr = ATR()
+        self.atr_value = None
+        self.low_td_points = []  # 存储TD低点的列表
+        self.high_td_points = []  # 存储TD高点的列表
+        self.up_line = None  # 上轨
+        self.down_line = None  # 下轨
+        self.lines = []
+
+    def update(self, data):
+        try:
+            self.atr_value = self.atr.update(data)
+            if self.last_timestamp != data.timestamp:
+                self.idx += 1
+                self.last_timestamp = data.timestamp
+
+            lst = list(self.data_list)
+            lst.append((data, self.idx))
+            if len(lst) <= self.n:
+                return None, None
+
+            d_high = max(lst, key=lambda x: x[0].high)
+            p_high = TDPoint(k=d_high[0], value=d_high[0].high, idx=d_high[1])
+            d_low = min(lst, key=lambda x: x[0].low)
+            p_low = TDPoint(k=d_low[0], value=d_low[0].low, idx=d_low[1], is_low=True)
+
+            self.add_point(self.high_td_points, p_high, data.finish == 1)
+            self.add_point(self.low_td_points, p_low, data.finish == 1)
+            return self.calculate(data)
+        finally:
+            if data.finish == 1:
+                self.data_list.append((data, self.idx))
+            # 删除过多的点 避免内存溢出
+            if len(self.high_td_points) > 100:
+                self.high_td_points = self.high_td_points[-5:]
+            if len(self.low_td_points) > 100:
+                self.low_td_points = self.low_td_points[-5:]
+            if len(self.lines) > 100:
+                self.lines = self.lines[-5:]
+
+    def add_point(self, lst, p, k_finish):
+        start_idx = list(self.data_list)[0][1]
+        end_idx = list(self.data_list)[-1][1]
+        if p.idx - start_idx < self.n:  # 向前的K线数量不满足
+            return
+        p.confirm = k_finish and end_idx - p.idx >= self.n
+        if self.just_confirm and not p.confirm:  # TD点暂时不确定不成立
+            return
+
+        if len(lst) > 0 and not lst[-1].confirm:  # 上一个点还没确认 覆盖掉
+            lst[-1] = p
+        else:
+            lst.append(p)
+
+    def is_break(self, data):
+        if self.up_line.delta > 0 > self.down_line.delta:
+            return True
+
+        high = self.up_line.call_value(self.idx)
+        low = self.down_line.call_value(self.idx)
+        if high - low > self.atr_mult * self.atr_value:  # 破坏当前轨道
+            self.up_line.end = data.timestamp
+            self.down_line.end = data.timestamp
+            return True
+
+        if data.finish == 1 and (data.close > high or data.close < low):
+            self.up_line.end = data.timestamp
+            self.down_line.end = data.timestamp
+            return True
+
+        return False
+
+    def calculate(self, data):
+        if self.up_line is None or self.is_break(data): # 轨道未成立或被破坏
+            self.up_line = self._get_line(self.high_td_points)
+            self.down_line = self._get_line(self.low_td_points)
+
+        if self.up_line is not None and self.down_line is not None:
+            if self.is_break(data):  # 无效轨道
+                self.up_line = None
+                self.down_line = None
+                return None
+            self.add_line(data)
+            self.up_line.end = data.timestamp
+            self.down_line.end = data.timestamp
+            return self.up_line.call_value(self.idx), self.down_line.call_value(self.idx)
+        else:
+            self.up_line = None
+            self.down_line = None
+            return None
+
+    def _get_line(self, lst):
+        if len(lst) < 2:
+            return None
+        p1, p2 = lst[-2:]
+        delta = (p2.value - p1.value) / (p2.idx - p1.idx)
+        return TDLine(p1=p1, p2=p2, delta=delta, start=p1.k.timestamp, end=0)
+
+    def add_line(self, data):
+        if len(self.lines) > 0 and self.lines[-1][0] == self.up_line: return
+        self.lines.append((self.up_line, self.down_line))
+
+
 
 if __name__ == '__main__':
     pass

@@ -95,7 +95,7 @@ class DMIStrategy(DynamicRiskControl, JustFinishKData, PositionRateManager, Base
                 return
         elif adx_cross:  # 无仓位 考虑开仓
             self.g.high_adx = k.adx
-            logger.info(f"CROSS, 多头条件:{k.up_di > k.down_di} and {k.down_di <= self.g.pre_down_di}, "
+            logger.debug(f"CROSS, 多头条件:{k.up_di > k.down_di} and {k.down_di <= self.g.pre_down_di}, "
                         f"空头条件:{k.up_di < k.down_di} and {k.up_di <= self.g.pre_up_di}")
             if k.up_di > k.down_di and k.down_di <= self.g.pre_down_di: # 多头
                 logger.info(f"DMI多头开仓, 趋势成立, adx:{k.adx}, up_di:{k.up_di}, down_di:{k.down_di}")

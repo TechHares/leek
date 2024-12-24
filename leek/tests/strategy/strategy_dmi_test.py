@@ -12,7 +12,7 @@ import plotly.graph_objs as go
 
 from leek.runner.view import ViewWorkflow
 from leek.strategy.common.strategy_common import PositionRateManager
-from leek.strategy.common.strategy_filter import DynamicRiskControl
+from leek.strategy.common.strategy_filter import DynamicRiskControl, JustFinishKData
 from leek.strategy.strategy_dmi import DMIStrategy
 
 
@@ -23,6 +23,7 @@ class TestTD(unittest.TestCase):
         workflow = ViewWorkflow(self.strategy, "5m", "2024-12-01 00:00", "2024-12-24 10:30", "CRV-USDT-SWAP")
         PositionRateManager.__init__(self.strategy, "1")
         DynamicRiskControl.__init__(self.strategy, window=14, atr_coefficient="2", stop_loss_rate="0.02")
+        JustFinishKData.__init__(self.strategy, True)
         workflow.start()
         df = pd.DataFrame([x.__json__() for x in workflow.kline_data_g])
         df['Datetime'] = pd.to_datetime(df['timestamp'] + 8 * 60 * 60 * 1000, unit='ms')

@@ -9,12 +9,12 @@ from decimal import Decimal
 from leek.common import logger
 from leek.strategy import BaseStrategy
 from leek.strategy.common.strategy_common import PositionRateManager
-from leek.strategy.common.strategy_filter import DynamicRiskControl
+from leek.strategy.common.strategy_filter import DynamicRiskControl, JustFinishKData
 from leek.t import DMI, StochRSI
 from leek.trade.trade import PositionSide
 
 
-class DMIStrategy(DynamicRiskControl, PositionRateManager, BaseStrategy):
+class DMIStrategy(DynamicRiskControl, JustFinishKData, PositionRateManager, BaseStrategy):
     verbose_name = "DMI择时例子"
 
     def __init__(self):

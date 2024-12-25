@@ -19,8 +19,8 @@ from leek.strategy.strategy_dmi import DMIStrategy
 class TestTD(unittest.TestCase):
     def test_handle(self):
         self.strategy = DMIStrategy()
-        # workflow = ViewWorkflow(self.strategy, "5m", "2024-12-21 00:00", "2024-12-25 19:30", "CRV-USDT-SWAP")
-        workflow = ViewWorkflow(self.strategy, "5m", "2024-12-01 00:00", "2024-12-20 10:30", "CRV-USDT-SWAP")
+        workflow = ViewWorkflow(self.strategy, "5m", "2024-12-21 00:00", "2024-12-25 19:30", "CRV-USDT-SWAP")
+        # workflow = ViewWorkflow(self.strategy, "5m", "2024-12-01 00:00", "2024-12-20 10:30", "CRV-USDT-SWAP")
         PositionRateManager.__init__(self.strategy, "1")
         DynamicRiskControl.__init__(self.strategy, window=14, atr_coefficient="2.5", stop_loss_rate="0.02")
         JustFinishKData.__init__(self.strategy, True)

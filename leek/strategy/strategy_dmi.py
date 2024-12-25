@@ -35,6 +35,7 @@ class DMIStrategy(DynamicRiskControl, JustFinishKData, PositionRateManager, Base
     def _data_init(self, market_datas: list):
         for market_data in market_datas:
             self.dmi.update(market_data)
+            self.g.pre_k = market_data
         logger.info(f"DMI数据初始化完成")
 
     def __calculate(self):
@@ -75,7 +76,7 @@ class DMIStrategy(DynamicRiskControl, JustFinishKData, PositionRateManager, Base
         if self.market_data.finish != 1:
             adx_last.append(k.adx)
         adx_cross = self.g.pre_adxr < self.adx_threshold < k.adxr < k.adx
-        logger.debug(f"DMI,{adx_cross} finish:{self.market_data.finish == 1}, close:{k.close}, stop_loss_price:{self.g.stop_loss_price}"
+        logger.debug(f"DMI,{adx_cross} finish:{self.market_data.finish == 1}, close:{k.close}, adxr:{k.adxr} {self.g.pre_adxr}"
                      f"pdi:{k.up_di} {self.g.pre_up_di}, mdi:{k.down_di} {self.g.pre_down_di}, adx:{k.adx} {self.g.pre_adx}, rsi:{k.rsi_k} {k.rsi_d}")
         if self.have_position():
             # 退出条件

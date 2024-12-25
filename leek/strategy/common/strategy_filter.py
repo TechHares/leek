@@ -239,10 +239,10 @@ class DynamicRiskControl(Filter):
 
         if ctx.stop_loss_price is None:
             if position.direction == PositionSide.SHORT:
-                ctx.stop_loss_price = min(max(market_data.high, ctx.high, market_data.close + deta),
+                ctx.stop_loss_price = max(max(market_data.high, ctx.high, market_data.close + deta),
                                           market_data.close * (1 + self.stop_loss_rate))
             else:
-                ctx.stop_loss_price = max(min(market_data.low, ctx.low, market_data.close - deta),
+                ctx.stop_loss_price = min(min(market_data.low, ctx.low, market_data.close - deta),
                                           market_data.close * (1 - self.stop_loss_rate))
             return True
 

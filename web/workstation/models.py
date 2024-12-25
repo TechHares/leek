@@ -268,7 +268,7 @@ class StrategyConfig(models.Model):
     ):
         if self.id and self.id > 0:
             st = StrategyConfig.objects.get(id=self.id)
-            if st.process_id and st.process_id > 0:
+            if st.process_id and st.process_id > 0 and self.status != 3:
                 WorkerWorkflow.send_command("shutdown", self.id)
                 self.process_id = 0
         if self.status == 1 or self.run_data is None:

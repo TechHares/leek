@@ -19,8 +19,8 @@ class DMI(T):
     上述两个值是不确定的。但是，如前所述，有经验的交易者不会采用25和20的值且不会将其应用于每种情况。真正的强势或弱势取决于所交易的商品。历史走势分析可以帮助确定适当的值。
     """
 
-    def __init__(self, adx_smoothing=14, di_length=6, max_cache=100):
-        T.__init__(self, max_cache)
+    def __init__(self, adx_smoothing=6, di_length=14, max_cache=100):
+        T.__init__(self, max(max_cache, adx_smoothing))
         self.adx_smoothing = adx_smoothing
         self.di_length = di_length
 
@@ -34,19 +34,23 @@ class DMI(T):
         d = None
         try:
             if self.pre is None:
-                return None, None, None
+                return None, None, None, None
             tr = self.tr_cal.update(data)
             up_dm = max(data.high - self.pre.high, 0)
             up_di = self.up_di_smooth.update((100 * up_dm / tr) if tr != 0 else 100, data.finish == 1)
             down_dm = max(self.pre.low - data.low, 0)
             down_di = self.down_di_smooth.update((100 * down_dm / tr) if tr != 0 else 100, data.finish == 1)
             if up_di is None or down_di is None:
-                return None, None, None
+                return None, None, None, None
 
             dx = (abs(up_di - down_di) / (up_di + down_di) * 100) if up_di + down_di > 0 else 100
             adx = self.dx_smooth.update(dx, data.finish == 1)
-            d = (adx, up_di, down_di)
-            return adx, up_di, down_di
+            last = self.last(self.adx_smoothing)
+            adxr = adx
+            if len(last) == self.adx_smoothing:
+                adxr = (adxr + last[0][0]) / 2
+            d = (adx, up_di, down_di, adxr)
+            return adx, up_di, down_di, adxr
         finally:
             if data.finish == 1:
                 self.pre = data

@@ -200,7 +200,8 @@ class PositionManager:
             # logger.error("手工订单涉及本策略，策略重启：" + str(trade))
             self.bus.publish(EventBus.TOPIC_RUNTIME_ERROR, "出现人工订单，策略重启！")
             return
-        if not trade.order_id.startswith(str(self.strategy_id)):  # 非本策略订单
+
+        if not trade.order_id.startswith(f"{self.strategy_id}SHORT") and not trade.order_id.startswith(f"{self.strategy_id}LONG"):  # 非本策略订单
             if config.ALLOW_SHARE_TRADING_ACCOUNT:
                 logger.info(f"其它策略订单，忽略 {trade}")
             else:

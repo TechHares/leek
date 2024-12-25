@@ -45,9 +45,9 @@ class DMI(T):
 
             dx = (abs(up_di - down_di) / (up_di + down_di) * 100) if up_di + down_di > 0 else 100
             adx = self.dx_smooth.update(dx, data.finish == 1)
-            last = self.last(self.adx_smoothing)
+            last = self.last(self.adx_smoothing + 1)
             adxr = adx
-            if len(last) == self.adx_smoothing:
+            if len(last) >= self.adx_smoothing:
                 adxr = (adxr + last[0][0]) / 2
             d = (adx, up_di, down_di, adxr)
             return adx, up_di, down_di, adxr

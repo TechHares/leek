@@ -15,7 +15,7 @@ from leek.trade.trade import PositionSide
 
 
 class DMIStrategy(DynamicRiskControl, JustFinishKData, PositionRateManager, BaseStrategy):
-    verbose_name = "DMI择时例子"
+    verbose_name = "DMI简单应用"
 
     def __init__(self):
         self.adx_threshold = 25  # adx 趋势确认

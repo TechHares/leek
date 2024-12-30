@@ -49,10 +49,10 @@ class IchimokuCloud(T):
         self.tenkan_period = tenkan_period
         self.base_period = base_period
         self.leading_span_period = leading_span_period
-        self.lagging_span_period = lagging_span_period  # 迟行带线滞后计算，当前帧无法获取
         self.leading_shift_period = leading_shift_period
+        self.lagging_span_period = lagging_span_period  # 迟行带线滞后计算，当前帧无法获取
 
-        self.q = deque(maxlen=max(tenkan_period, base_period, leading_span_period) + 1)
+        self.q = deque(maxlen=max(tenkan_period, base_period, leading_span_period, lagging_span_period) + 1)
 
         self.leading_span_a = deque(maxlen=leading_shift_period)
         self.leading_span_b = deque(maxlen=leading_shift_period)
@@ -88,6 +88,17 @@ class IchimokuCloud(T):
         finally:
             if data.finish == 1:
                 self.q.append(data)
+                if res[3] is not None:
+                    self.cache.append(res)
+
+    def get_lagging_data(self):
+        if len(self.q) < self.lagging_span_period:
+            return None, None
+        lagging_k = self.q[-self.lagging_span_period]
+        last = self.last(self.lagging_span_period)
+        if len(last) >= self.lagging_span_period:
+            return lagging_k, last[-self.lagging_span_period]
+        return lagging_k, None
 
 
 if __name__ == '__main__':

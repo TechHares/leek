@@ -54,6 +54,9 @@ class IchimokuCloudStrategy(PositionDirectionManager, PositionRateManager, Dynam
         self.g.lagging_base_line = lagging_cloud[1]
         self.g.lagging_span_a = lagging_cloud[2]
         self.g.lagging_span_b = lagging_cloud[3]
+        logger.debug(f"tenkan_line={tenkan_line}, base_line={base_line}, span_a={span_a}, span_b={span_b}, price={market_data.close}"
+                     f", lagging_tenkan_line={lagging_cloud[0]}, lagging_base_line={lagging_cloud[1]},"
+                     f" lagging_span_a={lagging_cloud[2]}, lagging_span_b={lagging_cloud[3]}, lagging={lagging_k.close}")
 
 
     def handle(self):

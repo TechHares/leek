@@ -157,7 +157,7 @@ def set_proxy(proxy_url):
         x = arr[1]
     PROXY_HOST, PROXY_PORT = x.split(":")
 
-VERSION = (0, 3, 0)
+VERSION = (0, 3, 1)
 if __name__ == '__main__':
     print(BIZ_DB)
     print(PROXY_HOST)

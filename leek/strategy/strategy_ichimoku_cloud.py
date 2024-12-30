@@ -29,7 +29,7 @@ class IchimokuCloudStrategy(PositionDirectionManager, PositionRateManager, Dynam
         return {
             "symbol": market_data.symbol,
             "interval": market_data.interval,
-            "size": 100
+            "size": 200
         }
 
     def _data_init(self, market_datas: list):
@@ -42,6 +42,7 @@ class IchimokuCloudStrategy(PositionDirectionManager, PositionRateManager, Dynam
         tenkan_line, base_line, span_a, span_b = self.ichimoku_cloud.update(market_data)
         if tenkan_line is None or base_line is None or span_a is None or span_b is None :
             return
+        logger.debug(f"tenkan_line={tenkan_line}, base_line={base_line}, span_a={span_a}, span_b={span_b}, price={market_data.close}")
         market_data.tenkan_line = tenkan_line
         market_data.base_line = base_line
         market_data.span_a = span_a
@@ -54,8 +55,7 @@ class IchimokuCloudStrategy(PositionDirectionManager, PositionRateManager, Dynam
         self.g.lagging_base_line = lagging_cloud[1]
         self.g.lagging_span_a = lagging_cloud[2]
         self.g.lagging_span_b = lagging_cloud[3]
-        logger.debug(f"tenkan_line={tenkan_line}, base_line={base_line}, span_a={span_a}, span_b={span_b}, price={market_data.close}"
-                     f", lagging_tenkan_line={lagging_cloud[0]}, lagging_base_line={lagging_cloud[1]},"
+        logger.debug(f"lagging_tenkan_line={lagging_cloud[0]}, lagging_base_line={lagging_cloud[1]},"
                      f" lagging_span_a={lagging_cloud[2]}, lagging_span_b={lagging_cloud[3]}, lagging={lagging_k.close}")
 
 

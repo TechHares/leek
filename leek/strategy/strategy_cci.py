@@ -7,6 +7,7 @@
 """
 
 """
+from leek.common import logger
 from leek.strategy import BaseStrategy
 from leek.strategy.base import Position
 from leek.strategy.common import PositionDirectionManager
@@ -29,6 +30,18 @@ class CCIStrategy(PositionDirectionManager, PositionRateManager, DynamicRiskCont
         self.over_sell = int(over_sell)
         self.over_buy = int(over_buy)
 
+    def data_init_params(self, market_data):
+        return {
+            "symbol": market_data.symbol,
+            "interval": market_data.interval,
+            "size": 50
+        }
+
+    def _data_init(self, market_datas: list):
+        for market_data in market_datas:
+            self._calculate(market_data)
+        logger.info(f"CCI简单应用数据初始化完成")
+
     def _calculate(self, data):
         data.fast_ma = self.fast_ma.update(data)
         data.slow_ma = self.slow_ma.update(data)
@@ -42,7 +55,7 @@ class CCIStrategy(PositionDirectionManager, PositionRateManager, DynamicRiskCont
         self._calculate(k)
         if k.fast_ma is None or k.slow_ma is None or k.cci is None or k.pre_cci is None:
             return
-
+        logger.debug(f"CCI指标 close:{k.close} slow_ma:{k.slow_ma} fast_ma:{k.fast_ma} cci:{k.cci} pre_cci:{k.pre_cci}")
         if self.have_position():
             if self.is_long_position():  # 多
                 if k.fast_ma < k.slow_ma or k.cci < 0:
@@ -51,10 +64,10 @@ class CCIStrategy(PositionDirectionManager, PositionRateManager, DynamicRiskCont
                 if k.fast_ma > k.slow_ma or k.cci > 0:
                     self.close_position()
         else:
-            if k.fast_ma > k.slow_ma and self.can_long():  # 多
+            if k.close > k.fast_ma > k.slow_ma and self.can_long():  # 多
                 if k.cci > self.over_buy > k.pre_cci:
                     self.create_order(PositionSide.LONG, self.max_single_position)
-            if k.fast_ma < k.slow_ma and self.can_short():  # 空
+            if k.close < k.fast_ma < k.slow_ma and self.can_short():  # 空
                 if k.cci < self.over_sell < k.pre_cci:
                     self.create_order(PositionSide.SHORT, self.max_single_position)
 

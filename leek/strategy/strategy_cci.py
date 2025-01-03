@@ -75,9 +75,9 @@ class CCIStrategy(PositionDirectionManager, PositionRateManager, DynamicRiskCont
 class CCIV2Strategy(PositionDirectionManager, PositionRateManager, DynamicRiskControl, JustFinishKData, BaseStrategy):
     verbose_name = "CCI简单应用2"
 
-    def __init__(self, window=20, fast_period=12, slow_period=26, moving_period=9, over_sell=-100, over_buy=100):
+    def __init__(self, window=20, fast_period=12, slow_period=26, smoothing_period=9, over_sell=-100, over_buy=100):
 
-        self.macd = MACD(int(fast_period), int(slow_period), int(moving_period))
+        self.macd = MACD(int(fast_period), int(slow_period), int(smoothing_period))
         self.cci = CCI(int(window))
         # self.cci = CCIV2(int(window))
 

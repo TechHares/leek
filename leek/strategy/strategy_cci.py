@@ -55,20 +55,28 @@ class CCIStrategy(PositionDirectionManager, PositionRateManager, DynamicRiskCont
         self._calculate(k)
         if k.fast_ma is None or k.slow_ma is None or k.cci is None or k.pre_cci is None:
             return
-        logger.debug(f"CCI指标 close:{k.close} slow_ma:{k.slow_ma} fast_ma:{k.fast_ma} cci:{k.cci} pre_cci:{k.pre_cci}")
+        logger.debug(f"CCI指标 close:{k.close} slow_ma:{k.slow_ma} fast_ma:{k.fast_ma} cci:{k.cci} pre_cci:{k.pre_cci} time eq{self.g.time == k.timestamp}")
         if self.have_position():
+            if self.g.time == k.timestamp:
+                return
             if self.is_long_position():  # 多
                 if k.fast_ma < k.slow_ma or k.cci < 0:
+                    self.g.time = k.timestamp
                     self.close_position()
             else:
                 if k.fast_ma > k.slow_ma or k.cci > 0:
+                    self.g.time = k.timestamp
                     self.close_position()
         else:
+            if self.g.time == k.timestamp:
+                return
             if k.close > k.fast_ma > k.slow_ma and self.can_long():  # 多
                 if k.cci > self.over_buy > k.pre_cci:
+                    self.g.time = k.timestamp
                     self.create_order(PositionSide.LONG, self.max_single_position)
             if k.close < k.fast_ma < k.slow_ma and self.can_short():  # 空
                 if k.cci < self.over_sell < k.pre_cci:
+                    self.g.time = k.timestamp
                     self.create_order(PositionSide.SHORT, self.max_single_position)
 
 
@@ -111,20 +119,28 @@ class CCIV2Strategy(PositionDirectionManager, PositionRateManager, DynamicRiskCo
         self._calculate(k)
         if k.m is None or k.cci is None or k.pre_cci is None:
             return
-        logger.debug(f"CCI指标 close:{k.close} dif:{k.dif} dea:{k.dea} m:{k.m} cci:{k.cci} pre_cci:{k.pre_cci}")
+        logger.debug(f"CCI指标 close:{k.close} dif:{k.dif} dea:{k.dea} m:{k.m} cci:{k.cci} pre_cci:{k.pre_cci} time eq{self.g.time == k.timestamp}")
         if self.have_position():
+            if self.g.time == k.timestamp:
+                return
             if self.is_long_position():  # 多
                 if k.m < 0 or k.cci < 0:
+                    self.g.time = k.timestamp
                     self.close_position()
             else:
                 if k.m > 0 or k.cci > 0:
+                    self.g.time = k.timestamp
                     self.close_position()
         else:
+            if self.g.time == k.timestamp:
+                return
             if k.m > 0 and self.can_long():  # 多
                 if k.cci > self.over_buy > k.pre_cci:
+                    self.g.time = k.timestamp
                     self.create_order(PositionSide.LONG, self.max_single_position)
             if k.m < 0 and self.can_short():  # 空
                 if k.cci < self.over_sell < k.pre_cci:
+                    self.g.time = k.timestamp
                     self.create_order(PositionSide.SHORT, self.max_single_position)
 
 

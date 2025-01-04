@@ -49,7 +49,7 @@ class EventBus:
                 try:
                     handler(*args, **kwargs)
                 except Exception as e:
-                    logger.error(f"topic[{topic}] 发布事件: {args} {kwargs} 处理失败:", e)
+                    logger.error(f"topic[{topic}] 发布事件: {args} {kwargs} 处理失败: {e}", e)
                     if topic != EventBus.TOPIC_RUNTIME_ERROR:
                         self.publish(EventBus.TOPIC_RUNTIME_ERROR, e)
 

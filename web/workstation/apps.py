@@ -67,7 +67,7 @@ def up_run_data():
     WorkerWorkflow.send_command("marshal")
 
 
-@invoke(interval=10)
+@invoke(interval=2000)
 def check_update():
     try:
         v, name, log = new_version()

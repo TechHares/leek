@@ -4,6 +4,7 @@
 # @Author  : shenglin.li
 # @File    : worker.py
 # @Software: PyCharm
+import json
 import logging
 import multiprocessing
 import os
@@ -37,7 +38,11 @@ class WorkerWorkflow(SimpleWorkflow):
         load_config()
         super()._init_config()
         if "run_data" in self.cfg_strategy and len(self.cfg_strategy["run_data"]) > 0:
-            self.strategy.unmarshal(self.cfg_strategy["run_data"])
+            try:
+                self.strategy.unmarshal(self.cfg_strategy["run_data"])
+            except Exception as e:
+                logger.error(f"恢复数据失败：{e}")
+
         BaseWorkflow.start(self)
         self.bus.subscribe(EventBus.TOPIC_POSITION_DATA_AFTER, self.error_wrapper(self.save_trade_log))
         self.bus.subscribe(EventBus.TOPIC_RUNTIME_ERROR, lambda e: self.on_error())
@@ -92,7 +97,7 @@ class WorkerWorkflow(SimpleWorkflow):
 
     def update_db(self, **kwargs):
         from .models import StrategyConfig
-        logger.info(f"策略数据更新{self.job_id}, {kwargs}")
+        logger.info(f"策略数据更新{self.job_id}, {json.dumps(kwargs)}")
         StrategyConfig.objects.filter(pk=self.job_id).update(**kwargs)
 
     def on_error(self):

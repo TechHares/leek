@@ -190,7 +190,27 @@ class RSIStrategy(PositionDirectionManager, PositionRateManager, DynamicRiskCont
         return None
 
 
+class RSIV2Strategy(PositionDirectionManager, PositionRateManager, DynamicRiskControl, JustFinishKData, BaseStrategy):
+    verbose_name = "RSI分仓择时"
 
+    """
+    1. 网格分仓思路
+    2. RSI确定买卖点
+    3. 网格分割线动态浮动
+    4. 仓位使用预设生成， 首开仓位控制
+    5. 特定条件下(极速波动)， 平大部分仓位锁定收益
+    6. 开启条件、停止条件
+    """
+
+    def __init__(self):
+        ...
+
+    def _calculate(self):
+        ...
+
+
+    def handle(self):
+        pass
 
 
 if __name__ == '__main__':

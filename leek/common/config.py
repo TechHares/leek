@@ -14,8 +14,8 @@ import yaml
 """
 配置信息
 """
-__BASE_DIR = Path(__file__).resolve().parent.parent
-__RESOURCES_DIR = __BASE_DIR.parent / 'resources'
+__BASE_DIR = Path(__file__).resolve().parent.parent.parent
+__RESOURCES_DIR = __BASE_DIR / 'resources'
 
 __default_config_file = __RESOURCES_DIR / "db-default.yaml"
 __config_file = __RESOURCES_DIR / "db.yaml"
@@ -157,10 +157,15 @@ def set_proxy(proxy_url):
         x = arr[1]
     PROXY_HOST, PROXY_PORT = x.split(":")
 
-VERSION = (0, 2, 1)
+with open(os.path.join(__BASE_DIR, "VERSION"), "r") as f:
+    v = f.readlines()[0].split(".")
+    VERSION = (int(v[0]), int(v[1]), int(v[2]))
+
+
 if __name__ == '__main__':
     print(BIZ_DB)
     print(PROXY_HOST)
     print(MIN_POSITION)
     print(ROLLING_POSITION)
     print(ORDER_ALERT)
+    print(VERSION)

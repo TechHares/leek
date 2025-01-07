@@ -12,6 +12,8 @@ from collections import deque
 from datetime import datetime
 from decimal import *
 
+import requests
+
 
 class StateMachine(object):
     def __init__(self, state, transitions, state_size=20):
@@ -165,6 +167,17 @@ class DateTime(object):
         return int(datetime.strptime(dt_str, '%Y-%m-%d %H:%M:%S').timestamp() * 1000)
 
     @staticmethod
+    def to_datetime(ts):
+        """
+        将时间戳转换为时间
+        :param ts: 时间戳
+        :return:
+        """
+        if ts is None:
+            return None
+        return datetime.fromtimestamp(ts / 1000)
+
+    @staticmethod
     def to_date_str(ts, pattern=PATTERN_SECOND):
         """
         将时间戳转换为时间
@@ -176,6 +189,13 @@ class DateTime(object):
             return ""
         return datetime.fromtimestamp(ts / 1000).strftime(pattern)
 
+
+def new_version():
+    res = requests.get('https://api.github.com/repos/TechHares/leek/releases/latest')
+    js = res.json()
+    arr = js["tag_name"][1:].split(".")
+    v = (int(arr[0]), int(arr[1]), int(arr[2]))
+    return v, js['tag_name'], js["body"]
 
 if __name__ == '__main__':
     generator = IdGenerator(1)

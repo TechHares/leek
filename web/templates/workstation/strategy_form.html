@@ -87,7 +87,7 @@
     {% endif %}{% endif %}
     {% endblock %}
     <el-row id="content">
-        <el-col :span="8">
+        <el-col :lg="8" :xs="24" :sm="24">
             <form {% if has_file_field %}enctype="multipart/form-data" {% endif %}action="{{ form_url }}" method="post"
                   id="{{ opts.model_name }}_form" ref="strategy_form" novalidate>{% csrf_token %}{% block form_top %}{% endblock %}
                 <div>
@@ -140,7 +140,7 @@
                 </div>
             </form>
         </el-col>
-        <el-col :span="16">
+        <el-col :lg="16" :xs="24" :sm="24">
             <div class="module aligned " style="margin-left: 0px">
                 <el-row>
                     <el-col :span="6" style="text-align: center">

@@ -11,6 +11,8 @@ from threading import Thread
 import psutil
 from django.apps import AppConfig
 
+from leek.common.notify import alert
+from leek.common.utils import new_version
 from web.workstation.worker import WorkerWorkflow
 
 sys.path.append(f'{Path(__file__).resolve().parent.parent.parent}')
@@ -39,12 +41,12 @@ def is_worker_process():
     else:
         return os.getpgrp() == os.getpid() or os.getppid() == os.getpgrp()
 
+
 class WorkstationConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'workstation'
     verbose_name = "策略工作台"
     verbose_name_plural = verbose_name
-
 
     def ready(self):
         if os.environ.get("DISABLE_WORKER") == "true" or "makemigrations" in sys.argv or "migrate" in sys.argv:
@@ -65,6 +67,17 @@ def up_run_data():
     WorkerWorkflow.send_command("marshal")
 
 
+@invoke(interval=2000)
+def check_update():
+    try:
+        v, name, log = new_version()
+        if config.VERSION >= v:
+            return
+        alert(f"新版本: {name} \n\n{log}")
+    except BaseException as e:
+        logger.error(f"检查更新失败: {e}")
+
+
 def _scheduler():
     from .models import StrategyConfig
     from .worker import run_scheduler
@@ -74,6 +87,7 @@ def _scheduler():
         WorkerWorkflow.refresh_queue([strategy.id for strategy in queryset])
         logger.debug(f"扫描任务: %s", StrategyConfig.objects.filter(status__in=(2, 3)).count())
         up_run_data()
+        check_update()
         children = psutil.Process().children(recursive=True)
         ids = [x.pid for x in children if x.status() != psutil.STATUS_ZOMBIE and "python" in x.name().lower()]
         for x in children:
@@ -98,7 +112,6 @@ def _scheduler():
                 strategy.process_id = p.pid
                 strategy.status = 3
                 strategy.just_save()
-
 
 
 def default(obj):

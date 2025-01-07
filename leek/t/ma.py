@@ -7,6 +7,7 @@
 import math
 from collections import deque
 from decimal import Decimal
+from functools import reduce
 
 import numpy as np
 
@@ -18,21 +19,22 @@ class MA(T):
     简单平均
     """
 
-    def __init__(self, window=9, max_cache=100):
+    def __init__(self, window=9, vfunc=lambda x: x.close, max_cache=100):
         T.__init__(self, max_cache)
         self.window = window
         self.q = deque(maxlen=window - 1)
+        self.vfunc = vfunc
 
-    def update(self, data):
+    def update(self, data, finish_v=None):
         ma = None
         try:
             if len(self.q) < self.window - 1:
                 return ma
             ls = list(self.q)
-            ma = sum([d.close for d in ls], data.close) / self.window
+            ma = sum([self.vfunc(d) for d in ls], self.vfunc(data)) / self.window
             return ma
         finally:
-            if data.finish == 1:
+            if finish_v or (finish_v is None and data.finish == 1):
                 self.q.append(data)
                 self.cache.append(ma)
 
@@ -42,23 +44,82 @@ class EMA(T):
     加权平均
     """
 
-    def __init__(self, window=9, max_cache=100):
+    def __init__(self, window=9, max_cache=100, vfunc=lambda x: x.close):
         T.__init__(self, max_cache)
         self.window = window
+        self.vfunc = vfunc
         self.pre_ma = None
         self.alpha = Decimal(2 / (self.window + 1))
 
-    def update(self, data):
+    def update(self, data, finish_v=None):
         ma = None
         try:
             if self.pre_ma is None:
-                ma = data.close
+                ma = self.vfunc(data)
                 return ma
-            ma = self.alpha * data.close + (1 - self.alpha) * self.pre_ma
+            ma = self.alpha * self.vfunc(data) + (1 - self.alpha) * self.pre_ma
+            return ma
+        finally:
+            if finish_v or (finish_v is None and data.finish == 1):
+                self.pre_ma = ma
+                self.cache.append(ma)
+
+
+class WMA(T):
+    """
+    加权移动平均
+    """
+
+    def __init__(self, window=9, max_cache=100, vfunc=lambda x: x.close):
+        T.__init__(self, max_cache)
+        self.window = window
+        self.vfunc = vfunc
+        self.weights = window * (window + 1) // 2
+        self.q = deque(maxlen=window - 1)
+
+    def update(self, data, finish_v=None):
+        ma = None
+        try:
+            if len(self.q) < self.window - 1:
+                return ma
+
+            ls = list(self.q)
+            ls.append(self.vfunc(data))
+            w_sum = 0
+            for i in range(len(ls)):
+                w_sum += (i + 1) * ls[i]
+            ma = w_sum / self.weights
+            return ma
+        finally:
+            if finish_v or (finish_v is None and data.finish == 1):
+                self.q.append(self.vfunc(data))
+                self.cache.append(ma)
+
+
+class HMA(T):
+    """
+    赫尔移动平均线（Hull Moving Average，简称HMA）
+    """
+
+    def __init__(self, window=9, max_cache=100):
+        T.__init__(self, max_cache)
+        self.window = window
+        self.wma1 = WMA(int(window/2))
+        self.wma2 = WMA(window)
+        self.wma3 = WMA(int(math.sqrt(window)), vfunc=lambda x: x)
+
+    def update(self, data, finish_v=None):
+        ma = None
+        try:
+            wma1 = self.wma1.update(data)
+            wma2 = self.wma2.update(data)
+            if wma1 is None or wma2 is None:
+                return ma
+            hma_noo_smooth = (wma1 * 2 - wma2)
+            ma = self.wma3.update(hma_noo_smooth, data.finish == 1)
             return ma
         finally:
             if data.finish == 1:
-                self.pre_ma = ma
                 self.cache.append(ma)
 
 
@@ -119,8 +180,10 @@ class FRAMA(T):
                 return ma
             ls = list(self.q)
             ls.append(data)
-            n1 = 2 * (max([d.high for d in ls[:self.window//2]]) - min([d.low for d in ls[:self.window//2]])) / self.window
-            n2 = 2 * (max([d.high for d in ls[self.window//2:]]) - min([d.low for d in ls[self.window//2:]])) / self.window
+            n1 = 2 * (max([d.high for d in ls[:self.window // 2]]) - min(
+                [d.low for d in ls[:self.window // 2]])) / self.window
+            n2 = 2 * (max([d.high for d in ls[self.window // 2:]]) - min(
+                [d.low for d in ls[self.window // 2:]])) / self.window
             n3 = (max([d.high for d in ls]) - min([d.low for d in ls])) / self.window
             d = (math.log(n1 + n2) - math.log(n3)) / math.log(2)
             a = Decimal(math.exp(-4.6 * (d - 1)))

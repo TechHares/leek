@@ -237,6 +237,7 @@ class TDSequence(T):
 
 class TDSequenceV2(T):
     """
+    http://www.360doc.com/content/23/0612/16/42089417_1084460438.shtml
     一、TD序列的构成
     TD序列包括两部分，一是TD结构，一是TD计数。以下均以下跌买入为例，来说明这两部分，下跌时出现的TD结构，称之为TD买入结构。
     1. TD买入结构是这样形成的：

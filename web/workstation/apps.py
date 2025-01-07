@@ -69,10 +69,13 @@ def up_run_data():
 
 @invoke(interval=10)
 def check_update():
-    v, name, log = new_version()
-    if config.VERSION >= v:
-        return
-    alert(f"新版本: {name} \n\n{log}")
+    try:
+        v, name, log = new_version()
+        if config.VERSION >= v:
+            return
+        alert(f"新版本: {name} \n\n{log}")
+    except BaseException as e:
+        logger.error(f"检查更新失败: {e}")
 
 
 def _scheduler():

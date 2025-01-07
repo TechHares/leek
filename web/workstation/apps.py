@@ -67,13 +67,18 @@ def up_run_data():
     WorkerWorkflow.send_command("marshal")
 
 
-@invoke(interval=2000)
+version_check_cache = {}
+@invoke(interval=1)
 def check_update():
     try:
         v, name, log = new_version()
+        k = f"{v[0]}.{v[1]}.{v[2]}"
         if config.VERSION >= v:
             return
+        if k in version_check_cache and version_check_cache[k] + 3600 * 18 > int(time.time()):
+            return
         alert(f"新版本: {name} \n\n{log}")
+        version_check_cache[k] = int(time.time())
     except BaseException as e:
         logger.error(f"检查更新失败: {e}")
 

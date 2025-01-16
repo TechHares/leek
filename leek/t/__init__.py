@@ -8,6 +8,7 @@
 __all__ = ["TR", "ATR", "RSRS", "SAR", "KDJ", "MA", "EMA", "BollBand", "DK", "LLT", "KAMA", "FRAMA", "StochRSI", "RSI",
            "ChanKManager", "ChanK", "ChanUnion", "ChanBIManager", "ChanBI", "ChanFeature", "ChanSegment",
            "ChanSegmentManager", "BiFXValidMethod", "ChanFX", "ChanDirection", "ChanZSManager", "ChanZS",
+           "SPECIAL_EMA", "SPECIAL_ATR", "SPECIAL_BAND",
            "ChanBSPoint", "ChanFXManager", "MACD", "MERGE", "SuperSmoother", "UltimateOscillator", "Reflex", "TrendFlex",
            "DeMarker", "TDSequence", "TDTrendLine", "DMI", "WMA", "HMA", "IchimokuCloud", "WR", "CCI", "CCIV2"]
 
@@ -32,6 +33,7 @@ from leek.t.sar import SAR
 from leek.t.chan.k import ChanKManager, ChanK, ChanUnion
 from leek.t.chan.bi import ChanBI, ChanBIManager
 from leek.t.chan.seg import ChanFeature, ChanSegment, ChanSegmentManager
+from leek.t.special import SPECIAL_EMA, SPECIAL_ATR, SPECIAL_BAND
 from leek.t.t import MERGE
 from leek.t.wr import WR
 

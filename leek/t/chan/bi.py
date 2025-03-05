@@ -6,9 +6,12 @@
 # @Software: PyCharm
 from typing import List, overload
 
-from leek.common import G, logger
+from scipy.constants import value
+
+from leek.common import G
+from leek.common.utils import DateTime
 from leek.t.chan.comm import ChanUnion, mark_data
-from leek.t.chan.enums import ChanFX, ChanDirection, BiFXValidMethod
+from leek.t.chan.enums import ChanDirection, BiFXValidMethod
 from leek.t.chan.fx import ChanFXManager
 from leek.t.chan.k import ChanK, ChanKManager
 
@@ -38,6 +41,14 @@ class ChanBI(ChanUnion):
         return len(self.chan_k_list) - 1
 
     @property
+    def start_origin_k(self):
+        return self.chan_k_list[1].start_origin_k
+
+    @property
+    def end_origin_k(self):
+        return self.chan_k_list[-2].end_origin_k
+
+    @property
     def start_timestamp(self):
         return self.chan_k_list[1].start_timestamp
 
@@ -61,35 +72,29 @@ class ChanBI(ChanUnion):
                 break
         self.update_peak_value()
 
-    def mark_on_data(self, mark_field=None, mark_start=True, mark_end=True):
-        if mark_field is None:
-            mark_field = "bi" if self.is_finish else "bi_"
+    def mark_on_data(self):
+        mark_field = "bi" if self.is_finish else "bi_"
+        mark_data(self.start_origin_k, mark_field, self.start_value)
+        mark_data(self.end_origin_k, mark_field, self.end_value)
+        mk = self.get_middle_k()
+        mark_data(mk, "bi_value", (self.start_value + self.end_value) / 2)
+        mark_data(mk, "bi_idx", self.idx)
 
-        def find_origin_k(ck: ChanK, value):
-            for k in ck.klines:
-                if ck.is_up and k.high == value:
-                    return k
-                if not ck.is_up and k.low == value:
-                    return k
-            return ck.klines[-1]
-        if len(self.chan_k_list) > 3:
-            fx = ChanFXManager()
-            fx.next(self.chan_k_list[-3])
-            fx.next(self.chan_k_list[-2])
-            fx.next(self.chan_k_list[-1])
-            if fx.fx is not None:
-                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_type", fx.fx.value)
-                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_score", fx.score)
-                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_left_high", fx.left.high)
-                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_left_low", fx.left.low)
-                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_point_high", fx.point.high)
-                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_point_low", fx.point.low)
-                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_right_high", fx.right.high)
-                mark_data(self.chan_k_list[-1].klines[-1], "chan_fx_right_low", fx.point.low)
-        if mark_start:
-            mark_data(find_origin_k(self.chan_k_list[1], self.start_value), mark_field, self.start_value)
-        if mark_end:
-            mark_data(find_origin_k(self.chan_k_list[-2], self.end_value), mark_field, self.end_value)
+    def get_middle_k(self):
+        target_k_num = sum([len(k.klines) for k in self.chan_k_list]) // 2
+        for k in self.chan_k_list:
+            if len(k.klines) > target_k_num:
+                return k.klines[0]
+            target_k_num -= len(k.klines)
+            continue
+
+    def get_k_by_ts(self, ts):
+        if self.start_timestamp > ts or self.end_timestamp < ts:
+            return None
+        for k in self.chan_k_list:
+            if k.start_timestamp <= ts <= k.end_timestamp:
+                return k.klines[0]
+        return None
 
     def add_chan_k(self, chan_k: ChanK):
         if self.chan_k_list[-1].idx < chan_k.idx:
@@ -97,68 +102,39 @@ class ChanBI(ChanUnion):
         else:
             self.chan_k_list[-1] = chan_k
         if self.pre is not None and len(self.chan_k_list) > 5:  # 尝试提前结束前笔
-            if ((self.is_up and max([x.high for x in self.chan_k_list[:3]]) < min([x.low for x in self.chan_k_list[-2:]]))
-                    or (not self.is_up and min([x.low for x in self.chan_k_list[:3]]) < max([x.high for x in self.chan_k_list[-2:]]))):
+            if ((self.is_up and max([x.high for x in self.chan_k_list[:3]]) < min(
+                    [x.low for x in self.chan_k_list[-2:]]))
+                    or (not self.is_up and min([x.low for x in self.chan_k_list[:3]]) < max(
+                        [x.high for x in self.chan_k_list[-2:]]))):
                 self.pre.is_finish = True
         self.update_peak_value()
         # logger.debug(f"笔 {self.idx} - {self.direction.name}, {self.start_value}=>{self.end_value} 添加缠K {chan_k.idx} 当前K列表：{self.k_idx}")
 
-    def can_finish(self, valid_method: BiFXValidMethod = BiFXValidMethod.NORMAL) -> bool:
+    def can_finish(self) -> bool:
         """
         判断笔是否可以算走完
-        :param valid_method: 校验方法
         :return:
         """
-        if self.chan_k_list[1].is_included(self.chan_k_list[-2]):  # k线包含关系
+        # 1、顶分型与底分型经过包含处理后，不允许共用 K 线，也就是不能有一 K 线分别属于顶分型与底分型，
+        #    这条件和原来是一样的，这一点绝对不能放松，因为这样，才能保证足够的能量力度；
+        if len(self.chan_k_list) < 6:  # 必须有趋势K
+            return False
+        # 2、在满足 1 的前提下，顶分型中最高 K 线和底分型的最低 K 线之间（不包括这两 K 线）
+        #    ，不考虑包含关系，至少有 3 根（包括 3 根）以上 K 线。
+        start_left, start, start_right = self.__start_fx()
+        end_left, end, end_right = self.__end_fx()
+        if len(self.chan_k_list) == 6 and len(start_right.klines) + len(end_left.klines) < 3:
             return False
 
-        if len(self.chan_k_list) < 6 or (len(self.chan_k_list) == 6 and valid_method != BiFXValidMethod.LOSS):  # 除宽松之外必须有趋势K
+        if start.is_included(end) or end.is_included(start):  # 分型顶点k线包含关系
             return False
 
+        # 额外加的条件更符合直觉， 保证力度， 极点成笔
+        high = max([x.high for x in self.chan_k_list])
+        low = min([x.low for x in self.chan_k_list])
         if self.is_up:
-            return self.__can_finish_up(valid_method)
-        return self.__can_finish_down(valid_method)
-
-    def __can_finish_down(self, valid_method):
-        assert not self.is_up
-        start_left, start, start_right = self.__start_fx()  # 顶
-        end_left, end, end_right = self.__end_fx()  # 底
-
-        if valid_method == BiFXValidMethod.NORMAL:  # 顶分型的最高点比底分型中间元素高点还高
-            return start.high > end.high
-
-        if valid_method == BiFXValidMethod.HALF:  # 前两元素高低点限制
-            return start.high > min(end_left.high, end.high) and max(start_right.low, start.low) > end.low
-
-        if valid_method == BiFXValidMethod.STRICT:  # 三元素高低点限制
-            return start.high > min(end_left.high, end.high, end_right.high) \
-                   and max(start_left.low, start.low, start_right.low) > end.low
-
-        if valid_method == BiFXValidMethod.TOTALLY:  # 顶分型3元素的最低点必须比底分型三元素的最高点还高
-            return max(start_left.low, start.low, start_right.low) > min(end_left.high, end.high, end_right.high)
-
-        #  LOSS 分型成立且不违背方向
-        return end.low < start.high
-
-    def __can_finish_up(self, valid_method):
-        assert self.is_up
-        start_left, start, start_right = self.__start_fx()  # 底
-        end_left, end, end_right = self.__end_fx()  # 顶
-        if valid_method == BiFXValidMethod.NORMAL:  # 底分型的最低点比顶分型中间元素低点还低
-            return start.low < end.low
-
-        if valid_method == BiFXValidMethod.HALF:  # 前两元素高低点限制
-            return start.low < min(end_left.low, end.low) and max(start_right.high, start.high) < end.high
-
-        if valid_method == BiFXValidMethod.STRICT:  # 三元素高低点限制
-            return start.low < min(end_left.low, end.low, end_right.low) \
-                   and max(start_left.high, start.high, start_right.high) < end.high
-
-        if valid_method == BiFXValidMethod.TOTALLY:  # 底分型3元素的最高点必须必顶分型三元素的最低点还低
-            return max(start_left.high, start.high, start_right.high) < min(end_left.low, end.low, end_right.low)
-
-        #  LOSS 分型成立且不违背方向
-        return end.high > start.low
+            return high == end.high and max(start_left.high, start.high, start_right.high) < max(end_left.high, end.high, end_right.high)
+        return low == end.low and max(start_left.high, start.high, start_right.high) > max(end_left.high, end.high, end_right.high)
 
     def __end_fx(self):
         return self.chan_k_list[-3], self.chan_k_list[-2], self.chan_k_list[-1]
@@ -182,12 +158,10 @@ class ChanBIManager:
     Bi 管理
     """
 
-    def __init__(self, just_included: bool = False, exclude_equal: bool = False,
-                 bi_valid_method: BiFXValidMethod = BiFXValidMethod.NORMAL):
-        self.__chan_k_manager = ChanKManager(just_included, exclude_equal)
+    def __init__(self, exclude_equal: bool = False):
+        self.__chan_k_manager = ChanKManager(exclude_equal)
         self.__fx_manager = ChanFXManager()
 
-        self.bi_valid_method = bi_valid_method
         self.__chan_bi_list: List[ChanBI] = []  # 笔列表
 
     @overload
@@ -210,7 +184,7 @@ class ChanBIManager:
     def is_empty(self):
         return len(self) == 0
 
-    def update(self, k: G):
+    def update(self, k: G) -> ChanBI | None:
         """
         处理K线数据
         :param k: K线数据
@@ -225,15 +199,17 @@ class ChanBIManager:
             self.create_bi(fx)
 
         elif self[-1].direction.is_up:  # 向上笔
-            if fx.is_top and self[-1].can_finish(self.bi_valid_method):  # 出现顶分型
+            if fx.is_top and self[-1].can_finish():  # 出现顶分型
                 self.create_bi(fx)
             if fx.is_bottom and self[-1].can_extend(self.__fx_manager.peak_value):  # 底分型
                 self.try_extend_bi()
         elif self[-1].direction.is_down:  # 向下笔
-            if fx.is_bottom and self[-1].can_finish(self.bi_valid_method):  # 底分型
+            if fx.is_bottom and self[-1].can_finish():  # 底分型
                 self.create_bi(fx)
             if fx.is_top and self[-1].can_extend(self.__fx_manager.peak_value):  # 出现顶分型
                 self.try_extend_bi()
+        if not self.is_empty():
+            return self[-1]
 
     def try_extend_bi(self):
         """

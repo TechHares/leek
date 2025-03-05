@@ -313,7 +313,10 @@ class DynamicRiskControl(Filter):
 
         return needle > 3 * abs(market_data.open - market_data.close)
 
-
+"""
+三参数出场策略 止损 目标 预留百分比
+突破目标之后将出场价格放到 （最高价 - 止损价格） * 预留百分比， 更新方式采用ST方式
+"""
 PRE_STRATEGY_LIST = [SymbolsFilter, SymbolFilter, StopLoss, TakeProfit, FallbackTakeProfit]
 if __name__ == '__main__':
     pass

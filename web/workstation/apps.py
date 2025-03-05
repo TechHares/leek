@@ -68,7 +68,7 @@ def up_run_data():
 
 
 version_check_cache = {}
-@invoke(interval=1)
+@invoke(interval=2000)
 def check_update():
     try:
         v, name, log = new_version()

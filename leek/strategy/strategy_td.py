@@ -175,7 +175,6 @@ class TDSeqStrategy(PositionDirectionManager, PositionRateManager, BaseStrategy)
 
     def handle(self):
         td = self._calculate()
-        # todo 画图debug
         self.market_data.countdown = td.countdown
         if self.have_position():
             if self._stop_loss():

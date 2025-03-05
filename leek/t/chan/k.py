@@ -4,8 +4,6 @@
 # @Author  : shenglin.li
 # @File    : k.py
 # @Software: PyCharm
-from abc import ABC
-from ctypes import Union
 from typing import List, overload
 
 from leek.common import G
@@ -39,6 +37,14 @@ class ChanK(ChanUnion):
     @property
     def size(self):
         return len(self.klines)
+
+    @property
+    def start_origin_k(self):
+        return self.klines[0]
+
+    @property
+    def end_origin_k(self):
+        return self.klines[-1]
 
     @property
     def start_timestamp(self):
@@ -84,8 +90,8 @@ class ChanKManager:
     "禅K" 管理器
     """
 
-    def __init__(self, just_included: bool = False, exclude_equal: bool = False):
-        self.merger = Merger(just_included, exclude_equal)
+    def __init__(self, exclude_equal: bool = False):
+        self.merger = Merger(False, exclude_equal)
 
         self.__idx = 0
         self.__chan_k_list: List[ChanK] = []

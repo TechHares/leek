@@ -32,6 +32,7 @@ from leek.t.sar import SAR
 from leek.t.chan.k import ChanKManager, ChanK, ChanUnion
 from leek.t.chan.bi import ChanBI, ChanBIManager
 from leek.t.chan.seg import ChanFeature, ChanSegment, ChanSegmentManager
+from leek.t.chan.chan import Chan
 from leek.t.t import MERGE
 from leek.t.wr import WR
 

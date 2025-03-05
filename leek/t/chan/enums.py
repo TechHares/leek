@@ -22,6 +22,9 @@ class ChanDirection(Enum):
     def is_down(self):
         return self == ChanDirection.DOWN
 
+    def reverse(self):
+        return ChanDirection.UP if self.is_down else ChanDirection.DOWN
+
 
 class ChanFX(Enum):
     """

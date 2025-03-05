@@ -6,13 +6,13 @@
 # @Software: PyCharm
 from typing import List, overload
 
-from leek.common import G, logger
+from rich.segment import Segment
+
+from leek.common import logger, G
 from leek.t.chan.bi import ChanBI, ChanBIManager
 from leek.t.chan.comm import ChanUnion, Merger, mark_data
-from leek.t.chan.enums import ChanFX
+from leek.t.chan.enums import ChanFX, BiFXValidMethod
 from leek.t.chan.fx import ChanFXManager
-from leek.t.chan.k import ChanK
-from update import update
 
 
 class ChanFeature(ChanUnion):
@@ -21,13 +21,14 @@ class ChanFeature(ChanUnion):
     """
 
     def __init__(self, bi: ChanBI):
-        super().__init__(direction=bi.direction, high=bi.high, low=bi.low, is_finish=bi.is_finish)
+        super().__init__(direction=bi.direction.reverse(), high=bi.high, low=bi.low, is_finish=bi.is_finish)
         self.idx = bi.idx
         self.bi_list = [bi]
 
     @property
     def size(self):
         return len(self.bi_list)
+
     @property
     def start_timestamp(self):
         return self.bi_list[0].start_timestamp
@@ -58,17 +59,45 @@ class ChanSegment(ChanUnion):
         super().__init__(direction=first_bi.direction, high=first_bi.high, low=first_bi.low)
 
         self.bi_list = [first_bi]
+
         self.peak_point = first_bi
-        self.be_break = False
+        self.left_feature = None
+        self.middle_feature = None
+        self.right_feature = None
+        self.gap = None
+
         for bi in bi_list[1:]:
             self.add_bi(bi)
 
     def mark_on_data(self):
         mark_field = "seg" if self.is_finish else "seg_"
-        self.bi_list[0].mark_on_data(mark_field, True, False)
-        self.bi_list[-1].mark_on_data(mark_field, False, True)
+        mark_data(self.bi_list[0].start_origin_k, mark_field, self.bi_list[0].start_value)
+        mark_data(self.bi_list[-1].end_origin_k, mark_field, self.bi_list[-1].end_value)
         if not self.is_finish:
-            self.peak_point.mark_on_data("seg_", False, True)
+            mark_data(self.peak_point.end_origin_k, mark_field, self.bi_list[-1].end_value)
+        mk = self.get_middle_k()
+        mark_data(mk, "seg_value", (self.start_value + self.end_value) / 2)
+        mark_data(mk, "seg_idx", self.idx)
+
+    @property
+    def start_origin_k(self):
+        return self.bi_list[0].start_origin_k
+
+    @property
+    def end_origin_k(self):
+        return self.bi_list[-1].end_origin_k
+
+    def get_middle_k(self):
+        """
+        获取线段中间K
+        :return:
+        """
+        ts = (self.end_timestamp + self.start_timestamp) // 2
+        for bi in self.bi_list:
+            k = bi.get_k_by_ts(ts)
+            if k is not None:
+                return k
+        return None
 
     def _merge(self, other: 'ChanUnion'):
         assert isinstance(other, ChanSegment)
@@ -89,26 +118,45 @@ class ChanSegment(ChanUnion):
     def end_timestamp(self):
         return self.bi_list[-1].end_timestamp
 
+    @property
+    def start_value(self):
+        return self.bi_list[0].start_value
+
+    @property
+    def end_value(self):
+        return self.bi_list[-1].end_value
+
     def is_satisfy(self):
-        return len(self.bi_list) >= 3
+        # 前三笔必须有重叠
+        return len(self.bi_list) >= 3 and (self.is_up and self.bi_list[2].high > self.bi_list[0].low
+                                           or not self.is_up and self.bi_list[2].low < self.bi_list[0].high)
 
     def is_break(self):
         """
         判断线段是否被破坏
         :return:
         """
-        bi = self.bi_list[-1]
-        if bi.direction == self.direction:
+        if self.left_feature is None or self.middle_feature is None or self.right_feature is None:
             return False
-        if self.be_break:
-            return True
-        pre = self.bi_list[-2]
 
-        self.be_break = bi.low < pre.low if self.is_up else bi.high > pre.high
-        # logger.debug(f"线段: {self.idx} 笔列表: {[bi.idx for bi in self.bi_list]} {self.peak_point.idx}, 是否被{bi.idx}"
-        #              f"[{bi.start_value}, {bi.end_value}]破坏: "
-        #              f"{self.be_break}")
-        return self.be_break
+        self.gap = (self.is_up and self.left_feature.high < self.middle_feature.low
+               or not self.is_up and self.left_feature.low > self.middle_feature.high)
+
+        if not self.gap:
+            return True
+        return self.gap_break()
+
+    def gap_break(self):
+        """
+        存在缺口的情况下是否被破坏
+        :return:
+        """
+        fb = [bi for bi in self.bi_list if bi.idx > self.peak_point.idx]
+        if len(fb) == 0:
+            return False
+        self.next = ChanSegment(fb)
+        self.next.pre = self
+        return self.next.is_satisfy() and self.next.right_feature is not None
 
     def add_bi(self, bi: ChanBI):
         """
@@ -121,16 +169,87 @@ class ChanSegment(ChanUnion):
         if self.bi_list[-1].idx == bi.idx:
             self.bi_list[-1] = bi
 
-        if self.direction != bi.direction:
-            # 兼容发生笔延伸
-            if len(self.bi_list) > 2:
-                self.update_peak_point(self.bi_list[-2])
+        self.update_peak_value()
+        if len(bi.chan_k_list) < 6: # 确保笔不会被前一笔延伸
             return
-        self.update_peak_point(bi)
 
-    def update_peak_point(self, bi: ChanBI):
-        if (self.is_up and bi.high > self.peak_point.high) or (not self.is_up and bi.low < self.peak_point.low):
-            self.peak_point = bi
+        self.update_feature()
+
+    def update_peak_value(self):
+        """
+        更新极值 信息
+        """
+        self.high = max([x.high for x in self.bi_list])
+        self.low = min([x.low for x in self.bi_list])
+
+        if len(self.bi_list) < 2:
+            return
+        pre_peak_point = self.peak_point
+        if self.is_up: # 向上线段
+            if self.bi_list[-1].direction.is_up: # 最后一笔是向上笔
+                self.peak_point = max(self.peak_point, self.bi_list[-1], key=lambda x: x.high)
+            else: # 最后一笔是向上笔
+                self.peak_point = max(self.peak_point, self.bi_list[-2], key=lambda x: x.high)
+        else: # 向下线段
+            if self.bi_list[-1].direction.is_up: # 最后一笔是向上笔
+                self.peak_point = min(self.peak_point, self.bi_list[-2], key=lambda x: x.low)
+            else: # 最后一笔是向上笔
+                self.peak_point = min(self.peak_point, self.bi_list[-1], key=lambda x: x.low)
+
+        if pre_peak_point != self.peak_point:
+            self.middle_feature = None
+            self.right_feature = None
+            self.update_left_feature()
+
+
+    def update_left_feature(self):
+        """
+        更新左侧特征分型
+        :return:
+        """
+        if len(self.bi_list) < 3:
+            return
+
+        fb = [bi for bi in self.bi_list if bi.direction != self.direction and bi.idx < self.peak_point.idx]
+        if len(fb) == 0:
+            return
+        fb.reverse()
+        self.left_feature = ChanFeature(fb[0])
+        fb = fb[1:]
+        for bi in fb:
+            feature = ChanFeature(bi)
+            if feature.is_included(self.left_feature, True):
+                feature.merge(self.left_feature)
+                self.left_feature = feature
+            else:
+                break
+
+    def update_feature(self):
+        """
+        更新顶点和右侧特征分型
+        :return:
+        """
+        if self.left_feature is None:
+            return
+        fb = [bi for bi in self.bi_list if bi.direction != self.direction and bi.idx > self.peak_point.idx]
+        if len(fb) == 0 or self.right_feature is not None and self.right_feature.bi_list[-1].idx < fb[-1].idx: # 不影响分型的情况下取消计算
+            return
+        features = []
+        for bi in fb:
+            feature = ChanFeature(bi)
+            feature.direction = self.direction
+            if len(features) > 0 and features[-1].is_included(feature, True):
+                features[-1].merge(feature)
+            else:
+                features.append(feature)
+            if len(features) == 3:
+                break
+        if len(features) >= 2:
+            self.middle_feature = features[0]
+            self.right_feature = features[1]
+        else:
+            self.middle_feature = None
+            self.right_feature = None
 
     def finish(self):
         """
@@ -143,8 +262,13 @@ class ChanSegment(ChanUnion):
             self.is_finish = False
             self.bi_list = tmp
             return []
+        # 重新更新高低点
+        self.high = max([x.high for x in self.bi_list])
+        self.low = min([x.low for x in self.bi_list])
         self.is_finish = True
-        return [bi for bi in tmp if bi.idx > self.peak_point.idx]
+        if self.gap:
+            return self.next, self.next.finish()[1]
+        return None, [bi for bi in tmp if bi.idx > self.peak_point.idx]
 
 
 class ChanSegmentManager:
@@ -152,8 +276,11 @@ class ChanSegmentManager:
     线段 管理
     """
 
-    def __init__(self):
+    def __init__(self, exclude_equal: bool = False):
         self.__seg_list: List[ChanSegment] = []
+        self.bi_manager = ChanBIManager(exclude_equal)
+
+        self.tmp_bi_list = [] # 用于未确认段起始点存放临时的笔
 
     @overload
     def __getitem__(self, index: int) -> ChanSegment:
@@ -172,103 +299,91 @@ class ChanSegmentManager:
     def __iter__(self):
         return iter(self.__seg_list)
 
-    def create_seg(self, bi: ChanBI | List[ChanBI]):
+    def is_empty(self):
+        return len(self) == 0
+
+    def create_seg(self, bi: ChanSegment | ChanBI | List[ChanBI]):
         """
         创建线段
         :param bi:
         :return:
         """
-        self.__seg_list.append(ChanSegment([bi] if isinstance(bi, ChanBI) else bi))
-        if len(self) >= 2:
-            self[-1].next = self[-2]
+        if isinstance(bi, ChanSegment):
+            self.__seg_list.append(bi)
+        else:
+            self.__seg_list.append(ChanSegment([bi] if isinstance(bi, ChanBI) else bi))
+        if len(self) > 1:
+            self[-1].pre = self[-2]
             self[-2].next = self[-1]
             self[-1].idx = self[-2].idx + 1
 
-    def update(self, bi: ChanBI):
+
+    def update(self, k: G):
+        """
+        计算线段
+        :param k: K线
+        :return:
+        """
+        bi = self.bi_manager.update(k)
+        if bi:
+            self.update_bi(bi)
+
+    def update_bi(self, bi: ChanBI):
         """
         计算线段
         :param bi: 笔
         :return:
         """
-        if len(self) == 0 or self[-1].is_finish:
+        if len(self) == 0 :
+            self.try_confirm_first_seg(bi)
+        elif self[-1].is_finish:
             self.create_seg(bi)
         else:
             self[-1].add_bi(bi)
-        self.try_confirm_first_seg()
-        if self[-1].is_break():  # 线段被破坏
-            self.calculate_seg()
+            if self[-1].is_break():  # 线段被破坏
+                next_seg, next_bi_list = self[-1].finish()
+                if next_seg:
+                    self.create_seg(next_seg)
+                for bi in next_bi_list:
+                    self.update_bi(bi)
+        if len(self) >= 1:
+            return self[-1]
 
-    def try_confirm_first_seg(self):
-        if len(self) != 1:  # 再次确认只有一段
-            return
-
-        seg_direction = self[-1].direction  # 线段方向
-        bi_list = self[-1].bi_list
-        if len(bi_list) < 3 or any([not b.is_finish for b in bi_list[:3]]):
-            return
-        # 第一段反复破的线段 无法确认 舍弃
-        if seg_direction.is_up:
-            if bi_list[2].high < bi_list[1].high:
-                self.reset_start()
+    def try_confirm_first_seg(self, bi: ChanBI):
+        if len(self.tmp_bi_list) == 0 or self.tmp_bi_list[-1].idx < bi.idx:
+            self.tmp_bi_list.append(bi)
         else:
-            if bi_list[2].low > bi_list[1].low:
-                self.reset_start()
+            self.tmp_bi_list[-1] = bi
 
+        if len(self.tmp_bi_list) < 10:
+            return
+        if self.tmp_bi_list[0].direction.is_up:
+            high_bi = max(self.tmp_bi_list, key=lambda x: x.end_value)
+            high_bi_idx = self.tmp_bi_list.index(high_bi) + 1
+            low_bi = min(self.tmp_bi_list, key=lambda x: x.start_value)
+            low_bi_idx = self.tmp_bi_list.index(low_bi)
+        else:
+            high_bi = max(self.tmp_bi_list, key=lambda x: x.start_value)
+            high_bi_idx = self.tmp_bi_list.index(high_bi)
+            low_bi = min(self.tmp_bi_list, key=lambda x: x.end_value)
+            low_bi_idx = self.tmp_bi_list.index(low_bi) + 1
+
+        idx = min(high_bi_idx, low_bi_idx) # 出现在同一笔内 向后取  否则取先比
+        if abs(high_bi_idx - low_bi_idx) == 1:
+            idx = max(high_bi_idx, low_bi_idx)
+        if idx + 5 > len(self.tmp_bi_list): # 后面至少空余5笔
+            return
+        self.create_seg(self.tmp_bi_list[idx])
+        for bi in self.tmp_bi_list[idx + 1:]:
+            self.update_bi(bi)
+        self.tmp_bi_list = None
 
     def reset_start(self):
         bi_list = self[-1].bi_list
         self.__seg_list = []
         for bi in bi_list[1:]:
-            self.update(bi)
+            self.update_bi(bi)
 
-    def calculate_seg(self):
-        """
-        计算线段
-        :return:
-        """
-        bi_list = self[-1].bi_list
-        if not self[-1].is_satisfy():
-            assert self[-1].pre is None
-            self.reset_start()
-            return
-
-        seg_direction = self[-1].direction  # 线段方向
-        end_fx = ChanFX.TOP if seg_direction.is_up else ChanFX.BOTTOM  # 结束该线段的分型条件
-        features = [ChanFeature(bi) for bi in bi_list if bi.direction != seg_direction]  # 反向笔形成特征
-        point_idx = self[-1].peak_point.idx
-        fx = self.find_fx(features, end_fx, point_idx + 1)
-        if fx is None:
-            return
-
-        logger.debug(f"{self[-1].idx}找到分型，特征列表: {[str(f) for f in features]}, 找到: {end_fx}")
-        if fx.gap:  # 有缺口
-            if self.find_fx([ChanFeature(bi) for bi in bi_list if bi.direction == seg_direction and bi.idx >= point_idx],
-                            end_fx.reverse, 0) is None:
-                return
-        next_bi_list = self[-1].finish()
-        for bi in next_bi_list:
-            self.update(bi)
-
-    def find_fx(self, feature_list: List[ChanFeature], fx: ChanFX, point_idx):
-        if len(feature_list) < 3:
-            return None
-        # logger.debug(f"{self[-1].idx}特征列表: {[str(f) for f in feature_list]}, {point_idx}, 寻找分型: {fx.name}")
-        fx_manager = ChanFXManager()
-        pre = feature_list[0]
-        fx_manager.next(pre)
-        for cur in feature_list[1:]:
-
-            # 特征合并
-            merger = Merger(just_included=cur.idx <= point_idx)
-            pre.link_next(cur)
-            if merger.can_merge(pre, cur):
-                pre.merge(cur)
-                cur = pre
-
-            # 判断分型
-            # if fx_manager.next(cur) == fx and (fx_manager.point.idx == point_idx or point_idx == 0):
-            if fx_manager.next(cur) == fx:
-                return fx_manager
 
 
 if __name__ == '__main__':

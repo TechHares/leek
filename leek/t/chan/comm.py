@@ -32,6 +32,14 @@ class ChanUnion(metaclass=abc.ABCMeta):
         self.zs = None  # 所属中枢
 
     @property
+    def start_origin_k(self):
+        raise NotImplementedError()
+
+    @property
+    def end_origin_k(self):
+        raise NotImplementedError()
+
+    @property
     def start_value(self):
         return self.low if self.is_up else self.high
 

@@ -231,7 +231,7 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
 
         self.rsi = StochRSI()
         self.dq = BiasRatio(int(window))
-        self.running = True # 是否运行
+        self.running = start_condition is None or start_condition.strip() == "" # 是否运行
         self.bias_ratio = None
         self.k = None
         self.d = None

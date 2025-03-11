@@ -160,6 +160,11 @@ class StrategyConfig(models.Model):
     max_price = models.DecimalField(u'网格上界', max_digits=36, decimal_places=18, default="0")
     grid = models.IntegerField(u'网格个数', default="10")
     risk_rate = models.DecimalField(u'风控系数', max_digits=36, decimal_places=6, default="0.1")
+    force_risk_rate = models.DecimalField(u'强制风控系数', max_digits=36, decimal_places=6, default="0.2")
+    bias_risk_rate = models.DecimalField(u'乖离率反转比例', max_digits=36, decimal_places=6, default="0.2")
+    position_split = models.CharField(u'仓位划分', max_length=500, default="1,2,3")
+    start_condition = models.CharField(u'开始条件', max_length=500, default="", blank=True)
+    stop_condition = models.CharField(u'停止条件', max_length=500, default="", blank=True)
     DIRECTION_CHOICE = (
         (1, u"多"),
         (2, u"空"),

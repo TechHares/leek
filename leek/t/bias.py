@@ -16,7 +16,7 @@ class BiasRatio(T):
     def __init__(self, window=10, max_cache=100):
         T.__init__(self, max_cache)
         self.window = window
-        self.ma = MA(window, max_cache)
+        self.ma = MA(window=window, max_cache=max_cache)
 
     def update(self, data):
         br = None

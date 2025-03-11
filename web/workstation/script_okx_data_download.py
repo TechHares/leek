@@ -115,7 +115,7 @@ def get_data(symbol, interval, start_ts, n, t=5, bar=None):
         return candlesticks["data"]
     except Exception as e:
         if t > 0:
-            time.sleep(0.5)
+            time.sleep(0.3)
             return get_data(symbol, interval, start_ts, n, t - 1)
         else:
             raise e

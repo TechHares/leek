@@ -405,12 +405,24 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
         self.sub_position(target_gird)
 
     def marshal(self):
-        # todo 序列化
-        ...
+        d = super().marshal()
+        d["cur_position"] = "%s" % self.cur_position
+        d["running"] = self.running
+        g = {}
+        for k in self.g_map:
+            g[k] = self.g_map[k].limit
+        d["g_map"] = g
+        return d
 
     def unmarshal(self, data):
-        # todo 反序列化
-        ...
+        super().unmarshal(data)
+        if "running" in data:
+            self.running = data["running"]
+        if "cur_position" in data:
+            self.cur_position = int(data["cur_position"])
+        if "g_map" in data:
+            for k, v in data["g_map"].items():
+                self.get_g(k).limit = int(v) if v else 0
 
 if __name__ == '__main__':
     from leek.common import G

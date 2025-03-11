@@ -37,7 +37,7 @@ class WorkerWorkflow(SimpleWorkflow):
         config.LOGGER_NAME = self.cfg_strategy["name"]
         load_config()
         super()._init_config()
-        if "run_data" in self.cfg_strategy and len(self.cfg_strategy["run_data"]) > 0:
+        if "run_data" in self.cfg_strategy and self.cfg_strategy["run_data"] is not None and len(self.cfg_strategy["run_data"]) > 0:
             try:
                 self.strategy.unmarshal(self.cfg_strategy["run_data"])
             except Exception as e:

@@ -286,6 +286,8 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
             if rate <= 0:
                 return
             logger.info(f"减仓：网格数{self.cur_position}/{len(self.position_split)} 目标：{target_gird} 当前价格{self.market_data.close} 应持仓层数{target_gird}")
+            if self.g.limit is None:
+                self.g.limit = 0
             self.g.limit += 1
             if self.g.limit >= self.limit_threshold and self.is_profitable():
                 logger.info(f"减仓：网格数{self.cur_position}/{len(self.position_split)} 目标：{target_gird}"

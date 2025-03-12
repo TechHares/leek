@@ -443,7 +443,8 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
             target_gird = max(int(decimal_quantize(r, 0, 1)), 0)
 
         self.add_position(target_gird)
-        self.sub_position(target_gird)
+        if self.have_position():
+            self.sub_position(target_gird)
 
     def marshal(self):
         d = super().marshal()

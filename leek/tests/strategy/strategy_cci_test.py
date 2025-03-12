@@ -44,10 +44,10 @@ class TestCCI(unittest.TestCase):
     def test_handle2(self):
         self.strategy = CCIV2Strategy()
         # workflow = ViewWorkflow(self.strategy, "5m", "2024-12-21 00:00", "2024-12-25 19:30", "CRV-USDT-SWAP")
-        workflow = ViewWorkflow(self.strategy, "5m", "2024-12-01 00:00", "2024-12-20 10:30", "CRV-USDT-SWAP")
+        workflow = ViewWorkflow(self.strategy, "5m", "2025-03-07 00:00", "2025-03-20 10:30", "CRV-USDT-SWAP")
         PositionRateManager.__init__(self.strategy, "1")
         PositionDirectionManager.__init__(self.strategy, 4)
-        DynamicRiskControl.__init__(self.strategy, window=14, atr_coefficient="2.5", stop_loss_rate="0.02")
+        DynamicRiskControl.__init__(self.strategy, window=14, atr_coefficient="2", stop_loss_rate="0.02")
         JustFinishKData.__init__(self.strategy, True)
         workflow.start()
         df = pd.DataFrame([x.__json__() for x in workflow.kline_data_g])
@@ -57,6 +57,7 @@ class TestCCI(unittest.TestCase):
 
         fig.add_trace(go.Scatter(x=df['Datetime'], y=[0] * len(df["Datetime"]), mode='lines', name='adx_threshold'), row=2, col=1)
         fig.add_trace(go.Scatter(x=df['Datetime'], y=df['cci'], mode='lines', line=dict(color='red', width=1), name='CCI'), row=2, col=1)
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['cci_ma'], mode='lines', line=dict(color='gray', width=1), name='CCIMA'), row=2, col=1)
 
         fig.add_trace(go.Scatter(x=df['Datetime'], y=df['dif'], mode='lines', name='dif'), row=3, col=1)
         fig.add_trace(go.Scatter(x=df['Datetime'], y=df['dea'], mode='lines', name='dea'), row=3, col=1)

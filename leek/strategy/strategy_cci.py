@@ -91,6 +91,7 @@ class CCIV2Strategy(PositionDirectionManager, PositionRateManager, DynamicRiskCo
 
         self.over_sell = int(over_sell)
         self.over_buy = int(over_buy)
+        self.ma = MA(3, lambda x: x)
 
     def data_init_params(self, market_data):
         return {
@@ -109,7 +110,10 @@ class CCIV2Strategy(PositionDirectionManager, PositionRateManager, DynamicRiskCo
         last = self.cci.last(1)
         if len(last) > 0:
             data.pre_cci = last[-1]
+
         data.cci = self.cci.update(data)
+        data.cci_ma = self.ma.update(data.cci, finish_v=data.finish == 1)
+        # data.cci = self.cci.update(data)
         if data.dif is None or data.dea is None:
             return
         data.m = data.dif - data.dea
@@ -124,21 +128,21 @@ class CCIV2Strategy(PositionDirectionManager, PositionRateManager, DynamicRiskCo
             if self.g.time == k.timestamp:
                 return
             if self.is_long_position():  # 多
-                if k.m < 0 or k.cci < 0:
+                if (k.m < 0 and k.dea < 0) or k.cci < 0:
                     self.g.time = k.timestamp
                     self.close_position()
             else:
-                if k.m > 0 or k.cci > 0:
+                if (k.m > 0 and k.dea > 0) or k.cci > 0:
                     self.g.time = k.timestamp
                     self.close_position()
         else:
             if self.g.time == k.timestamp:
                 return
-            if k.m > 0 and self.can_long():  # 多
+            if (k.m > 0 and k.dea > 0) and self.can_long():  # 多
                 if k.cci > self.over_buy > k.pre_cci:
                     self.g.time = k.timestamp
                     self.create_order(PositionSide.LONG, self.max_single_position)
-            if k.m < 0 and self.can_short():  # 空
+            if (k.m < 0 and k.dea < 0) and self.can_short():  # 空
                 if k.cci < self.over_sell < k.pre_cci:
                     self.g.time = k.timestamp
                     self.create_order(PositionSide.SHORT, self.max_single_position)

@@ -261,26 +261,35 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
         logger.debug(f"计算数据: k={self.k} d={self.d} pre_add={self.pre_is_add} bias_ratio={self.bias_ratio} data={k}")
 
     def _calc_rate(self, _to_grid) -> Decimal:
-        _to_grid = min(max(_to_grid, 0), len(self.position_split))
+        origin_rate = None
+        try:
+            _to_grid = min(max(_to_grid, 0), len(self.position_split))
 
-        # 记录超过最大结余仓位
-        if self.g.remaining is None:
-            self.g.remaining = 0
+            # 记录超过最大结余仓位
+            if self.g.remaining is None or self.cur_position == _to_grid:
+                self.g.remaining = 0
 
-        origin_rate = decimal_quantize(sum(self.position_split[min(self.cur_position, _to_grid): max(self.cur_position, _to_grid)]), 2, 2)
-        if origin_rate > self.max_single_position:
-            # 记录结余
-            self.g.remaining += (origin_rate - self.max_single_position)
-            return self.max_single_position
+            origin_rate = decimal_quantize(sum(self.position_split[min(self.cur_position, _to_grid): max(self.cur_position, _to_grid)]), 2, 2)
+            # 减仓
+            if self.cur_position > _to_grid:
+                origin_rate -= (1 - Decimal(_to_grid / self.cur_position)) * self.g.remaining
+                return origin_rate
 
-        if self.g.remaining > 0:  # 使用结余填充
-            closing = self.g.remaining / 4 if self.g.remaining > (self.max_single_position / 10) else self.g.remaining
-            origin_rate += closing
-            self.g.remaining -= closing
             if origin_rate > self.max_single_position:
-                self.g.remaining += origin_rate - self.max_single_position
-                origin_rate = self.max_single_position
-        return origin_rate
+                # 记录结余
+                self.g.remaining += (origin_rate - self.max_single_position)
+                return self.max_single_position
+
+            if self.g.remaining > 0:  # 使用结余填充
+                closing = self.g.remaining / 4 if self.g.remaining > (self.max_single_position / 10) else self.g.remaining
+                origin_rate += closing
+                self.g.remaining -= closing
+                if origin_rate > self.max_single_position:
+                    self.g.remaining += origin_rate - self.max_single_position
+                    origin_rate = self.max_single_position
+            return origin_rate
+        finally:
+            logger.debug(f"仓位计算：{self.cur_position} -> {_to_grid} 仓位比例：{origin_rate}  max={self.max_single_position} remaining={self.g.remaining}")
 
     def add_position(self, target_gird):
         if self.can(self.side):

@@ -269,7 +269,8 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
             if self.g.remaining is None or self.cur_position == _to_grid:
                 self.g.remaining = 0
 
-            origin_rate = decimal_quantize(sum(self.position_split[min(self.cur_position, _to_grid): max(self.cur_position, _to_grid)]), 2, 2)
+            origin_rate = decimal_quantize(
+                sum(self.position_split[min(self.cur_position, _to_grid): max(self.cur_position, _to_grid)]), 2, 2)
             # 减仓
             if self.cur_position > _to_grid:
                 origin_rate -= (1 - Decimal(_to_grid / self.cur_position)) * self.g.remaining
@@ -281,7 +282,8 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
                 return self.max_single_position
 
             if self.g.remaining > 0:  # 使用结余填充
-                closing = self.g.remaining / 4 if self.g.remaining > (self.max_single_position / 10) else self.g.remaining
+                closing = self.g.remaining / 4 if self.g.remaining > (
+                            self.max_single_position / 10) else self.g.remaining
                 origin_rate += closing
                 self.g.remaining -= closing
                 if origin_rate > self.max_single_position:
@@ -289,7 +291,8 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
                     origin_rate = self.max_single_position
             return origin_rate
         finally:
-            logger.debug(f"仓位计算：{self.cur_position} -> {_to_grid} 仓位比例：{origin_rate}  max={self.max_single_position} remaining={self.g.remaining}")
+            logger.debug(
+                f"仓位计算：{self.cur_position} -> {_to_grid} 仓位比例：{origin_rate}  max={self.max_single_position} remaining={self.g.remaining}")
 
     def add_position(self, target_gird):
         if self.can(self.side):

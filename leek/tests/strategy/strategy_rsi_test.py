@@ -52,7 +52,7 @@ class TestRSI(unittest.TestCase):
 
     def test_handle1(self):
         self.strategy = RSIV2Strategy(min_price="0.42", max_price="0.48", risk_rate="0.02",force_risk_rate="0.05",bias_risk_rate="3",
-                                      position_split="1,2,3,4,5",
+                                      position_split="1,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2,2.1,2.2,2.3,2.4,2.5",
                                       start_condition="k.close < 0.45",
                                       stop_condition="k.close > 0.482",
                                       over_buy=80, over_sell=20)
@@ -61,6 +61,7 @@ class TestRSI(unittest.TestCase):
         self.bus = EventBus()
 
         workflow = ViewWorkflow(self.strategy, "5m", "2025-02-26", "2025-03-11", "CRV-USDT-SWAP")
+        workflow = ViewWorkflow(self.strategy, "5m", "2025-03-03 00:00:00", "2025-03-05 00:59:59", "CRV-USDT-SWAP")
 
         workflow.start()
         df = pd.DataFrame([x.__json__() for x in workflow.kline_data_g])

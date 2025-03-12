@@ -205,9 +205,10 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
     3. 仓位使用预设生成， 单次开仓位控制
     4. 特定条件下(极速波动)， 平大部分仓位锁定收益
     5. 开启条件、停止条件
+    6. 单方向连续开仓控制
     """
     def __init__(self, min_price = 1, max_price = 0, risk_rate=0.1, force_risk_rate=0.1,
-                 bias_risk_rate=0.06, position_split: str = "1,1,1,1,1,1,1,1,1,1",
+                 bias_risk_rate=0.06, position_split: str = "1,1,1,1,1,1,1,1,1,1", factory=2,
                  over_buy=80, over_sell=20, window=20, limit_threshold=3, stop_condition="", start_condition=""):
         self.min_price = Decimal(min_price)
         self.max_price = Decimal(max_price)
@@ -225,6 +226,7 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
 
         self.over_sell = int(over_sell)
         self.over_buy = int(over_buy)
+        self.factory = int(factory)
         self.limit_threshold = int(limit_threshold)
         self.stop_condition = stop_condition # 停止条件
         self.start_condition = start_condition # 开启条件
@@ -236,6 +238,7 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
         self.k = None
         self.d = None
         self.cur_position = 0
+        self.pre_is_add = False # 上次仓位变动是否是加仓
 
     def data_init_params(self, market_data):
         return {
@@ -252,28 +255,47 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
     def _calculate(self, k):
         self.k, self.d = self.rsi.update(k)
         self.bias_ratio = self.dq.update(k)
-        logger.debug(f"RSI指标: k={self.k} d={self.d} bias_ratio={self.bias_ratio} data={k}")
+        if self.pre_is_add:
+            if (self.side.is_long and self.d > 60) or (self.side.is_short and self.d < 40):
+                self.pre_is_add = False
+        logger.debug(f"计算数据: k={self.k} d={self.d} pre_add={self.pre_is_add} bias_ratio={self.bias_ratio} data={k}")
 
     def _calc_rate(self, _to_grid) -> Decimal:
         _to_grid = min(max(_to_grid, 0), len(self.position_split))
-        if _to_grid > self.cur_position:
-            return min(self.max_single_position, decimal_quantize(sum(self.position_split[self.cur_position:_to_grid]), 2, 2))
 
-        return decimal_quantize(sum(self.position_split[_to_grid:self.cur_position]), 2, 2)
+        # 记录超过最大结余仓位
+        if self.g.remaining is None:
+            self.g.remaining = 0
+
+        origin_rate = decimal_quantize(sum(self.position_split[min(self.cur_position, _to_grid): max(self.cur_position, _to_grid)]), 2, 2)
+        if origin_rate > self.max_single_position:
+            # 记录结余
+            self.g.remaining += (origin_rate - self.max_single_position)
+            return self.max_single_position
+
+        if self.g.remaining > 0:  # 使用结余填充
+            closing = self.g.remaining / 4 if self.g.remaining > (self.max_single_position / 10) else self.g.remaining
+            origin_rate += closing
+            self.g.remaining -= closing
+            if origin_rate > self.max_single_position:
+                self.g.remaining += origin_rate - self.max_single_position
+                origin_rate = self.max_single_position
+        return origin_rate
 
     def add_position(self, target_gird):
         if self.can(self.side):
-            if target_gird <= self.cur_position:
-                logger.debug(f"无需加仓: {target_gird} / {self.cur_position}")
+            if target_gird <= self.cur_position or (self.pre_is_add and target_gird - self.cur_position < self.factory):
+                logger.debug(f"无需加仓: pre_add={self.pre_is_add} | {self.factory}， 仓位： {target_gird} / {self.cur_position}")
                 return
 
             rate = self._calc_rate(target_gird)
             if rate <= 0:
                 return
-            logger.info(f"加仓：网格数{self.cur_position}/{len(self.position_split)} 目标：{target_gird} 当前价格{self.market_data.close} 应持仓层数{target_gird}")
+            logger.info(f"加仓：网格数{self.cur_position}/{len(self.position_split)} 目标：{target_gird} pre_add={self.pre_is_add} | {self.factory} 当前价格{self.market_data.close} 应持仓层数{target_gird}")
             self.g.limit = 0
-            self.create_order(self.side, rate)
+            self.pre_is_add = True
             self.cur_position = target_gird
+            self.create_order(self.side, rate)
         else:
             logger.debug(f"{self.side}方向RSI未到条件 不加仓")
 
@@ -293,12 +315,17 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
                 logger.info(f"减仓：网格数{self.cur_position}/{len(self.position_split)} 目标：{target_gird}"
                             f" 当前价格{self.market_data.close} 应持仓层数{target_gird} 连续{self.g.limit}次平仓触发止盈")
                 self.close_position("止盈")
-                self.cur_position = 0
                 return
             self.cur_position = target_gird
             self.close_position(rate=rate)
         else:
             logger.debug(f"{self.side}方向RSI未到条件 不减仓")
+
+    def close_position(self, memo="", extend=None, rate="1"):
+        if rate == "1":
+            self.cur_position = 0
+        super().close_position(memo=memo, extend=extend, rate=rate)
+        self.pre_is_add = False
 
     def can(self, side: PositionSide):
         if self.k is None or self.d is None:
@@ -412,7 +439,10 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
         d["running"] = self.running
         g = {}
         for k in self.g_map:
-            g[k] = self.g_map[k].limit
+            g[k] = {
+                "limit": self.g_map[k].limit,
+                "remaining": "%s" % self.g.remaining if self.g.remaining is not None else 0
+            }
         d["g_map"] = g
         return d
 
@@ -424,7 +454,8 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
             self.cur_position = int(data["cur_position"])
         if "g_map" in data:
             for k, v in data["g_map"].items():
-                self.get_g(k).limit = int(v) if v else 0
+                self.get_g(k).limit = int(v["limit"]) if "limit" in v and v["limit"] else 0
+                self.get_g(k).remaining = Decimal(v["remaining"]) if "remaining" in v and v["remaining"] else Decimal(0)
 
 if __name__ == '__main__':
     from leek.common import G

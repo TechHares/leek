@@ -321,9 +321,10 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
             delta = self.market_data.close - self.min_price
 
         grid_deta = (self.max_price - self.min_price) / len(self.position_split)  # 单仓间距
+        grid = delta / grid_deta
         if sub:  # 谨慎减仓
-            grid_deta += Decimal("0.5")
-        target_grid = int(decimal_quantize(delta / grid_deta, 0, 1))
+            grid += Decimal("0.5")
+        target_grid = int(decimal_quantize(grid, 0, 1))
         return min(max(target_grid, 0), len(self.position_split))
 
     def sub_position(self):

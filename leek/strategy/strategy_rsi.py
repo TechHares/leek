@@ -207,7 +207,8 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
     5. 开启条件、停止条件
     6. 单方向连续开仓控制
     """
-    def __init__(self, min_price = 1, max_price = 0, risk_rate=0.1, force_risk_rate=0.1,
+
+    def __init__(self, min_price=1, max_price=0, risk_rate=0.1, force_risk_rate=0.1,
                  bias_risk_rate=0.06, position_split: str = "1,1,1,1,1,1,1,1,1,1", factory=2,
                  over_buy=80, over_sell=20, window=20, limit_threshold=3, stop_condition="", start_condition=""):
         self.min_price = Decimal(min_price)
@@ -220,25 +221,25 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
 
         origin_arr = [Decimal(s.strip()) for s in position_split.split(",")]
         total_split = sum(origin_arr)
-        self.position_split: List[Decimal] = [decimal_quantize(s/total_split, 2, 2) for s in origin_arr]
-        self.position_split.append(Decimal(1-sum(self.position_split)))
+        self.position_split: List[Decimal] = [decimal_quantize(s / total_split, 2, 2) for s in origin_arr]
+        self.position_split.append(Decimal(1 - sum(self.position_split)))
         logger.info(f"网格分仓比例：{self.position_split}")
 
         self.over_sell = int(over_sell)
         self.over_buy = int(over_buy)
         self.factory = int(factory)
         self.limit_threshold = int(limit_threshold)
-        self.stop_condition = stop_condition # 停止条件
-        self.start_condition = start_condition # 开启条件
+        self.stop_condition = stop_condition  # 停止条件
+        self.start_condition = start_condition  # 开启条件
 
         self.rsi = StochRSI()
         self.dq = BiasRatio(int(window))
-        self.running = start_condition is None or start_condition.strip() == "" # 是否运行
+        self.running = start_condition is None or start_condition.strip() == ""  # 是否运行
         self.bias_ratio = None
         self.k = None
         self.d = None
         self.cur_position = 0
-        self.pre_is_add = False # 上次仓位变动是否是加仓
+        self.pre_is_add = False  # 上次仓位变动是否是加仓
 
     def data_init_params(self, market_data):
         return {
@@ -283,7 +284,7 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
 
             if self.g.remaining > 0:  # 使用结余填充
                 closing = self.g.remaining / 4 if self.g.remaining > (
-                            self.max_single_position / 10) else self.g.remaining
+                        self.max_single_position / 10) else self.g.remaining
                 origin_rate += closing
                 self.g.remaining -= closing
                 if origin_rate > self.max_single_position:
@@ -291,47 +292,64 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
                     origin_rate = self.max_single_position
             return origin_rate
         finally:
-            logger.debug(
-                f"仓位计算：{self.cur_position} -> {_to_grid} 仓位比例：{origin_rate}  max={self.max_single_position} remaining={self.g.remaining}")
+            logger.debug(f"仓位计算：{self.cur_position} -> {_to_grid} 仓位比例：{origin_rate}  "
+                         f"max={self.max_single_position} remaining={self.g.remaining}")
 
-    def add_position(self, target_gird):
-        if self.can(self.side):
-            if target_gird <= self.cur_position or (self.pre_is_add and target_gird - self.cur_position < self.factory):
-                logger.debug(f"无需加仓: pre_add={self.pre_is_add} | {self.factory}， 仓位： {target_gird} / {self.cur_position}")
-                return
+    def add_position(self):
+        if not self.can(self.side):
+            return
+        target_gird = self._calc_grid()
+        if target_gird <= self.cur_position or (self.pre_is_add and target_gird - self.cur_position < self.factory):
+            logger.debug(f"无需加仓: pre_add={self.pre_is_add} | {self.factory}， "
+                         f"仓位： {target_gird} / {self.cur_position}")
+            return
 
-            rate = self._calc_rate(target_gird)
-            if rate <= 0:
-                return
-            logger.info(f"加仓：网格数{self.cur_position}/{len(self.position_split)} 目标：{target_gird} pre_add={self.pre_is_add} | {self.factory} 当前价格{self.market_data.close} 应持仓层数{target_gird}")
+        rate = self._calc_rate(target_gird)
+        if rate <= 0:
+            return
+        logger.info(f"加仓：网格数{self.cur_position}/{len(self.position_split)} 目标：{target_gird} "
+                    f"pre_add={self.pre_is_add} | {self.factory} 当前价格{self.market_data.close} 应持仓层数{target_gird}")
+        self.g.limit = 0
+        self.pre_is_add = True
+        self.cur_position = target_gird
+        self.create_order(self.side, rate)
+
+    def _calc_grid(self, sub=False):
+        if self.side.is_long:
+            delta = self.max_price - self.market_data.close
+        else:
+            delta = self.market_data.close - self.min_price
+
+        grid_deta = (self.max_price - self.min_price) / len(self.position_split)  # 单仓间距
+        if sub:  # 谨慎减仓
+            grid_deta += Decimal("0.5")
+        target_grid = int(decimal_quantize(delta / grid_deta, 0, 1))
+        return min(max(target_grid, 0), len(self.position_split))
+
+    def sub_position(self):
+        if not self.can(self.side.switch()):
+            return
+        target_gird = self._calc_grid(True)
+        if target_gird >= self.cur_position:
+            logger.debug(f"无需减仓: {target_gird} / {self.cur_position}")
+            return
+        rate = self._calc_rate(target_gird)
+        if rate <= 0:
+            return
+        logger.info(f"减仓：网格数{self.cur_position}/{len(self.position_split)} 目标：{target_gird} "
+                    f"当前价格{self.market_data.close} 应持仓层数{target_gird}")
+        if self.g.limit is None:
             self.g.limit = 0
-            self.pre_is_add = True
-            self.cur_position = target_gird
-            self.create_order(self.side, rate)
-        else:
-            logger.debug(f"{self.side}方向RSI未到条件 不加仓")
-
-    def sub_position(self, target_gird):
-        if self.can(self.side.switch()):
-            if target_gird >= self.cur_position:
-                logger.debug(f"无需减仓: {target_gird} / {self.cur_position}")
-                return
-            rate = self._calc_rate(target_gird)
-            if rate <= 0:
-                return
-            logger.info(f"减仓：网格数{self.cur_position}/{len(self.position_split)} 目标：{target_gird} 当前价格{self.market_data.close} 应持仓层数{target_gird}")
-            if self.g.limit is None:
-                self.g.limit = 0
-            self.g.limit += 1
-            if self.g.limit >= self.limit_threshold and self.is_profitable():
-                logger.info(f"减仓：网格数{self.cur_position}/{len(self.position_split)} 目标：{target_gird}"
-                            f" 当前价格{self.market_data.close} 应持仓层数{target_gird} 连续{self.g.limit}次平仓触发止盈")
-                self.close_position("止盈")
-                return
-            self.cur_position = target_gird
-            self.close_position(rate=rate)
-        else:
-            logger.debug(f"{self.side}方向RSI未到条件 不减仓")
+        self.g.limit += 1
+        if self.g.limit >= self.limit_threshold and self.is_profitable():
+            logger.info(f"减仓：网格数{self.cur_position}/{len(self.position_split)} 目标：{target_gird}"
+                        f" 当前价格{self.market_data.close} 应持仓层数{target_gird} 连续{self.g.limit}次平仓触发止盈")
+            self.close_position("止盈")
+            return
+        self.cur_position = target_gird
+        self.close_position(rate=rate)
+        # else:
+        #     logger.debug(f"{self.side}方向RSI未到条件 不减仓")
 
     def close_position(self, memo="", extend=None, rate="1"):
         if rate == "1":
@@ -364,11 +382,13 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
         # 风控位平仓
         if self.can(self.side.switch()):
             if self.market_data.close < self.min_price * (1 - self.risk_rate):
-                logger.error(f"多仓 价格{self.market_data.close} 低于 {self.min_price * (1 - self.risk_rate)} k/d={self.k}/{self.d} 触发风控位平仓")
+                logger.error(f"多仓 价格{self.market_data.close} 低于 {self.min_price * (1 - self.risk_rate)}"
+                             f" k/d={self.k}/{self.d} 触发风控位平仓")
                 self.close_position("风控位平仓")
                 return True
             if self.market_data.close > self.max_price * (1 + self.risk_rate):
-                logger.error(f"空仓 价格{self.market_data.close} 高于 {self.max_price * (1 + self.risk_rate)} k/d={self.k}/{self.d} 触发风控位平仓")
+                logger.error(f"空仓 价格{self.market_data.close} 高于 {self.max_price * (1 + self.risk_rate)}"
+                             f" k/d={self.k}/{self.d} 触发风控位平仓")
                 self.close_position("风控位平仓")
                 return True
         return False
@@ -432,19 +452,13 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
 
         # 开平仓
         price = self.market_data.close
-        if price > self.max_price or price < self.min_price:
+        if price >= self.max_price or price <= self.min_price:
             logger.debug(f"价格超出网格: {self.min_price}~{self.max_price} 当前{price}")
             return
-        if self.side.is_long:
-            r = (self.max_price - price) / (self.max_price - self.min_price) * len(self.position_split)
-            target_gird = min(len(self.position_split), int(decimal_quantize(r, 0, 2)))  # 防止风控设置过大导致超出网格个数
-        else:
-            r = (price - self.min_price) / (self.max_price - self.min_price) * len(self.position_split)
-            target_gird = max(int(decimal_quantize(r, 0, 1)), 0)
 
-        self.add_position(target_gird)
+        self.add_position()
         if self.have_position():
-            self.sub_position(target_gird)
+            self.sub_position()
 
     def marshal(self):
         d = super().marshal()
@@ -470,8 +484,10 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
                 self.get_g(k).limit = int(v["limit"]) if "limit" in v and v["limit"] else 0
                 self.get_g(k).remaining = Decimal(v["remaining"]) if "remaining" in v and v["remaining"] else Decimal(0)
 
+
 if __name__ == '__main__':
     from leek.common import G
+
     print(eval("k.close > 20", {
         "k": G(close=12)
     }))

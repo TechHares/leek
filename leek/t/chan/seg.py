@@ -11,7 +11,7 @@ from rich.segment import Segment
 from leek.common import logger, G
 from leek.t.chan.bi import ChanBI, ChanBIManager
 from leek.t.chan.comm import ChanUnion, Merger, mark_data
-from leek.t.chan.enums import ChanFX, BiFXValidMethod
+from leek.t.chan.enums import ChanFX, BiFXValidMethod, ChanDirection
 from leek.t.chan.fx import ChanFXManager
 
 
@@ -60,7 +60,7 @@ class ChanSegment(ChanUnion):
 
         self.bi_list = [first_bi]
 
-        self.peak_point = first_bi
+        self.peak_point = None
         self.left_feature = None
         self.middle_feature = None
         self.right_feature = None
@@ -73,7 +73,7 @@ class ChanSegment(ChanUnion):
         mark_field = "seg" if self.is_finish else "seg_"
         mark_data(self.bi_list[0].start_origin_k, mark_field, self.bi_list[0].start_value)
         mark_data(self.bi_list[-1].end_origin_k, mark_field, self.bi_list[-1].end_value)
-        if not self.is_finish:
+        if not self.is_finish and self.peak_point:
             mark_data(self.peak_point.end_origin_k, mark_field, self.bi_list[-1].end_value)
         mk = self.get_middle_k()
         mark_data(mk, "seg_value", (self.start_value + self.end_value) / 2)
@@ -182,9 +182,20 @@ class ChanSegment(ChanUnion):
         self.high = max([x.high for x in self.bi_list])
         self.low = min([x.low for x in self.bi_list])
 
-        if len(self.bi_list) < 2:
+        if len(self.bi_list) < 3:
             return
         pre_peak_point = self.peak_point
+        if self.peak_point is None:
+            # 第三笔新高或新低 极值保底成立
+            fb = [bi for bi in self.bi_list if bi.direction == self.direction]
+            for i in range(1, len(fb)):
+                if (fb[i].high > fb[i - 1].high and self.is_up) or (not self.is_up and fb[i].low < fb[i - 1].low):
+                    self.peak_point = fb[i]
+                    break
+        if self.peak_point is None:
+            return
+
+        assert self.peak_point is not None and self.peak_point.direction == self.direction, "极值点方向错误"
         if self.is_up: # 向上线段
             if self.bi_list[-1].direction.is_up: # 最后一笔是向上笔
                 self.peak_point = max(self.peak_point, self.bi_list[-1], key=lambda x: x.high)
@@ -326,7 +337,7 @@ class ChanSegmentManager:
         """
         bi = self.bi_manager.update(k)
         if bi:
-            self.update_bi(bi)
+            return self.update_bi(bi)
 
     def update_bi(self, bi: ChanBI):
         """

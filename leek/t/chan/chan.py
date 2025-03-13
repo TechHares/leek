@@ -41,6 +41,19 @@ class Chan(T):
                 self.dr_manager.update(self.zs_manager.cur_zs)
                 self.tmp_zs = self.zs_manager.cur_zs
 
+    def mark_on_data(self):
+        for seg in self.seg_manager:
+            seg.mark_on_data()
+        for bi in self.seg_manager.bi_manager:
+            bi.mark_on_data()
+            for ck in bi.chan_k_list:
+                ck.mark_on_data()
+
+        for zs in self.zs_manager.zs_list:
+            zs.mark_on_data()
+        for dr in self.dr_manager.dr_list:
+            dr.mark_on_data()
+
 
 
 if __name__ == '__main__':

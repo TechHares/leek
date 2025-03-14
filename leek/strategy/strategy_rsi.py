@@ -259,7 +259,8 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
         if self.pre_is_add:
             if (self.side.is_long and self.d > 60) or (self.side.is_short and self.d < 40):
                 self.pre_is_add = False
-        logger.debug(f"计算数据: k={self.k} d={self.d} pre_add={self.pre_is_add} bias_ratio={self.bias_ratio} data={k}")
+        logger.debug(f"输入数据: k={self.k} d={self.d} pre_add={self.pre_is_add} bias_ratio={self.bias_ratio}"
+                     f" remaining={self.g.remaining} cur_p={self.cur_position} price={k.close}")
 
     def _calc_rate(self, _to_grid) -> Decimal:
         origin_rate = None
@@ -322,7 +323,7 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
 
         grid_deta = (self.max_price - self.min_price) / len(self.position_split)  # 单仓间距
         grid = delta / grid_deta
-        if sub:  # 谨慎减仓
+        if sub:  # 网格隔半减仓
             grid += Decimal("0.5")
         target_grid = int(decimal_quantize(grid, 0, 1))
         return min(max(target_grid, 0), len(self.position_split))

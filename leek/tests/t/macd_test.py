@@ -5,6 +5,7 @@
 # @File    : strategy_turtle_test.py
 # @Software: PyCharm
 import unittest
+from decimal import Decimal
 
 import numpy as np
 import pandas as pd
@@ -12,7 +13,7 @@ import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 
 from leek.runner.view import ViewWorkflow
-from leek.t import StochRSI, MACD, MERGE
+from leek.t import StochRSI, MACD, MERGE, Divergence
 
 
 class TestMACD(unittest.TestCase):
@@ -53,6 +54,54 @@ class TestMACD(unittest.TestCase):
             if r.finish == 1:
                 rs.append(r)
         print(len(data), len(data)//3, len(rs))
+
+    def test_divergence(self):
+        workflow = ViewWorkflow(None, "30m", "2025-02-25 14:30", "2025-03-17 18:30", "ETH-USDT-SWAP")
+        macd = MACD()
+        divergence = Divergence(divergence_threshold=2, pull_back_rate=0.35, dea_pull_back=False)
+        data = workflow.get_data(workflow.benchmark)
+        lst = []
+        idx = 0
+        for d in data:
+            idx += 1
+            d.idx = "%s" % idx
+            r = macd.update(d)
+            d.x = 0
+            if r:
+                d.dif = r[0]
+                d.dea = r[1]
+                d.m = r[0] - r[1]
+                lst.append(d)
+                if divergence.is_top_divergence(lst):
+                    d.x = 1
+                if divergence.is_bottom_divergence(lst):
+                    d.x = -1
+
+        df = pd.DataFrame([x.__json__() for x in data])
+        df['Datetime'] = pd.to_datetime(df['timestamp'] + 8 * 60 * 60 * 1000, unit='ms')
+        fig = make_subplots(rows=3, cols=1, shared_xaxes=True)
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['dif'], mode='lines', name='dif',
+                                 line={"color": "black", "width": 1}), row=2, col=1)
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['dea'], mode='lines', name='dea',
+                                 line={"color": "orange", "width": 1}), row=2, col=1)
+        df['color'] = np.where(df['m'] > 0, 'green', 'red')
+        fig.add_trace(go.Bar(x=df['Datetime'], y=df['m'], marker={"color": df['color']}, name='His'), row=2, col=1)
+        fig.add_trace(go.Scatter(x=df['Datetime'], y=df['x'], name='His', mode='lines'), row=3, col=1)
+        workflow.draw(fig=fig, df=df)
+        fig.update_layout(
+            barmode='relative'
+        )
+        fig.add_trace(go.Scatter(
+            x=df['Datetime'],
+            y=df['high'] * Decimal("1.05"),
+            mode='markers+text',
+            text=df["idx"],
+            marker=dict(color='green', size=4)
+        ), row=1, col=1)
+        fig.update_xaxes(rangeslider_visible=False, row=1, col=1)
+        print(len(df))
+        fig.show()
+
 
 if __name__ == '__main__':
     unittest.main()

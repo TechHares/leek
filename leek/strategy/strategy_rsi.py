@@ -13,7 +13,7 @@ from leek.common.utils import decimal_quantize
 from leek.strategy import BaseStrategy
 from leek.strategy.common.strategy_common import PositionRateManager, PositionDirectionManager, PositionSideManager
 from leek.strategy.common.strategy_filter import DynamicRiskControl, JustFinishKData
-from leek.t import StochRSI
+from leek.t import StochRSI, MACD, MERGE, Divergence
 from leek.t.bias import BiasRatio
 from leek.trade.trade import PositionSide
 
@@ -206,9 +206,10 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
     4. 特定条件下(极速波动)， 平大部分仓位锁定收益
     5. 开启条件、停止条件
     6. 单方向连续开仓控制
+    7. 转向控制
     """
 
-    def __init__(self, min_price=1, max_price=0, risk_rate=0.1, force_risk_rate=0.1,
+    def __init__(self, min_price=1, max_price=0, risk_rate=0.1, force_risk_rate=0.1, k_merge_period=0,
                  bias_risk_rate=0.06, position_split: str = "1,1,1,1,1,1,1,1,1,1", factory=2,
                  over_buy=80, over_sell=20, window=20, limit_threshold=3, stop_condition="", start_condition=""):
         self.min_price = Decimal(min_price)
@@ -231,6 +232,7 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
         self.limit_threshold = int(limit_threshold)
         self.stop_condition = stop_condition  # 停止条件
         self.start_condition = start_condition  # 开启条件
+        self.k_merge_period = int(k_merge_period)  # K线合并周期
 
         self.rsi = StochRSI()
         self.dq = BiasRatio(int(window))
@@ -241,11 +243,15 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
         self.cur_position = 0
         self.pre_is_add = False  # 上次仓位变动是否是加仓
 
+        if self.k_merge_period > 0:
+            self.merge = MERGE(window=self.k_merge_period, max_cache=300)
+            self.macd = MACD()
+
     def data_init_params(self, market_data):
         return {
             "symbol": market_data.symbol,
             "interval": market_data.interval,
-            "size": 50
+            "size": 150 * self.k_merge_period
         }
 
     def _data_init(self, market_datas: list):
@@ -259,8 +265,15 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
         if self.pre_is_add:
             if (self.side.is_long and self.d > 60) or (self.side.is_short and self.d < 40):
                 self.pre_is_add = False
+        if self.k_merge_period > 0:
+            merge_k = self.merge.update(k)
+            if merge_k is not None:
+                k.merge_k = merge_k
+                merge_k.dif, merge_k.dea = self.macd.update(merge_k)
+                merge_k.m = merge_k.dif - merge_k.dea
+
         logger.debug(f"输入数据: k={self.k} d={self.d} pre_add={self.pre_is_add} bias_ratio={self.bias_ratio}"
-                     f" remaining={self.g.remaining} cur_p={self.cur_position} price={k.close}")
+                     f" dif={k.dif} dea={k.dea} remaining={self.g.remaining} cur_p={self.cur_position} price={k.close}")
 
     def _calc_rate(self, _to_grid) -> Decimal:
         origin_rate = None
@@ -435,6 +448,47 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
             if self.start_condition != "" and self.running:
                 self.notify(f"触发启动条件 {self.start_condition}")
 
+    def side_reversed_hover(self):
+        # 未启用转向
+        if self.k_merge_period <= 0 or self.market_data.merge_k is None:
+            return False
+
+        if self.have_position() and self.side != self.position.direction:  # 转向尚未处理完成
+            return False
+
+        if self.g.side is None:
+            self.g.side = self.side
+
+        if self.g.side != self.side: # 转向带待定中
+            if not self.have_position() or self.g.side == self.position.direction: # 无仓位或当前仓位方向一致
+                self.side = self.g.side
+                return False
+            if self.can(self.g.side):
+                self.close_position("转向")
+                self.side = self.g.side
+                return False
+            # 转向信号消失需不需要处理？不需要处理，如采用「记录转向之前的黄线位置， 破坏时取消信号」的方式，在macd周期更大的情况下，黄线新高破坏导致上扬大概率rsi信号已经触发，意义不大
+            # break后续开平仓逻辑 继续等待时机转向
+            return True
+        last = self.merge.last()
+        if len(last) < 20 or last[-1] != self.market_data.merge_k: # 保持迟钝，尽在大K线完成进行反正判断
+            return False
+
+        if self.g.divergence is None:
+            # 暂时使用固定参数测试
+            self.g.divergence = Divergence(divergence_threshold=2, pull_back_rate=0.35, dea_pull_back=False)
+        if self.side.is_long and self.g.divergence.is_top_divergence(last):
+            # 转空
+            self.g.side = PositionSide.SHORT
+            return True
+        if self.side.is_short and self.g.divergence.is_bottom_divergence(last):
+            # 转多
+            self.g.side = PositionSide.LONG
+            return True
+        return False
+
+
+
     def handle(self):
         # 指标计算
         self._calculate(self.market_data)
@@ -450,6 +504,10 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
 
         # 止盈
         if self.take_profit():
+            return
+
+        # 转向判定中
+        if self.side_reversed_hover():
             return
 
         # 开平仓
@@ -470,6 +528,7 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
         for k in self.g_map:
             g[k] = {
                 "limit": self.g_map[k].limit,
+                "side": self.g_map[k].side.value,
                 "remaining": "%s" % self.g.remaining if self.g.remaining is not None else 0
             }
         d["g_map"] = g
@@ -485,6 +544,7 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
             for k, v in data["g_map"].items():
                 self.get_g(k).limit = int(v["limit"]) if "limit" in v and v["limit"] else 0
                 self.get_g(k).remaining = Decimal(v["remaining"]) if "remaining" in v and v["remaining"] else Decimal(0)
+                self.get_g(k).side = PositionSide(int(v["side"])) if "side" in v and v["side"] else self.side
 
 
 if __name__ == '__main__':
@@ -493,5 +553,3 @@ if __name__ == '__main__':
     print(eval("k.close > 20", {
         "k": G(close=12)
     }))
-
-    print(sum([Decimal(0.2), Decimal(6)]))

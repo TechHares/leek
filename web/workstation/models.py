@@ -201,6 +201,7 @@ class StrategyConfig(models.Model):
     fast_period = models.IntegerField(u'快线计算周期', default="5")
     slow_period = models.IntegerField(u'慢线计算周期', default="20")
     long_period = models.IntegerField(u'趋势线计算周期', default="60")
+    k_merge_period = models.IntegerField(u'K线合并数量', default="0")
     smoothing_period = models.IntegerField(u'平滑周期', default="9")
     factory = models.IntegerField(u'扩展系数', default="2")
     period = models.IntegerField(u'RSI平滑周期', default="10")

@@ -109,6 +109,7 @@ class TestChan(unittest.TestCase):
 
     def test_seg(self):
         workflow = ViewWorkflow(None, "5m", "2024-12-15 23:10", "2024-12-20 20:00", "CRV-USDT-SWAP")
+        workflow = ViewWorkflow(None, "1m", "2025-03-01 23:10", "2025-03-03 20:00", "CRV-USDT-SWAP")
         # workflow = ViewWorkflow(None, "5m", "2024-12-15 23:10", "2024-12-17 20:00", "CRV-USDT-SWAP")
         # workflow = ViewWorkflow(None, "5m", "2024-12-30 23:10", "2025-01-07 20:00", "CRV-USDT-SWAP")
         data = workflow.get_data("CRV-USDT-SWAP")
@@ -116,11 +117,11 @@ class TestChan(unittest.TestCase):
         seg_manager = ChanSegmentManager()
         for d in data:
             bi = bi_manager.update(d)
-            if bi:
-                seg_manager.update_bi(bi)
+            # if bi:
+            #     seg_manager.update_bi(bi)
 
-        # for bi in bi_manager:
-        #     seg_manager.update_bi(bi)
+        for bi in bi_manager:
+            seg_manager.update_bi(bi)
         for bi in bi_manager:
             bi.mark_on_data()
             for ck in bi.chan_k_list:
@@ -155,24 +156,23 @@ class TestChan(unittest.TestCase):
         fig.show()
 
     def test_zs(self):
-        workflow = ViewWorkflow(None, "5m", "2024-12-15 23:10", "2025-01-07 20:00", "CRV-USDT-SWAP")
+        workflow = ViewWorkflow(None, "1m", "2025-03-01 23:10", "2025-03-02 20:00", "CRV-USDT-SWAP")
         # workflow = ViewWorkflow(None, "5m", "2024-12-15 23:10", "2024-12-17 20:00", "CRV-USDT-SWAP")
         data = workflow.get_data("CRV-USDT-SWAP")
         bi_manager = ChanBIManager()
         seg_manager = ChanSegmentManager()
-        zs_manager = ChanZSManager(max_level=2, allow_similar_zs=True)
+        zs_manager = ChanZSManager(max_level=2, allow_similar_zs=False)
         for d in data:
             bi = bi_manager.update(d)
-            if bi:
-                seg = seg_manager.update_bi(bi)
-                if seg:
-                    zs_manager.update(seg)
+            # if bi:
+            #     zs_manager.update(bi)
 
         for seg in seg_manager:
             # print(seg.pre.idx if seg.pre else "None", "<-", seg.idx, "->",  seg.next.idx if seg.next else "None")
             seg.mark_on_data()
 
         for bi in bi_manager:
+            zs_manager.update(bi)
             bi.mark_on_data()
             for ck in bi.chan_k_list:
                 ck.mark_on_data()
@@ -186,16 +186,21 @@ class TestChan(unittest.TestCase):
         if "seg_" in df.columns:
             fig.add_trace(go.Scatter(x=df['Datetime'], y=df['seg_'], mode='lines', line=dict(color='blue', width=2, dash='dash'),
                                      name='segment', connectgaps=True), row=1, col=1)
+            fig.add_trace(
+                go.Scatter(x=df['Datetime'], y=df["seg_value"], mode='text', text=df["seg_idx"], name='seg_idx'),
+                row=1, col=1)
 
         if "bi" in df.columns:
             fig.add_trace(go.Scatter(x=df['Datetime'], y=df['bi'], mode='lines', line=dict(color='black', width=1),
                                      name='chan b', connectgaps=True), row=1, col=1)
+            fig.add_trace(
+                go.Scatter(x=df['Datetime'], y=df["bi_value"], mode='text', text=df["bi_idx"], name='seg_idx'),
+                row=1, col=1)
         if "bi_" in df.columns:
             fig.add_trace(go.Scatter(x=df['Datetime'], y=df['bi_'], mode='lines', line=dict(color='black', width=1, dash='dash'),
                                      name='chan b', connectgaps=True), row=1, col=1)
 
-        fig.add_trace(go.Scatter(x=df['Datetime'], y=df["seg_value"], mode='text', text=df["seg_idx"], name='seg_idx'),
-                      row=1, col=1)
+
         # zs
         colors = ["orange", "skyblue", "lightgreen", "gainsboro", "darkblue"]
         for zs in zs_manager.zs_list:
@@ -459,10 +464,9 @@ class TestChan(unittest.TestCase):
         fig.show()
 
     def test_chan(self):
-        workflow = ViewWorkflow(None, "5m", "2024-12-15 23:10", "2025-01-30 20:00", "CRV-USDT-SWAP")
-        # workflow = ViewWorkflow(None, "5m", "2024-12-15 23:10", "2024-12-17 20:00", "CRV-USDT-SWAP")
+        workflow = ViewWorkflow(None, "1m", "2025-03-01 23:10", "2025-03-03 20:00", "CRV-USDT-SWAP")
         data = workflow.get_data("CRV-USDT-SWAP")
-        chan = Chan(exclude_equal=False, zs_max_level=2, allow_similar_zs=True)
+        chan = Chan(bi_zs=True, seg=True, seg_zs=False, dr=False, dr_zs=False, exclude_equal=False, zs_max_level=2, allow_similar_zs=True)
 
         for d in data:
             chan.update(d)
@@ -472,6 +476,9 @@ class TestChan(unittest.TestCase):
         df['Datetime'] = pd.to_datetime(df['timestamp'] + 8 * 60 * 60 * 1000, unit='ms')
         fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
         if "seg" in df.columns:
+            fig.add_trace(
+                go.Scatter(x=df['Datetime'], y=df["seg_value"], mode='text', text=df["seg_idx"], name='seg_idx'),
+                row=1, col=1)
             fig.add_trace(go.Scatter(x=df['Datetime'], y=df['seg'], mode='lines', line=dict(color='blue', width=2),
                                      name='segment', connectgaps=True), row=1, col=1)
         if "seg_" in df.columns:
@@ -480,6 +487,8 @@ class TestChan(unittest.TestCase):
                            name='segment', connectgaps=True), row=1, col=1)
 
         if "bi" in df.columns:
+            fig.add_trace(go.Scatter(x=df['Datetime'], y=df["bi_value"], mode='text', text=df["bi_idx"], name='bi_idx'),
+                          row=1, col=1)
             fig.add_trace(go.Scatter(x=df['Datetime'], y=df['bi'], mode='lines', line=dict(color='black', width=1),
                                      name='chan b', connectgaps=True), row=1, col=1)
         if "bi_" in df.columns:
@@ -496,52 +505,69 @@ class TestChan(unittest.TestCase):
                            line=dict(color='darkblue', width=3, dash='dash'),
                            name='chan dr', connectgaps=True), row=1, col=1)
 
-        fig.add_trace(go.Scatter(x=df['Datetime'], y=df["seg_value"], mode='text', text=df["seg_idx"], name='seg_idx'),
-                      row=1, col=1)
+
         # zs
         colors = ["orange", "skyblue", "lightgreen", "gainsboro", "darkblue"]
-        # for zs in zs_manager.zs_list:
-        #     print(f"level={zs.level}", f"into={zs.into_ele.idx}", f"zs={len(zs.element_list)}",
-        #           f"out={zs.out_ele.idx if zs.out_ele else None}")
-        for zs in chan.zs_manager.zs_list:
-            fig.add_shape(
-                type='rect',
-                x0=pd.to_datetime([zs.start_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y0=zs.down_line,
-                x1=pd.to_datetime([zs.end_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y1=zs.up_line,
-                line=dict(color=colors[zs.level], width=zs.level + 1),
-                fillcolor=None,  # 透明填充，只显示边框
-                name='Highlight Area'
-            )
-
-        # for zs in drzs_manager.zs_list:
-        #     fig.add_shape(
-        #         type='rect',
-        #         x0=pd.to_datetime([zs.start_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y0=zs.down_line,
-        #         x1=pd.to_datetime([zs.end_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y1=zs.up_line,
-        #         line=dict(color=colors[zs.level], width=zs.level + 3),
-        #         fillcolor=None,  # 透明填充，只显示边框
-        #         name='Highlight Area'
-        #     )
-        if chan.zs_manager.cur_zs is not None and chan.zs_manager.cur_zs.is_satisfy:
-            zs = chan.zs_manager.cur_zs
-            fig.add_shape(
-                type='rect',
-                x0=pd.to_datetime([zs.start_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y0=zs.down_line,
-                x1=pd.to_datetime([zs.end_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y1=zs.up_line,
-                line=dict(color=colors[zs.level], width=zs.level + 1, dash='dash'),
-                fillcolor=None,  # 透明填充，只显示边框
-                name='Highlight Area'
-            )
-        # if drzs_manager.cur_zs is not None and drzs_manager.cur_zs.is_satisfy:
-        #     zs = drzs_manager.cur_zs
-        #     fig.add_shape(
-        #         type='rect',
-        #         x0=pd.to_datetime([zs.start_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y0=zs.down_line,
-        #         x1=pd.to_datetime([zs.end_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y1=zs.up_line,
-        #         line=dict(color=colors[zs.level], width=zs.level + 3, dash='dash'),
-        #         fillcolor=None,  # 透明填充，只显示边框
-        #         name='Highlight Area'
-        #     )
+        if chan.seg_zs:
+            for zs in chan.zs_manager.zs_list:
+                fig.add_shape(
+                    type='rect',
+                    x0=pd.to_datetime([zs.start_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y0=zs.down_line,
+                    x1=pd.to_datetime([zs.end_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y1=zs.up_line,
+                    line=dict(color=colors[zs.level], width=zs.level + 1),
+                    fillcolor=None,  # 透明填充，只显示边框
+                    name='Highlight Area'
+                )
+            if chan.zs_manager.cur_zs is not None and chan.zs_manager.cur_zs.is_satisfy:
+                zs = chan.zs_manager.cur_zs
+                fig.add_shape(
+                    type='rect',
+                    x0=pd.to_datetime([zs.start_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y0=zs.down_line,
+                    x1=pd.to_datetime([zs.end_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y1=zs.up_line,
+                    line=dict(color=colors[zs.level], width=zs.level + 1, dash='dash'),
+                    fillcolor=None,  # 透明填充，只显示边框
+                    name='Highlight Area'
+                )
+        if chan.dr_zs:
+            for zs in chan.drzs_manager.zs_list:
+                fig.add_shape(
+                    type='rect',
+                    x0=pd.to_datetime([zs.start_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y0=zs.down_line,
+                    x1=pd.to_datetime([zs.end_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y1=zs.up_line,
+                    line=dict(color=colors[zs.level], width=zs.level + 3),
+                    fillcolor=None,  # 透明填充，只显示边框
+                    name='Highlight Area'
+                )
+            if chan.drzs_manager.cur_zs is not None and chan.drzs_manager.cur_zs.is_satisfy:
+                zs = chan.drzs_manager.cur_zs
+                fig.add_shape(
+                    type='rect',
+                    x0=pd.to_datetime([zs.start_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y0=zs.down_line,
+                    x1=pd.to_datetime([zs.end_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y1=zs.up_line,
+                    line=dict(color=colors[zs.level], width=zs.level + 3, dash='dash'),
+                    fillcolor=None,  # 透明填充，只显示边框
+                    name='Highlight Area'
+                )
+        if chan.bi_zs:
+            for zs in chan.bizs_manager.zs_list:
+                fig.add_shape(
+                    type='rect',
+                    x0=pd.to_datetime([zs.start_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y0=zs.down_line,
+                    x1=pd.to_datetime([zs.end_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y1=zs.up_line,
+                    line=dict(color=colors[zs.level], width=1),
+                    fillcolor=None,  # 透明填充，只显示边框
+                    name='Highlight Area'
+                )
+            if chan.bizs_manager.cur_zs is not None and chan.bizs_manager.cur_zs.is_satisfy:
+                zs = chan.bizs_manager.cur_zs
+                fig.add_shape(
+                    type='rect',
+                    x0=pd.to_datetime([zs.start_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y0=zs.down_line,
+                    x1=pd.to_datetime([zs.end_timestamp + 8 * 60 * 60 * 1000], unit="ms")[0], y1=zs.up_line,
+                    line=dict(color=colors[zs.level], width=1, dash='dash'),
+                    fillcolor=None,  # 透明填充，只显示边框
+                    name='Highlight Area'
+                )
         fig.update_xaxes(rangeslider_visible=False, row=1, col=1)
 
         workflow.draw(fig=fig, df=df)

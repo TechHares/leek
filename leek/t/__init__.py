@@ -7,7 +7,7 @@
 
 __all__ = ["TR", "ATR", "RSRS", "SAR", "KDJ", "MA", "EMA", "BollBand", "DK", "LLT", "KAMA", "FRAMA", "StochRSI", "RSI",
            "ChanKManager", "ChanK", "ChanUnion", "ChanBIManager", "ChanBI", "ChanFeature", "ChanSegment",
-           "ChanSegmentManager", "BiFXValidMethod", "ChanFX", "ChanDirection", "ChanZSManager", "ChanZS",
+           "ChanSegmentManager", "BiFXValidMethod", "ChanFX", "ChanDirection", "ChanZSManager", "ChanZS", "Chan",
            "ChanBSPoint", "ChanFXManager", "MACD", "MERGE", "SuperSmoother", "UltimateOscillator", "Reflex", "TrendFlex",
            "DeMarker", "TDSequence", "TDTrendLine", "DMI", "WMA", "HMA", "IchimokuCloud", "WR", "CCI", "CCIV2", "Divergence"]
 

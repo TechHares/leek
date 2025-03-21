@@ -7,9 +7,9 @@
 
 __all__ = ["TR", "ATR", "RSRS", "SAR", "KDJ", "MA", "EMA", "BollBand", "DK", "LLT", "KAMA", "FRAMA", "StochRSI", "RSI",
            "ChanKManager", "ChanK", "ChanUnion", "ChanBIManager", "ChanBI", "ChanFeature", "ChanSegment",
-           "ChanSegmentManager", "BiFXValidMethod", "ChanFX", "ChanDirection", "ChanZSManager", "ChanZS",
+           "ChanSegmentManager", "BiFXValidMethod", "ChanFX", "ChanDirection", "ChanZSManager", "ChanZS", "Chan",
            "ChanBSPoint", "ChanFXManager", "MACD", "MERGE", "SuperSmoother", "UltimateOscillator", "Reflex", "TrendFlex",
-           "DeMarker", "TDSequence", "TDTrendLine", "DMI", "WMA", "HMA", "IchimokuCloud", "WR", "CCI", "CCIV2"]
+           "DeMarker", "TDSequence", "TDTrendLine", "DMI", "WMA", "HMA", "IchimokuCloud", "WR", "CCI", "CCIV2", "Divergence"]
 
 from leek.t.atr import ATR, TR
 from leek.t.boll import BollBand
@@ -25,7 +25,7 @@ from leek.t.dsp import Reflex, TrendFlex
 from leek.t.ichimoku_cloud import IchimokuCloud
 from leek.t.kdj import KDJ
 from leek.t.ma import MA, EMA, LLT, KAMA, FRAMA, SuperSmoother, UltimateOscillator, WMA, HMA
-from leek.t.macd import MACD
+from leek.t.macd import MACD, Divergence
 from leek.t.rsi import StochRSI, RSI
 from leek.t.rsrs import RSRS
 from leek.t.sar import SAR

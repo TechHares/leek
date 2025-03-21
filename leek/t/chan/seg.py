@@ -143,6 +143,14 @@ class ChanSegment(ChanUnion):
                or not self.is_up and self.left_feature.low > self.middle_feature.high)
 
         if not self.gap:
+            # middle 既是高点也是低点的情况处理
+            if (self.is_up and self.middle_feature.low < self.right_feature.low) or (not self.is_up and self.middle_feature.high > self.right_feature.high):
+                for tmp_bi in self.bi_list:
+                    if tmp_bi.idx <= self.right_feature.bi_list[-1].idx:
+                        continue
+                    if (self.is_up and tmp_bi.low < self.middle_feature.low) or (not self.is_up and tmp_bi.high > self.middle_feature.high):
+                        return True
+                return False
             return True
         return self.gap_break()
 
@@ -287,9 +295,8 @@ class ChanSegmentManager:
     线段 管理
     """
 
-    def __init__(self, exclude_equal: bool = False):
+    def __init__(self):
         self.__seg_list: List[ChanSegment] = []
-        self.bi_manager = ChanBIManager(exclude_equal)
 
         self.tmp_bi_list = [] # 用于未确认段起始点存放临时的笔
 
@@ -327,17 +334,6 @@ class ChanSegmentManager:
             self[-1].pre = self[-2]
             self[-2].next = self[-1]
             self[-1].idx = self[-2].idx + 1
-
-
-    def update(self, k: G):
-        """
-        计算线段
-        :param k: K线
-        :return:
-        """
-        bi = self.bi_manager.update(k)
-        if bi:
-            return self.update_bi(bi)
 
     def update_bi(self, bi: ChanBI):
         """

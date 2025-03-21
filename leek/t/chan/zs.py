@@ -73,7 +73,7 @@ class ChanZS(ChanUnion):
 
     def expand(self, zs: 'ChanZS'):
         assert zs.direction == self.direction
-        # self.level += 1
+        self.level += 1
         self.up_line = max(self.up_line, zs.up_line)
         self.down_line = min(self.down_line, zs.down_line)
         self.out_ele = zs.out_ele
@@ -126,7 +126,7 @@ class ChanZS(ChanUnion):
                 return self.calc_similar_zs()
             else:
                 rs = self.calc_zs()
-                if rs is not None and not rs:
+                if rs is not None and not rs and allow_similar_zs:
                     return self.calc_similar_zs()
                 return rs
 
@@ -209,34 +209,63 @@ class ChanZS(ChanUnion):
 
                 if not ele.is_finish:
                     return None
-
-                if ele.direction == self.direction:  # 走势完成 & 笔方向与中枢方向相同
-                    tmp_out_ele_idx = 0
-                    for i in range(len(self.element_list)):
-                        if self.element_list[i].direction != self.direction:
-                            continue
-                        if self.is_up  and self.element_list[i].high >= self.high:
-                            tmp_out_ele_idx = i
-                            break
-                        if not self.is_up and self.element_list[i].low <= self.low:
-                            tmp_out_ele_idx = i
-                            break
-
-                    if tmp_out_ele_idx >= 3:
-                        self.out_ele = self.element_list[tmp_out_ele_idx]
-                        self.element_list = self.element_list[:tmp_out_ele_idx]
-                        self.is_finish = True
-                        return True
-                    return False
-                if ele.direction != self.direction:  # 走势完成 & 笔方向与中枢方向不同
-                    self.out_ele = self.element_list[idx-1]
-                    self.element_list = self.element_list[:idx-1]
+                peak_value = max(e.high for e in self.element_list[:3]) if self.is_up else min(e.low for e in self.element_list[:3])
+                for i in range(3, idx):
+                    if self.direction != self.element_list[i].direction:
+                        continue
+                    if self.is_up and self.element_list[i].high > peak_value:
+                        peak_value = self.element_list[i].high
+                        self.out_ele = self.element_list[i]
+                    if self.direction.is_down and self.element_list[i].low < peak_value:
+                        peak_value = self.element_list[i].low
+                        self.out_ele = self.element_list[i]
+                if self.out_ele is not None:
+                    self.element_list = self.element_list[:self.element_list.index(self.out_ele)]
                     self.is_finish = True
                     return True
+                return False
         finally:
             if self.is_finish:
                 self.high = max([ele.high for ele in self.element_list])
                 self.low = min([ele.low for ele in self.element_list])
+
+    # def calc_zs(self):
+    #     try:
+    #         for idx in range(3, len(self.element_list)):
+    #             ele = self.element_list[idx]
+    #             if max(self.down_line, ele.low) < min(ele.high, self.up_line):  # 在中枢之内
+    #                 continue  # 继续延伸
+    #
+    #             if not ele.is_finish:
+    #                 return None
+    #
+    #             if ele.direction == self.direction:  # 走势完成 & 笔方向与中枢方向相同
+    #                 tmp_out_ele_idx = 0
+    #                 for i in range(len(self.element_list)-1, -1, -1):
+    #                     if self.element_list[i].direction != self.direction:
+    #                         continue
+    #                     if self.is_up  and self.element_list[i].high >= self.high:
+    #                         tmp_out_ele_idx = i
+    #                         break
+    #                     if not self.is_up and self.element_list[i].low <= self.low:
+    #                         tmp_out_ele_idx = i
+    #                         break
+    #
+    #                 if tmp_out_ele_idx >= 3:
+    #                     self.out_ele = self.element_list[tmp_out_ele_idx]
+    #                     self.element_list = self.element_list[:tmp_out_ele_idx]
+    #                     self.is_finish = True
+    #                     return True
+    #                 return False
+    #             if ele.direction != self.direction:  # 走势完成 & 笔方向与中枢方向不同
+    #                 self.out_ele = self.element_list[idx-1]
+    #                 self.element_list = self.element_list[:idx-1]
+    #                 self.is_finish = True
+    #                 return True
+    #     finally:
+    #         if self.is_finish:
+    #             self.high = max([ele.high for ele in self.element_list])
+    #             self.low = min([ele.low for ele in self.element_list])
 
     def __str__(self):
         return (f"ZS[{self.idx}]({self.down_line}-{self.up_line}, lv={self.level}, into={self.into_ele}, "

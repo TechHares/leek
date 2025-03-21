@@ -42,11 +42,19 @@ class ChanBI(ChanUnion):
 
     @property
     def start_origin_k(self):
-        return self.chan_k_list[1].start_origin_k
+        for k in self.chan_k_list[1].klines:
+            if self.direction.is_up and k.low == self.start_value:
+                return k
+            if self.direction.is_down and k.high == self.start_value:
+                return k
 
     @property
     def end_origin_k(self):
-        return self.chan_k_list[-2].end_origin_k
+        for k in self.chan_k_list[-2].klines:
+            if self.direction.is_up and k.high == self.end_value:
+                return k
+            if self.direction.is_down and k.low == self.end_value:
+                return k
 
     @property
     def start_timestamp(self):

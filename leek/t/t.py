@@ -28,13 +28,31 @@ class MERGE(T):
     """
     K线合并(周期升级)
     """
-
+    _CONFIG_INTERVAL = {
+        "1m": 60 * 1000,
+        "3m": 3 * 60 * 1000,
+        "5m": 5 * 60 * 1000,
+        "15m": 15 * 60 * 1000,
+        "30m": 30 * 60 * 1000,
+        "1h": 60 * 60 * 1000,
+        "4h": 4 * 60 * 60 * 1000,
+        "6h": 6 * 60 * 60 * 1000,
+        "12h": 12 * 60 * 60 * 1000,
+        "1d": 24 * 60 * 60 * 1000,
+    }
     def __init__(self, window=9, max_cache=100):
         T.__init__(self, max_cache)
         self.window = window
         self.q = deque(maxlen=window)
 
+        self.not_start = True
+
     def update(self, data):
+        if self.not_start:
+            if  data.timestamp % int(self.window * self._CONFIG_INTERVAL[data.interval]) != 0:
+                return None
+            self.not_start = False
+
         if len(self.q) > 0 and self.q[-1].finish == 0:
             self.q.pop()
 
@@ -58,5 +76,6 @@ class MERGE(T):
             self.cache.append(r)
 
         return r
+
 if __name__ == '__main__':
     pass

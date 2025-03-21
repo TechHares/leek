@@ -56,8 +56,8 @@ class TestMACD(unittest.TestCase):
         print(len(data), len(data)//3, len(rs))
 
     def test_divergence(self):
-        workflow = ViewWorkflow(None, "30m", "2025-02-25 14:30", "2025-03-17 18:30", "ETH-USDT-SWAP")
-        macd = MACD()
+        workflow = ViewWorkflow(None, "30m", "2025-02-25 14:30", "2025-03-17 18:30", "CRV-USDT-SWAP")
+        macd = MACD(16, 48, 6)
         divergence = Divergence(divergence_threshold=2, pull_back_rate=0.35, dea_pull_back=False)
         data = workflow.get_data(workflow.benchmark)
         lst = []

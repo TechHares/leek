@@ -211,7 +211,8 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
 
     def __init__(self, min_price=1, max_price=0, risk_rate=0.1, force_risk_rate=0.1, k_merge_period=0,
                  bias_risk_rate=0.06, position_split: str = "1,1,1,1,1,1,1,1,1,1", factory=2,
-                 over_buy=80, over_sell=20, window=20, limit_threshold=3, stop_condition="", start_condition=""):
+                 over_buy=80, over_sell=20, window=20, limit_threshold=3, stop_condition="", start_condition="",
+                 fast_period=12, slow_period=26, smoothing_period=9):
         self.min_price = Decimal(min_price)
         self.max_price = Decimal(max_price)
         if self.min_price < 0 or self.max_price < 0 or self.min_price > self.max_price:
@@ -245,7 +246,7 @@ class RSIV2Strategy(PositionSideManager, PositionRateManager, BaseStrategy):
 
         if self.k_merge_period > 0:
             self.merge = MERGE(window=self.k_merge_period, max_cache=300)
-            self.macd = MACD()
+            self.macd = MACD(int(fast_period), int(slow_period), int(smoothing_period))
 
     def data_init_params(self, market_data):
         return {

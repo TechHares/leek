@@ -41,12 +41,26 @@ class ChanBI(ChanUnion):
         return len(self.chan_k_list) - 1
 
     @property
+    def klines(self):
+        lst = []
+        for k in self.chan_k_list[1:-1]:
+            lst.extend(k.klines)
+        if self.is_up:
+            if self.chan_k_list[-1].high > self.chan_k_list[-2].high:
+                lst.extend(self.chan_k_list[-1].klines)
+        else:
+            if self.chan_k_list[-1].low < self.chan_k_list[-2].low:
+                lst.extend(self.chan_k_list[-1].klines)
+        return lst
+
+    @property
     def start_origin_k(self):
         for k in self.chan_k_list[1].klines:
             if self.direction.is_up and k.low == self.start_value:
                 return k
             if self.direction.is_down and k.high == self.start_value:
                 return k
+        return self.chan_k_list[1].klines[0]
 
     @property
     def end_origin_k(self):
@@ -55,6 +69,7 @@ class ChanBI(ChanUnion):
                 return k
             if self.direction.is_down and k.low == self.end_value:
                 return k
+        return self.chan_k_list[-2].klines[-1]
 
     @property
     def start_timestamp(self):

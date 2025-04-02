@@ -271,6 +271,31 @@ class ChanZS(ChanUnion):
         return (f"ZS[{self.idx}]({self.down_line}-{self.up_line}, lv={self.level}, into={self.into_ele}, "
                 f"els={[str(e) for e in self.element_list]}, out={self.out_ele})")
 
+    def simulation(self):
+        """
+        模拟笔已经完成当前中枢的状态
+        :return:
+        """
+        zs = ChanZS(self.into_ele, init_level=self.init_level)
+        right_idx = -1 if self.element_list[-1].direction == self.direction else -2
+        zs.element_list = self.element_list[:right_idx]
+        zs.out_ele = self.element_list[right_idx]
+        zs.pre = self.pre
+
+        zs_idx = 3 if len(zs.element_list) >= 3 else len(zs.element_list)
+        zs.up_line = min([ele.high for ele in zs.element_list[:zs_idx]])
+        zs.down_line = max([ele.low for ele in zs.element_list[:zs_idx]])
+        if zs.down_line > zs.up_line:
+            return None
+        zs.level = self.level if len(zs.element_list) > 1 else 0
+        zs.is_satisfy = True
+        zs.is_finish = True
+
+        zs.high = max([ele.high for ele in zs.element_list])
+        zs.low = min([ele.low for ele in zs.element_list])
+        return zs
+
+
 class ChanZSManager:
     def __init__(self, max_level=3, allow_similar_zs=False, enable_expand=True, enable_stretch=True):
         self.max_level = max_level

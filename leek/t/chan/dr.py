@@ -49,6 +49,20 @@ class ChanDR(ChanUnion):
         return len(self.zs)
 
     @property
+    def klines(self):
+        lst = []
+        pre_out = None
+        for zs in self.zs:
+            if pre_out != zs.into_ele:
+                lst.extend(zs.into_ele.klines)
+            for uni in zs.element_list:
+                lst.extend(uni.klines)
+            if zs.out_ele:
+                lst.extend(zs.out_ele.klines)
+                pre_out = zs.out_ele
+        return lst
+
+    @property
     def end_timestamp(self):
         return self.zs[-1].end_timestamp
 
@@ -63,7 +77,11 @@ class ChanDR(ChanUnion):
                 return
 
             if zs.direction != self.direction:
-                return ChanDR(zs)
+                dr = ChanDR(zs)
+                dr.idx = self.idx + 1
+                dr.pre = self
+                self.next = dr
+                return dr
 
             self.zs.append(zs)
         finally:
@@ -95,7 +113,6 @@ class ChanDR(ChanUnion):
 class ChanDRManager:
     def __init__(self):
         self.dr_list: List[ChanDR] = []
-        self._idx = 0
 
     def update(self, chan: ChanZS):
         if chan is None:
@@ -104,13 +121,8 @@ class ChanDRManager:
             self.dr_list.append(ChanDR(chan))
             return
         new_dr = self.dr_list[-1].update(chan)
-        if new_dr is None:
-            return
-        self._idx += 1
-        new_dr.idx = self._idx
-        new_dr.pre = self.dr_list[-1]
-        self.dr_list[-1].next = new_dr
-        self.dr_list.append(new_dr)
+        if new_dr is not None:
+            self.dr_list.append(new_dr)
 
 if __name__ == '__main__':
     pass

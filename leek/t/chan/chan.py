@@ -37,10 +37,11 @@ class Chan(T):
         if seg:
             self.seg_manager = ChanSegmentManager()
         if bi_zs:
-            self.bizs_manager = ChanZSManager(max_level=zs_max_level, allow_similar_zs=False)
+            self.bizs_manager = ChanZSManager(max_level=zs_max_level, allow_similar_zs=True)
         if seg_zs:
             self.zs_manager = ChanZSManager(max_level=zs_max_level, allow_similar_zs=allow_similar_zs)
         if dr:
+            self._zs_manager = ChanZSManager(max_level=zs_max_level, allow_similar_zs=True)
             self.dr_manager = ChanDRManager()
         if dr_zs:
             self.drzs_manager = ChanZSManager(max_level=zs_max_level, allow_similar_zs=allow_similar_zs)
@@ -62,21 +63,47 @@ class Chan(T):
             if not self.seg_zs:
                 return
             self.zs_manager.update(seg)
+            self._zs_manager.update(seg)
             if not self.dr:
                 return
-            for zs in self.zs_manager.zs_list:
+            for zs in self._zs_manager.zs_list:
                 if self.tmp_zs is None or zs.idx >= self.tmp_zs.idx:
                     self.dr_manager.update(zs)
                     self.tmp_zs = zs
-            if self.zs_manager.cur_zs:
-                self.dr_manager.update(self.zs_manager.cur_zs)
-                self.tmp_zs = self.zs_manager.cur_zs
+            if self._zs_manager.cur_zs:
+                self.dr_manager.update(self._zs_manager.cur_zs)
+                self.tmp_zs = self._zs_manager.cur_zs
                 if not self.dr_zs:
                     return
                 for dr in self.dr_manager.dr_list:
                     if self.tmp_dr is None or dr.idx >= self.tmp_dr.idx:
                         self.drzs_manager.update(dr)
                         self.tmp_dr = dr
+
+    @property
+    def lower_near_zs(self):
+        """
+        :return: 次级别最近的中枢
+        """
+        if self.bi_zs:
+            return self.bizs_manager.cur_zs
+
+    @property
+    def current_near_zs(self):
+        """
+        :return: 当前级别最近的中枢
+        """
+        if self.seg_zs:
+            return self.zs_manager.cur_zs
+
+    @property
+    def higher_near_zs(self):
+        """
+        :return: 高级别最近的中枢
+        """
+        if self.bi_zs:
+            return self.drzs_manager.cur_zs
+
 
     def mark_on_data(self):
         for bi in self.bi_manager:

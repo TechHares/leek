@@ -282,6 +282,7 @@ class PositionManager:
                 return
             order.amount = amount
 
+        order.lever = signal.lever
         order.extend = signal.extend
         self.signal_processing_map[signal.symbol] = signal.position_rate
         self.bus.publish(EventBus.TOPIC_ORDER_DATA, order)
@@ -535,9 +536,10 @@ class BaseStrategy(metaclass=ABCMeta):
             self.g_map[symbol] = G(data_init_status=0)
         return self.g_map[symbol]
 
-    def create_order(self, side: PositionSide, position_rate="0.5", memo="", extend=None):
+    def create_order(self, side: PositionSide, position_rate="0.5", memo="", extend=None, lever=None):
         """
         创建订单
+        :param lever: 杠杆
         :param side: 方向
         :param position_rate: 仓位
         :param memo: 备注
@@ -554,6 +556,7 @@ class BaseStrategy(metaclass=ABCMeta):
         position_signal.strategy_id = self._strategy_id
         position_signal.memo = memo
         position_signal.extend = extend
+        position_signal.lever = lever
         self.bus.publish(EventBus.TOPIC_STRATEGY_SIGNAL, position_signal)
 
     def have_position(self):

@@ -14,15 +14,15 @@ from leek.t.t import T
 
 class MACD(T):
 
-    def __init__(self, fast_period=12, slow_period=26, moving_period=9, max_cache=10):
+    def __init__(self, fast_period=12, slow_period=26, moving_period=9, ma=MA, max_cache=10):
         T.__init__(self, max_cache=max_cache)
         self.fast_period = fast_period
         self.slow_period = slow_period
         self.moving_period = moving_period
 
-        self.fast_ma = EMA(self.fast_period)
-        self.slow_ma = EMA(self.slow_period)
-        self.dea = EMA(self.moving_period)
+        self.fast_ma = ma(self.fast_period)
+        self.slow_ma = ma(self.slow_period)
+        self.dea = ma(self.moving_period)
 
     def update(self, data):
         fast = self.fast_ma.update(data)
@@ -42,7 +42,7 @@ class MACD(T):
 class Divergence:
     def __init__(self, divergence_threshold=1, allow_cross_zero=True, close_price_divergence=True,
                  peak_price_divergence=True, peak_price_divergence_advance=True,
-                 m_area_divergence=True, dea_pull_back=True, pull_back_rate=0):
+                 m_area_divergence=True, dea_pull_back=True, pull_back_rate=0, divergence_rate=0.9):
         """
         初始化参数
         :param allow_cross_zero:               允许前次势峰 穿过0轴
@@ -53,6 +53,7 @@ class Divergence:
         :param m_area_divergence:              能量柱背离    启用能量柱面积背离
         :param pull_back_rate:                 拉回率       背离双峰之间回拉0轴比例
         :param dea_pull_back:                  DEA线拉回    启用DEA线拉回判断 不启用会使用DIF线
+        :param divergence_rate:                背离率       后一次背离前一次的比值
         """
         self.divergence_threshold = divergence_threshold
         self.allow_cross_zero = allow_cross_zero
@@ -62,6 +63,7 @@ class Divergence:
         self.m_area_divergence = m_area_divergence
         self.dea_pull_back = dea_pull_back
         self.pull_back_rate = pull_back_rate
+        self.divergence_rate = divergence_rate
 
     def is_top_divergence(self, data) -> bool:
         """
@@ -101,7 +103,7 @@ class Divergence:
             return False
 
         divergence_count = 0
-        line_divergence = params[3] < params2[3]  # 黄线是否低了
+        line_divergence = abs(params[3] / params2[3])  < self.divergence_rate  # 黄线是否低了
         m_divergence = self.m_area_divergence and params[6] < params2[6] and params[5] < params2[5]    # 能量柱是否低了
         if m_divergence and self.peak_price_divergence_advance:  # 顶上K是否有很长的上影线
             m_divergence = top_k.close < top_k.open or (top_k.high - top_k.close) > (top_k.close - top_k.open)
@@ -159,7 +161,8 @@ class Divergence:
             return False
 
         divergence_count = 0
-        line_divergence = params[3] > params2[3]  # 黄线是否高了
+
+        line_divergence = abs(params[3] / params2[3]) < self.divergence_rate  # 黄线是否高了
         m_divergence = self.m_area_divergence and params[6] < params2[6] and params[5] > params2[5]   # 能量柱是否高了
         if m_divergence and self.peak_price_divergence_advance:  # 顶上K是否有很长的上影线
             m_divergence = bottom_k.close > bottom_k.open or (bottom_k.open - bottom_k.close) < (bottom_k.close - bottom_k.low)

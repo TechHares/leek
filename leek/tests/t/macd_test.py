@@ -57,8 +57,8 @@ class TestMACD(unittest.TestCase):
 
     def test_divergence(self):
         workflow = ViewWorkflow(None, "30m", "2025-02-25 14:30", "2025-03-17 18:30", "CRV-USDT-SWAP")
-        macd = MACD(16, 48, 6)
-        divergence = Divergence(divergence_threshold=2, pull_back_rate=0.35, dea_pull_back=False)
+        macd = MACD(12, 26, 9)
+        divergence = Divergence(divergence_threshold=2, pull_back_rate=0.3, dea_pull_back=False)
         data = workflow.get_data(workflow.benchmark)
         lst = []
         idx = 0
@@ -70,6 +70,8 @@ class TestMACD(unittest.TestCase):
             if r:
                 d.dif = r[0]
                 d.dea = r[1]
+                if d.dif is None or d.dea is None:
+                    continue
                 d.m = r[0] - r[1]
                 lst.append(d)
                 if divergence.is_top_divergence(lst):

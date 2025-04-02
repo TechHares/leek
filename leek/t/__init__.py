@@ -42,8 +42,8 @@ MA_TYPE = {
     "LLT": LLT,
     "KAMA": KAMA,
     "FRAMA": FRAMA,
-    "SUPERSMOOTHER": SuperSmoother,
-    "ULTIMATEOSCILLATOR": UltimateOscillator,
+    "SSM": SuperSmoother,
+    "UO": UltimateOscillator,
     "WMA": WMA,
     "HMA": HMA
 }

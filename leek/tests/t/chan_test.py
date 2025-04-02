@@ -68,7 +68,9 @@ class TestChan(unittest.TestCase):
     def test_bi(self):
         # workflow = ViewWorkflow(None, "5m", "2024-07-18 23:10", "2024-07-21 20:00", "ULTI-USDT-SWAP")
         # workflow = ViewWorkflow(None, "5m", "2024-07-18 23:10", "2024-07-19 10:10", "ULTI-USDT-SWAP")
-        workflow = ViewWorkflow(None, "5m", "2024-12-15 23:10", "2024-12-20 20:00", "CRV-USDT-SWAP")
+        # workflow = ViewWorkflow(None, "5m", "2024-12-15 23:10", "2024-12-20 20:00", "CRV-USDT-SWAP")
+        # workflow = ViewWorkflow(None, "1m", "2025-03-06 23:10", "2025-03-07 20:00", "CRV-USDT-SWAP")
+        workflow = ViewWorkflow(None, "1m", "2025-03-07 08:10", "2025-03-07 10:20", "CRV-USDT-SWAP")
         data = workflow.get_data("CRV-USDT-SWAP")
         bi_manager = ChanBIManager()
         for d in data:
@@ -95,6 +97,13 @@ class TestChan(unittest.TestCase):
                       row=1, col=1)
         fig.add_trace(go.Scatter(x=df['Datetime'], y=df["bi_value"], mode='text', text=df["bi_idx"], name='bi_idx'),
                       row=2, col=1)
+        fig.add_trace(go.Scatter(
+            x=df['Datetime'],
+            y=df['high'] * Decimal("1.01"),
+            mode='markers+text',
+            text=df["ck_idx"],
+            marker=dict(color='green', size=4)
+        ), row=2, col=1)
         fig.add_trace(go.Candlestick(x=df['Datetime'],
                                      open=df['chan_open'],
                                      high=df['chan_high'],
@@ -103,13 +112,15 @@ class TestChan(unittest.TestCase):
                                      name=df.iloc[0]["symbol"]), row=2, col=1)
         fig.update_xaxes(rangeslider_visible=False, row=1, col=1)
         fig.update_xaxes(rangeslider_visible=False, row=2, col=1)
-        fig.update_layout(height=4000, width=12000)
+        fig.update_layout(height=800, width=1200)
         workflow.draw(fig=fig, df=df)
         fig.show()
 
     def test_seg(self):
-        workflow = ViewWorkflow(None, "5m", "2024-12-15 23:10", "2024-12-20 20:00", "CRV-USDT-SWAP")
-        workflow = ViewWorkflow(None, "1m", "2025-03-01 23:10", "2025-03-03 20:00", "CRV-USDT-SWAP")
+        # workflow = ViewWorkflow(None, "5m", "2024-12-15 23:10", "2024-12-20 20:00", "CRV-USDT-SWAP")
+        # workflow = ViewWorkflow(None, "1m", "2025-03-01 23:10", "2025-03-03 20:00", "CRV-USDT-SWAP")
+        workflow = ViewWorkflow(None, "1m", "2025-03-06 23:10", "2025-03-07 20:00", "CRV-USDT-SWAP")
+        # workflow = ViewWorkflow(None, "1m", "2025-03-06 23:10", "2025-03-08 20:00", "CRV-USDT-SWAP")
         # workflow = ViewWorkflow(None, "5m", "2024-12-15 23:10", "2024-12-17 20:00", "CRV-USDT-SWAP")
         # workflow = ViewWorkflow(None, "5m", "2024-12-30 23:10", "2025-01-07 20:00", "CRV-USDT-SWAP")
         data = workflow.get_data("CRV-USDT-SWAP")
@@ -117,11 +128,11 @@ class TestChan(unittest.TestCase):
         seg_manager = ChanSegmentManager()
         for d in data:
             bi = bi_manager.update(d)
-            # if bi:
-            #     seg_manager.update_bi(bi)
+            if bi:
+                seg_manager.update_bi(bi)
 
-        for bi in bi_manager:
-            seg_manager.update_bi(bi)
+        # for bi in bi_manager:
+        #     seg_manager.update_bi(bi)
         for bi in bi_manager:
             bi.mark_on_data()
             for ck in bi.chan_k_list:
@@ -139,6 +150,10 @@ class TestChan(unittest.TestCase):
         df['Datetime'] = pd.to_datetime(df['timestamp'] + 8 * 60 * 60 * 1000, unit='ms')
         fig = make_subplots(rows=1, cols=1, shared_xaxes=True)
         if "seg" in df.columns:
+            fig.add_trace(
+                go.Scatter(x=df['Datetime'], y=df["seg_value"], mode='text', text=df["seg_idx"], name='seg_idx'),
+                row=1, col=1)
+
             fig.add_trace(go.Scatter(x=df['Datetime'], y=df['seg'], mode='lines', line=dict(color='blue', width=2),
                                      name='segment', connectgaps=True), row=1, col=1)
         if "seg_" in df.columns:
@@ -464,9 +479,9 @@ class TestChan(unittest.TestCase):
         fig.show()
 
     def test_chan(self):
-        workflow = ViewWorkflow(None, "1m", "2025-03-01 23:10", "2025-03-03 20:00", "CRV-USDT-SWAP")
+        workflow = ViewWorkflow(None, "1m", "2025-03-01 23:10", "2025-03-25 20:00", "CRV-USDT-SWAP")
         data = workflow.get_data("CRV-USDT-SWAP")
-        chan = Chan(bi_zs=True, seg=True, seg_zs=False, dr=False, dr_zs=False, exclude_equal=False, zs_max_level=2, allow_similar_zs=True)
+        chan = Chan(bi_zs=True, seg=True, seg_zs=True, dr=True, dr_zs=True, exclude_equal=False, zs_max_level=2, allow_similar_zs=True)
 
         for d in data:
             chan.update(d)

@@ -11,6 +11,7 @@ from clickhouse_backend import models as ck_models
 
 from leek.data.data import get_all_data_cls_list
 from leek.strategy import get_all_strategies_cls_list
+from leek.t import MA_TYPE
 from leek.trade.trade import get_all_trader_cls_list
 from web.workstation.config import update_config
 from web.workstation.worker import WorkerWorkflow
@@ -180,11 +181,7 @@ class StrategyConfig(models.Model):
         (4, u"多|空"),
     ))
     mean_type = models.CharField(u'均值计算方式', max_length=10, default="SMA", blank=True,
-                                 choices=(
-                                     ("SMA", u"SMA"),
-                                     ("EMA", u"EMA"),
-                                     ("AMA", u"AMA"),
-                                 ))
+                                 choices=((k, v) for k, v in MA_TYPE))
     window = models.IntegerField(u'均线计算周期', default="10")
     threshold = models.DecimalField(u'阈值', max_digits=36, decimal_places=6, default="0.02")
     take_profit_rate = models.DecimalField(u'止盈比例', max_digits=36, decimal_places=6, default=0.2)

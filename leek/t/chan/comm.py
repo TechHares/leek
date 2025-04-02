@@ -56,6 +56,10 @@ class ChanUnion(metaclass=abc.ABCMeta):
         return self.direction == ChanDirection.UP
 
     @property
+    def klines(self):
+        raise NotImplementedError()
+
+    @property
     @abc.abstractmethod
     def end_timestamp(self):
         ...

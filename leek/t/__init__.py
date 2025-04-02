@@ -36,5 +36,17 @@ from leek.t.chan.chan import Chan
 from leek.t.t import MERGE
 from leek.t.wr import WR
 
+MA_TYPE = {
+    "MA": MA,
+    "EMA": EMA,
+    "LLT": LLT,
+    "KAMA": KAMA,
+    "FRAMA": FRAMA,
+    "SUPERSMOOTHER": SuperSmoother,
+    "ULTIMATEOSCILLATOR": UltimateOscillator,
+    "WMA": WMA,
+    "HMA": HMA
+}
+
 if __name__ == '__main__':
     pass

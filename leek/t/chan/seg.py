@@ -87,6 +87,16 @@ class ChanSegment(ChanUnion):
     def end_origin_k(self):
         return self.bi_list[-1].end_origin_k
 
+    @property
+    def klines(self):
+        lst = []
+        lst.extend(self.bi_list[0].klines)
+        for bi in self.bi_list[1:]:
+            for k in bi.klines:
+                if k.timestamp > lst[-1].timestamp:
+                    lst.append(k)
+        return lst
+
     def get_middle_k(self):
         """
         获取线段中间K
@@ -174,7 +184,7 @@ class ChanSegment(ChanUnion):
         """
         if self.bi_list[-1].idx < bi.idx:
             self.bi_list.append(bi)
-        if self.bi_list[-1].idx == bi.idx:
+        elif self.bi_list[-1].idx == bi.idx:
             self.bi_list[-1] = bi
 
         self.update_peak_value()
@@ -193,33 +203,27 @@ class ChanSegment(ChanUnion):
         if len(self.bi_list) < 3:
             return
         pre_peak_point = self.peak_point
-        if self.peak_point is None:
+        fb = [bi for bi in self.bi_list if bi.direction == self.direction]
+        if pre_peak_point is None or not pre_peak_point.is_finish:
             # 第三笔新高或新低 极值保底成立
-            fb = [bi for bi in self.bi_list if bi.direction == self.direction]
             for i in range(1, len(fb)):
                 if (fb[i].high > fb[i - 1].high and self.is_up) or (not self.is_up and fb[i].low < fb[i - 1].low):
                     self.peak_point = fb[i]
+                    fb = fb[i:]
                     break
         if self.peak_point is None:
             return
 
-        assert self.peak_point is not None and self.peak_point.direction == self.direction, "极值点方向错误"
-        if self.is_up: # 向上线段
-            if self.bi_list[-1].direction.is_up: # 最后一笔是向上笔
-                self.peak_point = max(self.peak_point, self.bi_list[-1], key=lambda x: x.high)
-            else: # 最后一笔是向上笔
-                self.peak_point = max(self.peak_point, self.bi_list[-2], key=lambda x: x.high)
-        else: # 向下线段
-            if self.bi_list[-1].direction.is_up: # 最后一笔是向上笔
-                self.peak_point = min(self.peak_point, self.bi_list[-2], key=lambda x: x.low)
-            else: # 最后一笔是向上笔
-                self.peak_point = min(self.peak_point, self.bi_list[-1], key=lambda x: x.low)
+        for bi in fb:
+            if self.is_up:  # 向上线段
+                self.peak_point = max(self.peak_point, bi, key=lambda x: x.high)
+            else:
+                self.peak_point = min(self.peak_point, bi, key=lambda x: x.low)
 
         if pre_peak_point != self.peak_point:
             self.middle_feature = None
             self.right_feature = None
             self.update_left_feature()
-
 
     def update_left_feature(self):
         """
@@ -257,7 +261,7 @@ class ChanSegment(ChanUnion):
         for bi in fb:
             feature = ChanFeature(bi)
             feature.direction = self.direction
-            if len(features) > 0 and features[-1].is_included(feature, True):
+            if len(features) > 0 and features[-1].is_included(feature):
                 features[-1].merge(feature)
             else:
                 features.append(feature)
@@ -287,6 +291,7 @@ class ChanSegment(ChanUnion):
         self.is_finish = True
         if self.gap:
             return self.next, self.next.finish()[1]
+        # assert self.end_value > self.start_value if self.is_up else self.start_value < self.end_value
         return None, [bi for bi in tmp if bi.idx > self.peak_point.idx]
 
 

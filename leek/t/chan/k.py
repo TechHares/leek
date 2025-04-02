@@ -18,7 +18,7 @@ class ChanK(ChanUnion):
 
     def __init__(self, k):
         super().__init__(high=k.high, low=k.low)
-        self.klines = [k]  # 实际包含的k
+        self._klines = [k]  # 实际包含的k
         self.is_finish = k.finish == 1
 
         self.image = None
@@ -32,7 +32,7 @@ class ChanK(ChanUnion):
         return target
 
     def _merge(self, other: 'ChanUnion'):
-        self.klines.extend(other.klines)
+        self._klines.extend(other.klines)
 
     @property
     def size(self):
@@ -79,6 +79,10 @@ class ChanK(ChanUnion):
             "volume": sum([k.volume for k in self.klines]),
             "amount": sum([k.amount for k in self.klines])
         }
+
+    @property
+    def klines(self):
+        return self._klines
 
     def __str__(self):
         return (f"ChanK[{self.idx}]({DateTime.to_date_str(self.start_timestamp)}~{DateTime.to_date_str(self.end_timestamp)},"

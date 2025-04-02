@@ -120,19 +120,14 @@ class ChanDRManager:
         self.dr_list: List[ChanDR] = []
 
     def update(self, chan: ChanZS):
-        try:
-            if chan is None:
-                return
-            if len(self.dr_list) == 0:
-                self.dr_list.append(ChanDR(chan))
-                return
-            new_dr = self.dr_list[-1].update(chan)
-            if new_dr is not None:
-                self.dr_list.append(new_dr)
-        finally:
-            if len(self.dr_list) > 2 and self.dr_list[-1].idx == 0:
-                print(chan.end_timestamp)
-                exit(0)
+        if chan is None:
+            return
+        if len(self.dr_list) == 0:
+            self.dr_list.append(ChanDR(chan))
+            return
+        new_dr = self.dr_list[-1].update(chan)
+        if new_dr is not None:
+            self.dr_list.append(new_dr)
 
 if __name__ == '__main__':
     pass

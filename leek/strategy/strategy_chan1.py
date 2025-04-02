@@ -21,7 +21,7 @@ from leek.t import ChanBIManager, BiFXValidMethod, ChanSegmentManager, ChanZSMan
 from leek.trade.trade import PositionSide
 
 
-class ChanV2Strategy(StopLoss, PositionRateManager, PositionDirectionManager, JustFinishKData, BaseStrategy):
+class ChanV2Strategy(StopLoss, PositionRateManager, JustFinishKData, BaseStrategy):
     verbose_name = "缠论V2(区间套)"
 
     def __init__(self, exclude_equal=False, zs_max_level=2, allow_similar_zs=False,
@@ -97,7 +97,7 @@ class ChanV2Strategy(StopLoss, PositionRateManager, PositionDirectionManager, Ju
 
         if not self.have_position():
             if lower_dr is not None and current_dr is not None and current_dr == lower_dr:
-                self.create_order(lower_dr)
+                self.create_order(lower_dr, self.max_single_position)
                 return
         else:
             if (lower_dr is not None and self.position.direction != lower_dr) or (current_dr is not None and current_dr != self.position.direction):

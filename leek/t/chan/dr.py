@@ -70,7 +70,12 @@ class ChanDR(ChanUnion):
         try:
             self.zs = [e for e in self.zs if not (not e.is_satisfy and e.is_finish)]
             if len(self.zs) == 0:
-                ChanDR.__init__(self, zs)
+                self.direction = zs.direction
+                self.high = zs.high
+                self.low = zs.low
+                self.is_finish = zs.is_finish
+                self.zs: List[ChanZS] = [zs]  # 中枢
+                self.update_peak_value()
                 return
 
             if self.zs[-1].idx == zs.idx:
@@ -115,14 +120,19 @@ class ChanDRManager:
         self.dr_list: List[ChanDR] = []
 
     def update(self, chan: ChanZS):
-        if chan is None:
-            return
-        if len(self.dr_list) == 0:
-            self.dr_list.append(ChanDR(chan))
-            return
-        new_dr = self.dr_list[-1].update(chan)
-        if new_dr is not None:
-            self.dr_list.append(new_dr)
+        try:
+            if chan is None:
+                return
+            if len(self.dr_list) == 0:
+                self.dr_list.append(ChanDR(chan))
+                return
+            new_dr = self.dr_list[-1].update(chan)
+            if new_dr is not None:
+                self.dr_list.append(new_dr)
+        finally:
+            if len(self.dr_list) > 2 and self.dr_list[-1].idx == 0:
+                print(chan.end_timestamp)
+                exit(0)
 
 if __name__ == '__main__':
     pass

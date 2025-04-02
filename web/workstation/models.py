@@ -180,7 +180,7 @@ class StrategyConfig(models.Model):
         (2, u"空"),
         (4, u"多|空"),
     ))
-    MEAN_TYPE_CHOICE = [(k, MA_TYPE[k]) for k in MA_TYPE]
+    MEAN_TYPE_CHOICE = [(k, k) for k in MA_TYPE]
     mean_type = models.CharField(u'均值计算方式', max_length=10, default="SMA", blank=True,
                                  choices=MEAN_TYPE_CHOICE)
     window = models.IntegerField(u'均线计算周期', default="10")

@@ -479,8 +479,8 @@ class TestChan(unittest.TestCase):
         fig.show()
 
     def test_chan(self):
-        workflow = ViewWorkflow(None, "1m", "2025-03-01 23:10", "2025-03-25 20:00", "CRV-USDT-SWAP")
-        data = workflow.get_data("CRV-USDT-SWAP")
+        workflow = ViewWorkflow(None, "1m", "2025-03-01 23:10", "2025-03-25 20:00", "ETH-USDT-SWAP")
+        data = workflow.get_data("ETH-USDT-SWAP")
         chan = Chan(bi_zs=True, seg=True, seg_zs=True, dr=True, dr_zs=True, exclude_equal=False, zs_max_level=2, allow_similar_zs=True)
 
         for d in data:

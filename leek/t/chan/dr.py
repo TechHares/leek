@@ -70,7 +70,12 @@ class ChanDR(ChanUnion):
         try:
             self.zs = [e for e in self.zs if not (not e.is_satisfy and e.is_finish)]
             if len(self.zs) == 0:
-                ChanDR.__init__(self, zs)
+                self.direction = zs.direction
+                self.high = zs.high
+                self.low = zs.low
+                self.is_finish = zs.is_finish
+                self.zs: List[ChanZS] = [zs]  # 中枢
+                self.update_peak_value()
                 return
 
             if self.zs[-1].idx == zs.idx:

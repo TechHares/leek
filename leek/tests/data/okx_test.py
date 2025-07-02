@@ -8,6 +8,8 @@ import time
 import unittest
 from datetime import datetime
 
+from okx import MarketData
+
 from leek.common import EventBus
 from leek.common.utils import DateTime
 from leek.data import DataSource, WSDataSource
@@ -71,11 +73,13 @@ class TestBase(unittest.TestCase):
             print(datetime.fromtimestamp(data.timestamp / 1000).strftime("%Y-%m-%d %H:%M:%S"), data)
 
     def test_funding(self):
-        source = OKXFundingDataSource()
-        source._run()
+        # source = OKXFundingDataSource()
+        # source._run()
         # kline = source.get_kline("BTC-USDT")
         # for k in kline:
         #     print(DateTime.to_date_str(k[0]), k[1], k[2])
+        api = MarketData.MarketAPI(domain="https://www.okx.com", flag="0", debug=True)
+        api.get_tickers(instType="SWAP")
 
 
 if __name__ == '__main__':

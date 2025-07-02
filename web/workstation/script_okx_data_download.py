@@ -26,7 +26,7 @@ sys.path.append(f'{root}')
 from leek.common import IdGenerator, config
 
 generator = IdGenerator(1)
-api = MarketData.MarketAPI(domain="https://aws.okx.com", flag="0", debug=False, proxy=config.PROXY)
+api = MarketData.MarketAPI(domain="https://www.okx.com", flag="0", debug=False, proxy=config.PROXY)
 
 
 def download_okx_kline(start_date, end_date, symbols=None, intervals=None, skip=0, inst_type="SWAP", save_to="DB"):

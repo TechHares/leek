@@ -1,7 +1,7 @@
 ﻿urllib3==2.2.3
 cachetools==5.5.0
 pandas==2.2.3
-python_okx==0.3.2
+python_okx==0.3.7
 
 mock==5.1.0
 websocket-client==1.8.0

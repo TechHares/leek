@@ -176,11 +176,6 @@ class OkxTrader(Trader):
         WebSocket公共频道：wss://ws.okx.com:8443/ws/v5/public
         WebSocket私有频道：wss://ws.okx.com:8443/ws/v5/private
         WebSocket业务频道：wss://ws.okx.com:8443/ws/v5/business
-    AWS 地址如下：
-        REST：https://aws.okx.com
-        WebSocket公共频道：wss://wsaws.okx.com:8443/ws/v5/public
-        WebSocket私有频道：wss://wsaws.okx.com:8443/ws/v5/private
-        WebSocket业务频道：wss://wsaws.okx.com:8443/ws/v5/business
 
     模拟盘API交易地址如下：
         REST：https://www.okx.com

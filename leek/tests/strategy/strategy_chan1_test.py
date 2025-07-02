@@ -35,12 +35,14 @@ class TestChan1(unittest.TestCase):
 
         self.bus = EventBus()
         # workflow = ViewWorkflow(self.strategy, "1m", "2025-03-01 23:10", "2025-03-25 20:00", "CRV-USDT-SWAP")
-        workflow = ViewWorkflow(self.strategy, "1m", "2025-03-01 00:00", "2025-04-01 00:00", "CRV-USDT-SWAP")
+        # workflow = ViewWorkflow(self.strategy, "1m", "2025-03-01 00:00", "2025-04-08 00:00", "CRV-USDT-SWAP")
+        workflow = ViewWorkflow(self.strategy, "1m", "2025-03-01 00:00", "2025-03-05 00:00", "CRV-USDT-SWAP")
 
         workflow.start()
 
         self.strategy.chan.mark_on_data()
         df = pd.DataFrame([x.__json__() for x in workflow.kline_data_g])
+        print(df.columns)
         df['Datetime'] = pd.to_datetime(df['timestamp'] + 8 * 60 * 60 * 1000, unit='ms')
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True)
 

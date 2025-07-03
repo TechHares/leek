@@ -168,6 +168,7 @@ class LeekManager:
         # 清理日志文件
         log_files = [
             self.backend_dir / "leek.log",
+            self.project_root / "leek.log",
             self.backend_dir / "*.log",
             self.project_root / "*.log"
         ]
@@ -311,7 +312,7 @@ class LeekManager:
                 return False
         print("启动服务...")
         try:
-            cmd = f"nohup python -m uvicorn app.main:app --host 0.0.0.0 --port {port} --log-level error > leek.log 2>&1 & echo $! > {self.pid_file}"
+            cmd = f"nohup python -m uvicorn app.main:app --host 0.0.0.0 --port {port} --log-level error > ../leek.log 2>&1 & echo $! > {self.pid_file}"
             if self.run_command(cmd, cwd=self.backend_dir, capture_output=False):
                 time.sleep(2)
                 if self.is_running():

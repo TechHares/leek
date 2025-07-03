@@ -12,17 +12,15 @@ leek/
 
 ## 快速开始
 
-- [开发文档](leek-core/README.md)
-- [使用文档](leek-manager/README.md)
+- [开发文档](https://github.com/TechHares/leek-core/blob/main/README.md)
+- [使用文档](https://github.com/TechHares/leek-manager/blob/main/README.md)
 - 讨论组：<a href="https://t.me/+lFHR-vTZ6Y1iZTU1">Telegram</a>
 
 ### 开发环境
 
 #### 1. 直接使用
 ```bash
-# 启动服务（后台，默认8009）
-python leek.py start
-# 或指定端口
+# 指定端口
 python leek.py start 8010
 ```
 

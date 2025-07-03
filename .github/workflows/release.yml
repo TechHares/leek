@@ -1,5 +1,3 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
 name: Build and Release
 on:
   push:
@@ -27,32 +25,32 @@ jobs:
       - name: Build Frontend
         run: |
           # 检查前端目录是否存在
-          if [ ! -d "./frontend" ]; then
+          if [ ! -d "./leek-web" ]; then
             echo "错误: 前端目录不存在"
             exit 1
           fi
 
           # 检查 package.json 是否存在
-          if [ ! -f "./frontend/package.json" ]; then
+          if [ ! -f "./leek-web/package.json" ]; then
             echo "错误: package.json 不存在"
             exit 1
           fi
 
           # 安装前端依赖
           echo "安装前端依赖..."
-          npm install --prefix frontend || (echo "依赖安装失败"; exit 1)
+          npm install --prefix leek-web || (echo "依赖安装失败"; exit 1)
 
           # 构建前端
           echo "构建前端..."
-          npm run build --prefix frontend || (echo "前端构建失败"; exit 1)
+          npm run build --prefix leek-web || (echo "前端构建失败"; exit 1)
 
           # 检查构建结果
-          if [ ! -d "./frontend/dist" ]; then
+          if [ ! -d "./leek-web/dist" ]; then
             echo "错误: 前端构建目录不存在"
             exit 1
           fi
 
-          if [ ! -f "./frontend/dist/index.html" ]; then
+          if [ ! -f "./leek-web/dist/index.html" ]; then
             echo "错误: index.html 不存在"
             exit 1
           fi
@@ -61,20 +59,20 @@ jobs:
       - name: Copy Frontend to Backend
         run: |
           # 检查后端目录是否存在
-          if [ ! -d "./backend" ]; then
+          if [ ! -d "./leek-manager" ]; then
             echo "错误: 后端目录不存在"
             exit 1
           fi
 
           # 清空后端静态目录
-          if [ -d "./backend/static" ]; then
+          if [ -d "./leek-manager/static" ]; then
             echo "清空后端静态目录..."
-            rm -rf ./backend/static
+            rm -rf ./leek-manager/static
           fi
 
           # 复制前端构建文件到后端
           echo "复制前端文件到后端..."
-          cp -r ./frontend/dist ./backend/static
+          cp -r ./leek-web/dist ./leek-manager/static
           echo "构建完成!"
 
       # 在 release 时生成指定资产文件
@@ -95,7 +93,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')  # 确保在 release 时执行
         run: |
           # 压缩 backend/static 目录
-          tar -czf leek_${{ github.event.release.name }}.tar.gz ./backend/static
+          tar -czf leek_${{ github.event.release.name }}.tar.gz ./
 
       # 上传资产文件
       - name: Upload Release Asset

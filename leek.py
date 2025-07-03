@@ -114,11 +114,11 @@ class LeekManager:
             print(f"清理前端依赖: {frontend_node_modules}")
             shutil.rmtree(frontend_node_modules)
         
-        # # 清理后端静态文件（复制的前端文件）
-        # backend_static = self.backend_dir / "static"
-        # if backend_static.exists():
-        #     print(f"清理后端静态文件: {backend_static}")
-        #     shutil.rmtree(backend_static)
+        # 清理后端静态文件（复制的前端文件）
+        backend_static = self.backend_dir / "static"
+        if backend_static.exists():
+            print(f"清理后端静态文件: {backend_static}")
+            shutil.rmtree(backend_static)
         
         # 清理Python缓存文件
         for root, dirs, files in os.walk(self.project_root):

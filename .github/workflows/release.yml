@@ -13,6 +13,18 @@ jobs:
         with:
           submodules: true  # 初始化所有子模块
 
+      # 切换到目标 tag
+      - name: Checkout target tag
+        run: |
+          target_tag=${{ github.event.release.tag_name }}
+          echo "目标 tag: $target_tag"
+          if ! git rev-parse "$target_tag" >/dev/null 2>&1; then
+            echo "错误: 目标 tag $target_tag 不存在"
+            exit 1
+          fi
+          git fetch origin "$target_tag"
+          git checkout "$target_tag"
+
       # 设置 Node.js 环境（假设前端项目需要）
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -73,29 +85,14 @@ jobs:
           cp -r ./leek-web/dist ./leek-manager/static
           echo "构建完成!"
 
-      # 在 release 时生成指定资产文件
-      - name: Create Release Asset
-        if: startsWith(github.ref, 'refs/tags/')  # 确保在 release 时执行
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
-          draft: false
-          prerelease: false
-
       # 打包后端静态目录为指定格式的资产文件
       - name: Package Backend Static
-        if: startsWith(github.ref, 'refs/tags/')  # 确保在 release 时执行
         run: |
           # 压缩 backend/static 目录
           tar -czf leek_${{ github.event.release.name }}.tar.gz ./
 
       # 上传资产文件
       - name: Upload Release Asset
-        if: steps.create_release.outputs.upload_url != ''
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

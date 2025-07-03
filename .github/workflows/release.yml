@@ -90,13 +90,14 @@ jobs:
         run: |
           tar --exclude='leek-core/.git' --exclude='leek-manager/.git' --exclude='leek-web/.git' --exclude='leek-web/node_modules' --exclude='leek-web/dist' -czf leek_${{ github.event.release.name }}.tar.gz leek-core leek-web leek-manager leek.py LICENSE README.md
 
-      # 上传资产文件
+      # 上传资产文件到 release
       - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: svenstaro/upload-release-action@v2
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: leek_${{ github.event.release.name }}.tar.gz
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: leek_${{ github.event.release.name }}.tar.gz
           asset_name: leek_${{ github.event.release.name }}.tar.gz
-          asset_content_type: application/gzip
+          tag: ${{ github.ref }}
+          overwrite: true
+

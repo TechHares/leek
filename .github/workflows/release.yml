@@ -88,8 +88,7 @@ jobs:
       # 打包后端静态目录为指定格式的资产文件
       - name: Package Backend Static
         run: |
-          # 压缩 backend/static 目录
-          tar -czf leek_${{ github.event.release.name }}.tar.gz ./
+          tar --exclude='leek-core/.git' --exclude='leek-manager/.git' --exclude='leek-web/.git' --exclude='leek-web/node_modules' --exclude='leek-web/dist' -czf leek_${{ github.event.release.name }}.tar.gz leek-core leek-web leek-manager leek.py LICENSE README.md
 
       # 上传资产文件
       - name: Upload Release Asset

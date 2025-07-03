@@ -37,7 +37,7 @@ jobs:
           fi
 
           # 安装前端依赖
-          echo "安装前端依赖..."
+          echo "当前工作目录: $(pwd)"
           npm install --prefix leek-web || (echo "依赖安装失败"; exit 1)
 
           # 构建前端

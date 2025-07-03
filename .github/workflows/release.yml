@@ -1,0 +1,110 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+name: Build and Release
+on:
+  push:
+    branches: [ "main" ]
+  release:
+    types: [created]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: true  # 初始化所有子模块
+
+      # 设置 Node.js 环境（假设前端项目需要）
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'  # 根据实际需要指定 Node.js 版本
+
+      # 构建前端
+      - name: Build Frontend
+        run: |
+          # 检查前端目录是否存在
+          if [ ! -d "./frontend" ]; then
+            echo "错误: 前端目录不存在"
+            exit 1
+          fi
+
+          # 检查 package.json 是否存在
+          if [ ! -f "./frontend/package.json" ]; then
+            echo "错误: package.json 不存在"
+            exit 1
+          fi
+
+          # 安装前端依赖
+          echo "安装前端依赖..."
+          npm install --prefix frontend || (echo "依赖安装失败"; exit 1)
+
+          # 构建前端
+          echo "构建前端..."
+          npm run build --prefix frontend || (echo "前端构建失败"; exit 1)
+
+          # 检查构建结果
+          if [ ! -d "./frontend/dist" ]; then
+            echo "错误: 前端构建目录不存在"
+            exit 1
+          fi
+
+          if [ ! -f "./frontend/dist/index.html" ]; then
+            echo "错误: index.html 不存在"
+            exit 1
+          fi
+
+      # 复制前端构建文件到后端静态目录
+      - name: Copy Frontend to Backend
+        run: |
+          # 检查后端目录是否存在
+          if [ ! -d "./backend" ]; then
+            echo "错误: 后端目录不存在"
+            exit 1
+          fi
+
+          # 清空后端静态目录
+          if [ -d "./backend/static" ]; then
+            echo "清空后端静态目录..."
+            rm -rf ./backend/static
+          fi
+
+          # 复制前端构建文件到后端
+          echo "复制前端文件到后端..."
+          cp -r ./frontend/dist ./backend/static
+          echo "构建完成!"
+
+      # 在 release 时生成指定资产文件
+      - name: Create Release Asset
+        if: startsWith(github.ref, 'refs/tags/')  # 确保在 release 时执行
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+
+      # 打包后端静态目录为指定格式的资产文件
+      - name: Package Backend Static
+        if: startsWith(github.ref, 'refs/tags/')  # 确保在 release 时执行
+        run: |
+          # 压缩 backend/static 目录
+          tar -czf leek_${{ github.event.release.name }}.tar.gz ./backend/static
+
+      # 上传资产文件
+      - name: Upload Release Asset
+        if: steps.create_release.outputs.upload_url != ''
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: leek_${{ github.event.release.name }}.tar.gz
+          asset_name: leek_${{ github.event.release.name }}.tar.gz
+          asset_content_type: application/gzip

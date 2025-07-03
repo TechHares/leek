@@ -1,0 +1,35 @@
+name: Release Source Code as tar.gz
+
+on:
+  push:
+    tags:
+      - 'v*' # 触发条件：推送以 "v" 开头的 tag，例如 v1.0.0
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🧾 Checkout main project with submodules
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive  # 关键参数：递归拉取子模块
+
+      - name: 🗂️ Prepare release directory
+        run: |
+          mkdir -p release-package
+          cp -r leek-core leek-manager leek-web leek.py README.md LICENSE release-package/
+
+      - name: 🗜️ Create tar.gz archive
+        run: |
+          VERSION=$(echo ${GITHUB_REF#refs/tags/} | sed 's/^v//')  # 去掉 v 前缀
+          cd release-package && cd ..
+          tar -czf leek-source-${VERSION}.tar.gz release-package/
+
+      - name: 📤 Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.repository.upload_url }}
+          asset_path: ./leek-source-${{ env.VERSION }}.tar.gz
+          asset_name: leek-source-${{ env.VERSION }}.tar.gz
+          asset_content_type: application/gzip

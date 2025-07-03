@@ -20,7 +20,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'  # 根据实际需要指定 Node.js 版本
-          cache: 'npm'
 
       # 构建前端
       - name: Build Frontend

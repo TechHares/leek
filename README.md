@@ -20,6 +20,8 @@ leek/
 
 #### 1. 直接使用
 ```bash
+# clone代码
+git clone --recurse-submodules https://github.com/TechHares/leek.git 
 # 指定端口
 python leek.py start 8010
 ```
@@ -188,8 +190,7 @@ export ENVIRONMENT=production
 
 1. **首次使用**：需要先安装依赖
    ```bash
-   cd leek-web && npm install
-   cd leek-manager && poetry install
+   python leek.py install
    ```
 
 2. **前端更新**：修改前端代码后需要重新构建

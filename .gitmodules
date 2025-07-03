@@ -1,0 +1,9 @@
+[submodule "leek-core"]
+	path = leek-core
+	url = git@github.com:TechHares/leek-core.git
+[submodule "leek-web"]
+	path = leek-web
+	url = git@github.com:TechHares/leek-web.git
+[submodule "leek-manager"]
+	path = leek-manager
+	url = git@github.com:TechHares/leek-manager.git

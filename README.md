@@ -18,21 +18,32 @@ leek/
 
 ### 开发环境
 
-#### 1. 直接使用
+#### 1. CLONE 代码
 ```bash
 # clone代码
 git clone --recurse-submodules https://github.com/TechHares/leek.git 
+cd leek
+```
+或者
+```bash
+git clone https://github.com/TechHares/leek.git 
+cd leek
+git submodule update --init --recursive
+```
+
+#### 2. 直接使用
+```bash
 # 指定端口
 python leek.py start 8010
 ```
 
-#### 2. 启动后端
+#### 3. 启动后端
 ```bash
 cd leek-manager
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-#### 3. 启动前端
+#### 4. 启动前端
 ```bash
 cd leek-web
 npm run dev

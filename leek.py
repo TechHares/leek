@@ -21,11 +21,14 @@ def ensure_module(module, package=None):
     except ImportError:
         print(f"安装依赖: {package or module}")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "--force-reinstall", package or module])
+        return True
+    return False
 
-ensure_module("psutil")
-ensure_module("alembic")
-ensure_module("poetry")
-if os.geteuid() == 0 and not os.environ.get('LEEK_RESTARTED'):
+installed = False
+installed = ensure_module("psutil") or installed
+installed = ensure_module("alembic") or installed
+installed = ensure_module("poetry") or installed
+if installed and os.geteuid() == 0 and not os.environ.get('LEEK_RESTARTED'):
     env = os.environ.copy()
     env['LEEK_RESTARTED'] = '1'
     print(f"重启进程: {sys.executable} {sys.argv}")
@@ -308,7 +311,16 @@ class LeekManager:
         
         try:
             process = psutil.Process(pid)
-            return process.is_running() and process.name().startswith('python')
+            if not process.is_running():
+                return False
+            
+            # 检查进程名或命令行参数
+            process_name = process.name().lower()
+            cmdline = ' '.join(process.cmdline()).lower()
+            
+            # 检查是否是 uvicorn 进程或者 Python 进程且包含 uvicorn
+            return (process_name == 'uvicorn' or 
+                   (process_name.startswith('python') or 'python' in process_name) and 'uvicorn' in cmdline)
         except psutil.NoSuchProcess:
             return False
     
@@ -325,12 +337,6 @@ class LeekManager:
         if self.is_running():
             print("服务已在运行中")
             return True
-        backend_static = self.backend_dir / "static"
-        if not backend_static.exists():
-            print("前端未构建，正在构建...")
-            if not self.build():
-                print("构建失败，无法启动服务")
-                return False
         print("启动服务...")
         try:
             # 使用 poetry run 来确保在正确的虚拟环境中运行
@@ -559,10 +565,49 @@ class LeekManager:
         with open(self.core_dir / "pyproject.toml", "rb") as f:
             local_config = tomllib.load(f)
         expected_version = local_config.get("project", {}).get("version")
+        
+        # 改进版本检测逻辑，考虑虚拟环境隔离问题
+        installed_version = None
+        
+        # 方法1: 尝试在当前Python环境中检测
         try:
             installed_version = importlib.metadata.version("leek-core")
-        except importlib.metadata.PackageNotFoundError: 
-            installed_version = None
+        except importlib.metadata.PackageNotFoundError:
+            pass
+        
+        # 方法2: 如果方法1失败，尝试在poetry虚拟环境中检测
+        if installed_version is None:
+            try:
+                result = subprocess.run(
+                    ["poetry", "run", "python", "-c", "import importlib.metadata; print(importlib.metadata.version('leek-core'))"],
+                    cwd=self.core_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                if result.returncode == 0:
+                    installed_version = result.stdout.strip()
+            except Exception:
+                pass
+        
+        # 方法3: 如果前两种方法都失败，检查是否在开发模式下安装
+        if installed_version is None:
+            try:
+                # 检查leek-core是否以开发模式安装
+                result = subprocess.run(
+                    ["poetry", "run", "python", "-c", "import leek_core; print('installed')"],
+                    cwd=self.core_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                if result.returncode == 0:
+                    # 如果能导入，说明已安装，使用期望版本作为已安装版本
+                    installed_version = expected_version
+            except Exception:
+                pass
+        
+        # 如果仍然检测不到版本，或者版本不匹配，则重新安装
         if installed_version is None or installed_version != expected_version:
             print(f"更新leek-core:{installed_version or '未安装'} -> {expected_version}")
             if not self.run_command(f"poetry env use {sys.executable} && poetry install --no-interaction", cwd=self.core_dir):

@@ -23,7 +23,6 @@ def ensure_module(module, package=None):
         subprocess.check_call([sys.executable, "-m", "pip", "install", "--force-reinstall", package or module])
 
 ensure_module("psutil")
-import psutil
 ensure_module("alembic")
 ensure_module("poetry")
 if os.geteuid() == 0 and not os.environ.get('LEEK_RESTARTED'):
@@ -34,6 +33,7 @@ if os.geteuid() == 0 and not os.environ.get('LEEK_RESTARTED'):
     exec_args = [sys.executable, str(Path(__file__).absolute())] + sys.argv[1:]
     os.execve(sys.executable, exec_args, env)
     
+import psutil
 try:
     import tomllib
 except ImportError:

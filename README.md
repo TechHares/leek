@@ -33,6 +33,8 @@ git submodule update --init --recursive
 
 #### 2. 直接使用
 ```bash
+# 安装环境
+sudo dnf install python3.12 python3.12-pip -y
 # 指定端口
 python leek.py start 8010
 ```

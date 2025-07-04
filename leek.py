@@ -6,35 +6,40 @@ Leek 项目管理脚本
 
 import os
 import sys
-if sys.version_info < (3, 8) or sys.version_info >= (3, 13):
-    print("请使用Python3.8-3.12版本")
-    print("请使用Python3.8-3.12版本")
-    print("请使用Python3.8-3.12版本")
+if sys.version_info < (3, 11):
+    print("请使用Python3.11及以上版本")
+    print("请使用Python3.11及以上版本")
     sys.exit(1)
 import subprocess
-
+import shutil
+import time
+from pathlib import Path
+from typing import Optional
 def ensure_module(module, package=None):
     try:
         __import__(module)
     except ImportError:
-        print(f"自动安装依赖: {package or module}")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", package or module])
+        print(f"安装依赖: {package or module}")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "--force-reinstall", package or module])
 
-# 自动确保 leek.py 运行所需的依赖
-ensure_module("toml")
 ensure_module("psutil")
+import psutil
 ensure_module("alembic")
 ensure_module("poetry")
-
-import shutil
-import signal
-import time
-import psutil
-from pathlib import Path
-from typing import Optional
-import re
-import toml
-
+if os.geteuid() == 0 and not os.environ.get('LEEK_RESTARTED'):
+    env = os.environ.copy()
+    env['LEEK_RESTARTED'] = '1'
+    print(f"重启进程: {sys.executable} {sys.argv}")
+    # 修复：确保第一个参数是脚本路径，而不是命令参数
+    exec_args = [sys.executable, str(Path(__file__).absolute())] + sys.argv[1:]
+    os.execve(sys.executable, exec_args, env)
+    
+try:
+    import tomllib
+except ImportError:
+    # 对于Python 3.10及以下版本，使用tomli
+    ensure_module("tomli", "tomli")
+    import tomli as tomllib
 
 try:
     import importlib.metadata
@@ -50,7 +55,7 @@ class LeekManager:
         self.core_dir = self.project_root / "leek-core"
         self.pid_file = self.project_root / "leek.pid"
         
-    def run_command(self, command: str, cwd: Optional[Path] = None, capture_output: bool = True) -> bool:
+    def run_command(self, command: str, cwd: Optional[Path] = None, capture_output: bool = True, env: Optional[dict] = None, timeout: int = 300) -> bool:
         """运行命令并返回结果"""
         print(f"执行命令: {command}")
         if cwd:
@@ -67,15 +72,31 @@ class LeekManager:
                     stderr=subprocess.STDOUT,
                     text=True,
                     bufsize=1,
-                    universal_newlines=True
+                    universal_newlines=True,
+                    env=env
                 )
                 
+                import time
+                start_time = time.time()
+                last_output_time = start_time
                 while True:
+                    # 检查超时（无输出超时）
+                    current_time = time.time()
+                    if current_time - last_output_time > timeout:
+                        print(f"命令执行超时（{timeout}秒无输出），强制终止...")
+                        process.terminate()
+                        try:
+                            process.wait(timeout=10)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                        return False
+                    
                     output = process.stdout.readline()
                     if output == '' and process.poll() is not None:
                         break
                     if output:
                         output = output.strip()
+                        last_output_time = current_time  # 重置超时计时器
                         if "finished with status 'error'" in output:
                             print(output)
                             print("请检查依赖包是否安装成功")
@@ -90,7 +111,8 @@ class LeekManager:
                     command,
                     shell=True,
                     cwd=cwd,
-                    text=True
+                    text=True,
+                    env=env
                 )
                 return result.returncode == 0
                 
@@ -98,27 +120,38 @@ class LeekManager:
             print(f"命令执行异常: {e}")
             return False
     
+    def _remove(self, path: Path, name: str=None):
+        if not path.exists():
+            return True
+        try:
+            if path.is_dir():
+                shutil.rmtree(path)
+                print(f"清理{name or '目录'}: {path} 成功")
+            else:
+                path.unlink()
+                print(f"清理{name or '文件'}: {path} 成功")
+        except Exception as e:
+            print(f"清理{name or '文件或目录'}失败: {path}, 错误: {e}")
+            return False
+        return True
+    
+    def _remove_pattern(self, pattern: str, name: str=None):
+        import glob
+        for path in glob.glob(pattern, recursive=True):
+            path_obj = Path(path)
+            self._remove(path_obj, name)
+
     def clean(self):
-        """清理所有构建输出"""
         print("开始清理构建输出...")
         
         # 清理前端构建文件
-        frontend_dist = self.frontend_dir / "dist"
-        if frontend_dist.exists():
-            print(f"清理前端构建目录: {frontend_dist}")
-            shutil.rmtree(frontend_dist)
+        self._remove(self.frontend_dir / "dist", "前端构建目录")
         
         # 清理前端node_modules
-        frontend_node_modules = self.frontend_dir / "node_modules"
-        if frontend_node_modules.exists():
-            print(f"清理前端依赖: {frontend_node_modules}")
-            shutil.rmtree(frontend_node_modules)
+        self._remove(self.frontend_dir / "node_modules", "前端依赖")
         
         # 清理后端静态文件（复制的前端文件）
-        backend_static = self.backend_dir / "static"
-        if backend_static.exists():
-            print(f"清理后端静态文件: {backend_static}")
-            shutil.rmtree(backend_static)
+        self._remove(self.backend_dir / "static", "后端静态文件")
         
         # 清理Python缓存文件
         for root, dirs, files in os.walk(self.project_root):
@@ -126,79 +159,68 @@ class LeekManager:
             for dir_name in dirs[:]:  # 使用切片创建副本，避免修改迭代中的列表
                 if dir_name == "__pycache__":
                     cache_dir = Path(root) / dir_name
-                    print(f"清理Python缓存: {cache_dir}")
-                    shutil.rmtree(cache_dir)
+                    self._remove(cache_dir, "Python缓存")
                     dirs.remove(dir_name)  # 从dirs中移除，避免继续遍历
             
             # 清理 .pyc 文件
             for file_name in files:
                 if file_name.endswith('.pyc'):
                     pyc_file = Path(root) / file_name
-                    print(f"清理Python字节码: {pyc_file}")
-                    pyc_file.unlink()
+                    self._remove(pyc_file, "Python字节码")
         
         # 清理其他构建文件
         build_dirs = [
             self.backend_dir / "build",
             self.backend_dir / "dist",
-            self.backend_dir / "*.egg-info",
         ]
         
         for build_dir in build_dirs:
-            if isinstance(build_dir, str):
-                # 处理通配符
-                import glob
-                for path in glob.glob(str(self.backend_dir / build_dir.split('/')[-1])):
-                    path_obj = Path(path)
-                    if path_obj.exists():
-                        print(f"清理构建文件: {path_obj}")
-                        if path_obj.is_dir():
-                            shutil.rmtree(path_obj)
-                        else:
-                            path_obj.unlink()
-            elif build_dir.exists():
-                print(f"清理构建文件: {build_dir}")
-                shutil.rmtree(build_dir)
+            self._remove(build_dir, "构建文件")
+        
+        # 清理 egg-info 文件（使用通配符）
+        egg_info_pattern = str(self.backend_dir / "*.egg-info")
+        import glob
+        for path in glob.glob(egg_info_pattern):
+            path_obj = Path(path)
+            self._remove(path_obj, "egg-info 文件")
         
         # 清理PID文件
-        if self.pid_file.exists():
-            print(f"清理PID文件: {self.pid_file}")
-            self.pid_file.unlink()
+        self._remove(self.pid_file, "PID文件")
         
         # 清理日志文件
-        log_files = [
+        specific_logs = [
             self.backend_dir / "leek.log",
             self.project_root / "leek.log",
-            self.backend_dir / "*.log",
-            self.project_root / "*.log"
         ]
         
-        for log_file in log_files:
-            if isinstance(log_file, str):
-                # 处理通配符
-                import glob
-                for path in glob.glob(str(log_file)):
-                    path_obj = Path(path)
-                    if path_obj.exists() and path_obj.is_file():
-                        print(f"清理日志文件: {path_obj}")
-                        path_obj.unlink()
-            elif log_file.exists() and log_file.is_file():
-                print(f"清理日志文件: {log_file}")
-                log_file.unlink()
+        for log_file in specific_logs:
+            self._remove(log_file, "日志文件")
         
-        # 清理奇怪的文件（如 =1.0.0）
-        strange_files = [
-            self.core_dir / "=*",
-            self.backend_dir / "=*"
+        # 清理所有 .log 文件（使用通配符）
+        log_patterns = [
+            str(self.backend_dir / "*.log"),
+            str(self.project_root / "*.log")
         ]
         
-        for pattern in strange_files:
-            import glob
-            for path in glob.glob(str(pattern)):
+        import glob
+        for pattern in log_patterns:
+            for path in glob.glob(pattern):
                 path_obj = Path(path)
                 if path_obj.exists() and path_obj.is_file():
-                    print(f"清理奇怪文件: {path_obj}")
-                    path_obj.unlink()
+                    self._remove(path_obj, "日志文件")
+        
+        # 清理奇怪的文件（如 =1.0.0）
+        strange_patterns = [
+            str(self.core_dir / "=*"),
+            str(self.backend_dir / "=*")
+        ]
+        
+        import glob
+        for pattern in strange_patterns:
+            for path in glob.glob(pattern):
+                path_obj = Path(path)
+                if path_obj.exists() and path_obj.is_file():
+                    self._remove(path_obj, "奇怪文件")
         
         # 清理 Poetry 锁文件（可选）
         poetry_lock_files = [
@@ -207,15 +229,10 @@ class LeekManager:
         ]
         
         for lock_file in poetry_lock_files:
-            if lock_file.exists():
-                print(f"清理 Poetry 锁文件: {lock_file}")
-                lock_file.unlink()
+            self._remove(lock_file, "Poetry 锁文件")
         
         # 清理前端 package-lock.json 文件
-        package_lock_file = self.frontend_dir / "package-lock.json"
-        if package_lock_file.exists():
-            print(f"清理前端 package-lock.json 文件: {package_lock_file}")
-            package_lock_file.unlink()
+        self._remove(self.frontend_dir / "package-lock.json", "前端 package-lock.json 文件")
         
         print("清理完成!")
     
@@ -301,6 +318,10 @@ class LeekManager:
         if not self.install():
             print("依赖安装失败，无法启动服务")
             return False
+        # 检查 uvicorn 是否已安装
+        if not self.check_uvicorn():
+            print("uvicorn 检查失败，无法启动服务")
+            return False
         if self.is_running():
             print("服务已在运行中")
             return True
@@ -312,7 +333,8 @@ class LeekManager:
                 return False
         print("启动服务...")
         try:
-            cmd = f"nohup python -m uvicorn app.main:app --host 0.0.0.0 --port {port} --log-level error > ../leek.log 2>&1 & echo $! > {self.pid_file}"
+            # 使用 poetry run 来确保在正确的虚拟环境中运行
+            cmd = f"nohup poetry run uvicorn app.main:app --host 0.0.0.0 --port {port} --log-level error > ../leek.log 2>&1 & echo $! > {self.pid_file}"
             if self.run_command(cmd, cwd=self.backend_dir, capture_output=False):
                 time.sleep(2)
                 if self.is_running():
@@ -397,7 +419,7 @@ class LeekManager:
             return False
         
         # 构建alembic命令
-        cmd = "alembic revision --autogenerate"
+        cmd = "poetry run alembic revision --autogenerate"
         if message:
             cmd += f" -m '{message}'"
         
@@ -418,7 +440,7 @@ class LeekManager:
         if not self.ensure_alembic_dirs():
             return False
         
-        cmd = "alembic upgrade head"
+        cmd = "poetry run alembic upgrade head"
         print(f"执行迁移命令: {cmd}")
         
         if self.run_command(cmd, cwd=self.backend_dir):
@@ -435,7 +457,7 @@ class LeekManager:
         if not self.ensure_alembic_dirs():
             return False
         
-        cmd = f"alembic downgrade {revision}"
+        cmd = f"poetry run alembic downgrade {revision}"
         print(f"执行回滚命令: {cmd}")
         
         if self.run_command(cmd, cwd=self.backend_dir):
@@ -452,7 +474,7 @@ class LeekManager:
         if not self.ensure_alembic_dirs():
             return False
         
-        cmd = "alembic current"
+        cmd = "poetry run alembic current"
         print(f"执行状态查询命令: {cmd}")
         
         if self.run_command(cmd, cwd=self.backend_dir):
@@ -470,12 +492,12 @@ class LeekManager:
             return False
         
         # 重置迁移检查状态，强制重新检查
-        cmd = "python -c \"from app.db.session import reset_connection; reset_connection()\""
+        cmd = f"poetry run python -c \"from app.db.session import reset_connection; reset_connection()\""
         print("重置连接状态...")
         self.run_command(cmd, cwd=self.backend_dir)
         
         # 执行迁移
-        cmd = "alembic upgrade head"
+        cmd = "poetry run alembic upgrade head"
         print(f"执行迁移命令: {cmd}")
         
         if self.run_command(cmd, cwd=self.backend_dir):
@@ -504,87 +526,58 @@ class LeekManager:
         
         return True
 
-    def install(self):
-        """使用pyproject.toml和poetry安装leek-manager和leek-core依赖，支持本地开发版"""
-        import toml
-        import shutil
-        import importlib.metadata
-        print("处理 leek-core 依赖...")
-        
-        # 检查 poetry 是否安装
+    def check_poetry(self):
         if not shutil.which("poetry"):
             print("未检测到 poetry，请先安装 poetry: https://python-poetry.org/docs/#installation")
             return False
-
-        # 检查 leek-core 目录是否存在
-        if not (self.core_dir / "pyproject.toml").exists():
-            print(f"未找到 leek-core/pyproject.toml")
-            return False
-
-        # 然后处理 leek-manager 的依赖
         pyproject_file = self.backend_dir / "pyproject.toml"
         if not pyproject_file.exists():
             print("未找到 leek-manager/pyproject.toml")
             return False
-
-        # 解析 pyproject.toml 获取 leek-core 依赖
-        pyproject = toml.load(pyproject_file)
-        deps = pyproject.get("tool", {}).get("poetry", {}).get("dependencies", {})
-        core_dep = deps.get("leek-core")
-        
-        # 检查是否需要安装到 leek-manager
-        if core_dep is None:
-            print("pyproject.toml 未指定 leek-core 依赖，跳过 leek-manager 中的 leek-core 安装")
-        else:
-            # 获取期望的版本
-            expected_version = None
-            if isinstance(core_dep, dict):
-                if core_dep.get("path"):
-                    # 本地路径依赖，获取本地版本
-                    core_path = (self.backend_dir / core_dep["path"]).resolve()
-                    local_pyproject = core_path / "pyproject.toml"
-                    if local_pyproject.exists():
-                        local_config = toml.load(local_pyproject)
-                        expected_version = local_config.get("project", {}).get("version")
-                else:
-                    expected_version = core_dep.get("version")
+        # 检查 leek-core 目录是否存在
+        if not (self.core_dir / "pyproject.toml").exists():
+            print(f"未找到 leek-core/pyproject.toml")
+            return False
+        return True
+    
+    def check_uvicorn(self):
+        """检查 uvicorn 是否已安装"""
+        try:
+            import uvicorn
+            return True
+        except ImportError:
+            print("未检测到 uvicorn，正在尝试安装...")
+            # 尝试安装 uvicorn
+            if self.run_command(f"{sys.executable} -m pip install uvicorn"):
+                print("uvicorn 安装成功!")
+                return True
             else:
-                expected_version = core_dep
-            
-            # 检查是否已安装到当前环境
-            try:
-                installed_version = importlib.metadata.version("leek-core")
-                print(f"已安装 leek-core 版本: {installed_version}")
-            except importlib.metadata.PackageNotFoundError:
-                installed_version = None
-                print("leek-core 未安装到当前环境")
-            
-            # 比较版本，如果未安装或版本不匹配，则安装到 leek-manager
-            if installed_version is None or installed_version != expected_version:
-                if installed_version is None:
-                    print("leek-core 未安装到当前环境，正在安装...")
-                else:
-                    print(f"版本不匹配，期望: {expected_version}，已安装: {installed_version}，正在更新...")
-                
-                # 如果是本地路径依赖，先确保 leek-core 依赖已安装
-                print(f"检测到leek-core，需要更新:{installed_version} -> {expected_version}")
-                if not self.run_command("poetry install", cwd=self.core_dir):
-                    print("leek-core 依赖安装失败！")
-                    return False
-                print("leek-core 依赖安装完成！")
-                
-                # 本地路径依赖，使用 pip install
-                print(f"使用 pip install -e {self.core_dir} ...")
-                if not self.run_command(f"pip install -e .", cwd=self.core_dir):
-                    print("leek-core 本地安装失败！")
-                    return False
-                print("leek-core 安装完成！")
-            else:
-                print(f"leek-core 已是最新版本({installed_version})，无需安装")
-
-        print("使用 poetry install 安装 leek-manager 依赖...")
-        if not self.run_command("poetry install", cwd=self.backend_dir):
-            print("leek-manager 依赖安装失败！")
+                print("uvicorn 安装失败，请手动安装: pip install uvicorn")
+                return False
+    
+    def install(self):
+        with open(self.core_dir / "pyproject.toml", "rb") as f:
+            local_config = tomllib.load(f)
+        expected_version = local_config.get("project", {}).get("version")
+        try:
+            installed_version = importlib.metadata.version("leek-core")
+        except importlib.metadata.PackageNotFoundError: 
+            installed_version = None
+        if installed_version is None or installed_version != expected_version:
+            print(f"更新leek-core:{installed_version or '未安装'} -> {expected_version}")
+            if not self.run_command(f"poetry env use {sys.executable} && poetry install --no-interaction", cwd=self.core_dir):
+                print(f"leek-core 依赖安装失败, 请检查!")
+                return False
+            print("leek-core 依赖安装完成！")
+            # 本地路径依赖，使用 poetry run pip install 确保在虚拟环境中安装
+            print(f"使用 poetry run pip install -e . ...")
+            if not self.run_command(f"poetry run pip install -e .", cwd=self.core_dir):
+                print("leek-core 本地安装失败！")
+                return False
+            print("leek-core 安装完成！")
+        print("开始安装依赖（可能需要几分钟）...")
+        if not self.run_command(f"poetry env use {sys.executable} && poetry install --no-interaction", cwd=self.backend_dir):
+            print(f"leek-manager 依赖安装失败, 请检查!")
             return False
         print("leek-manager 依赖安装完成！")
         return True
@@ -596,6 +589,10 @@ class LeekManager:
         if not self.install():
             print("依赖安装失败，无法启动服务")
             return False
+        # 检查 uvicorn 是否已安装
+        if not self.check_uvicorn():
+            print("uvicorn 检查失败，无法启动服务")
+            return False
         backend_dir = self.backend_dir
         # 检查前端是否已构建
         backend_static = backend_dir / "static"
@@ -604,27 +601,31 @@ class LeekManager:
         # 切换到后端目录并运行 uvicorn
         print(f"切换到目录: {self.backend_dir}")
         os.chdir(self.backend_dir)
-        cmd = f"uvicorn app.main:app --host 0.0.0.0 --port {port} --log-level error"
+        # 使用 poetry run 来确保在正确的虚拟环境中运行
+        cmd = f"poetry run uvicorn app.main:app --host 0.0.0.0 --port {port}"
         print(f"执行命令: {cmd}")
-        os.execvp("uvicorn", ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", str(port), "--log-level", "error"])
+        os.execvp("poetry", ["poetry", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", str(port)])
 
+def _print_help():
+    print("用法: python leek.py <command>")
+    print("命令:")
+    print("  clean    - 清理所有构建输出")
+    print("  build    - 构建前端并复制到后端")
+    print("  start    - 启动服务")
+    print("  stop     - 停止服务")
+    print("  restart  - 重启服务")
+    print("  status   - 查看服务状态")
+    print("  dml      - 生成数据库迁移脚本")
+    print("  migrate  - 应用数据库迁移")
+    print("  downgrade - 回滚数据库迁移")
+    print("  db_status - 查看数据库迁移状态")
+    print("  check_migration - 手动触发迁移检查")
+    print("  install   - 安装leek-manager和leek-core依赖")
+    print("  run       - 前台运行 leek-manager 服务")
+    print("  help      - 显示帮助信息")
 def main():
     if len(sys.argv) < 2:
-        print("用法: python leek.py <command>")
-        print("命令:")
-        print("  clean    - 清理所有构建输出")
-        print("  build    - 构建前端并复制到后端")
-        print("  start    - 启动服务")
-        print("  stop     - 停止服务")
-        print("  restart  - 重启服务")
-        print("  status   - 查看服务状态")
-        print("  dml      - 生成数据库迁移脚本")
-        print("  migrate  - 应用数据库迁移")
-        print("  downgrade - 回滚数据库迁移")
-        print("  db_status - 查看数据库迁移状态")
-        print("  check_migration - 手动触发迁移检查")
-        print("  install   - 安装leek-manager和leek-core依赖")
-        print("  run       - 前台运行 leek-manager 服务")
+        _print_help()
         return
     
     manager = LeekManager()
@@ -676,9 +677,11 @@ def main():
             return
         port = int(sys.argv[2])
         manager.run(port)
+    elif command == "help":
+        _print_help()
     else:
         print(f"未知命令: {command}")
-        print("可用命令: clean, build, start, stop, restart, status, dml, migrate, downgrade, db_status, check_migration, install, run")
+        _print_help()
 
 if __name__ == "__main__":
     main() 

@@ -392,10 +392,6 @@ class LeekManager:
     
     def restart(self, port=8009):
         print("重启服务...")
-        # 启动前自动安装依赖
-        if not self.install():
-            print("依赖安装失败，无法启动服务")
-            return False
         if self.stop():
             time.sleep(2)
             return self.start(port=port)

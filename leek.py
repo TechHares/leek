@@ -366,14 +366,9 @@ class LeekManager:
         try:
             process = psutil.Process(pid)
             print(f"停止服务 (PID: {pid})...")
-            process.terminate()
             
-            # 等待进程结束
-            try:
-                process.wait(timeout=10)
-            except psutil.TimeoutExpired:
-                print("强制终止进程...")
-                process.kill()
+            # 递归杀死进程及其所有子进程
+            self._kill_process_tree(process)
             
             # 清理PID文件
             if self.pid_file.exists():
@@ -389,6 +384,40 @@ class LeekManager:
         except Exception as e:
             print(f"停止服务异常: {e}")
             return False
+    
+    def _kill_process_tree(self, process):
+        """递归杀死进程及其所有子进程"""
+        try:
+            # 获取所有子进程
+            children = process.children(recursive=True)
+            
+            # 先杀死子进程
+            for child in children:
+                try:
+                    print(f"  停止子进程 (PID: {child.pid})...")
+                    child.terminate()
+                    try:
+                        child.wait(timeout=3)
+                    except psutil.TimeoutExpired:
+                        print(f"  强制终止子进程 {child.pid}...")
+                        child.kill()
+                except psutil.NoSuchProcess:
+                    pass
+                except Exception as e:
+                    print(f"  停止子进程 {child.pid} 异常: {e}")
+            
+            # 再杀死主进程
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except psutil.TimeoutExpired:
+                print("强制终止主进程...")
+                process.kill()
+                
+        except psutil.NoSuchProcess:
+            pass
+        except Exception as e:
+            print(f"杀死进程树异常: {e}")
     
     def restart(self, port=8009):
         print("重启服务...")

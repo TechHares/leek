@@ -576,7 +576,7 @@ class LeekManager:
             try:
                 result = subprocess.run(
                     ["poetry", "run", "python", "-c", "import importlib.metadata; print(importlib.metadata.version('leek-core'))"],
-                    cwd=self.core_dir,
+                    cwd=self.backend_dir,
                     capture_output=True,
                     text=True,
                     timeout=30
@@ -592,7 +592,7 @@ class LeekManager:
                 # 检查leek-core是否以开发模式安装
                 result = subprocess.run(
                     ["poetry", "run", "python", "-c", "import leek_core; print('installed')"],
-                    cwd=self.core_dir,
+                    cwd=self.backend_dir,
                     capture_output=True,
                     text=True,
                     timeout=30
@@ -606,13 +606,8 @@ class LeekManager:
         # 如果仍然检测不到版本，或者版本不匹配，则重新安装
         if installed_version is None or installed_version != expected_version:
             print(f"更新leek-core:{installed_version or '未安装'} -> {expected_version}")
-            if not self.run_command(f"poetry env use {sys.executable} && poetry install --no-interaction", cwd=self.core_dir):
-                print(f"leek-core 依赖安装失败, 请检查!")
-                return False
-            print("leek-core 依赖安装完成！")
             # 本地路径依赖，使用 poetry run pip install 确保在虚拟环境中安装
-            print(f"使用 poetry run pip install -e . ...")
-            if not self.run_command(f"poetry run pip install -e .", cwd=self.core_dir):
+            if not self.run_command(f"poetry run pip install -e {self.core_dir}", cwd=self.backend_dir):
                 print("leek-core 本地安装失败！")
                 return False
             print("leek-core 安装完成！")

@@ -340,7 +340,7 @@ class LeekManager:
         print("启动服务...")
         try:
             # 使用 poetry run 来确保在正确的虚拟环境中运行
-            cmd = f"nohup poetry run uvicorn app.main:app --host 0.0.0.0 --port {port} --log-level error > ../leek.log 2>&1 & echo $! > {self.pid_file}"
+            cmd = f"nohup poetry run uvicorn app.main:app --host 0.0.0.0 --port {port} > ../leek.log 2>&1 & echo $! > {self.pid_file}"
             if self.run_command(cmd, cwd=self.backend_dir, capture_output=False):
                 time.sleep(2)
                 if self.is_running():

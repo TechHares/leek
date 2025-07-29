@@ -640,6 +640,13 @@ class LeekManager:
                 print("leek-core 本地安装失败！")
                 return False
             print("leek-core 安装完成！")
+        
+        # 更新 poetry.lock 文件以确保版本一致性
+        print("更新 poetry.lock 文件...")
+        if not self.run_command("poetry lock", cwd=self.backend_dir):
+            print("poetry.lock 更新失败！")
+            return False
+        
         print("开始安装依赖（可能需要几分钟）...")
         if not self.run_command(f"poetry env use {sys.executable} && poetry install --no-interaction", cwd=self.backend_dir):
             print(f"leek-manager 依赖安装失败, 请检查!")

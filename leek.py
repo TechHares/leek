@@ -674,9 +674,9 @@ class LeekManager:
         print(f"切换到目录: {self.backend_dir}")
         os.chdir(self.backend_dir)
         # 使用 poetry run 来确保在正确的虚拟环境中运行
-        cmd = f"poetry run uvicorn app.main:app --host 0.0.0.0 --port {port}"
+        cmd = ["poetry", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", str(port), "--reload"]
         print(f"执行命令: {cmd}")
-        os.execvp("poetry", ["poetry", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", str(port)])
+        os.execvp("poetry", cmd)
 
 def _print_help():
     print("用法: python leek.py <command>")

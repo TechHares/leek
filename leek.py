@@ -342,7 +342,8 @@ class LeekManager:
             # 使用 poetry run 来确保在正确的虚拟环境中运行
             cmd = f"nohup poetry run uvicorn app.main:app --host 0.0.0.0 --port {port} > ../leek.log 2>&1 & echo $! > {self.pid_file}"
             ct = 0
-            while self.run_command(cmd, cwd=self.backend_dir, capture_output=False):
+            r = self.run_command(cmd, cwd=self.backend_dir, capture_output=False)
+            while r:
                 time.sleep(1)
                 ct += 1
                 if self.is_running():

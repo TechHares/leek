@@ -239,6 +239,57 @@ class LeekManager:
         
         print("清理完成!")
     
+    def cleanpy(self):
+        """清理 core 和 manager 目录的 Python 缓存和构建文件"""
+        print("开始清理 Python 缓存和构建文件...")
+        
+        # 只清理 core 和 manager 目录
+        target_dirs = [self.core_dir, self.backend_dir]
+        
+        for target_dir in target_dirs:
+            if not target_dir.exists():
+                print(f"目录不存在，跳过: {target_dir}")
+                continue
+                
+            print(f"清理目录: {target_dir}")
+            
+            # 清理 Python 缓存文件
+            for root, dirs, files in os.walk(target_dir):
+                # 清理 __pycache__ 目录
+                for dir_name in dirs[:]:  # 使用切片创建副本，避免修改迭代中的列表
+                    if dir_name == "__pycache__":
+                        cache_dir = Path(root) / dir_name
+                        self._remove(cache_dir, "Python缓存")
+                        dirs.remove(dir_name)  # 从dirs中移除，避免继续遍历
+                
+                # 清理 .pyc 文件
+                for file_name in files:
+                    if file_name.endswith('.pyc'):
+                        pyc_file = Path(root) / file_name
+                        self._remove(pyc_file, "Python字节码")
+            
+            # 清理构建文件
+            build_dirs = [
+                target_dir / "build",
+                target_dir / "dist",
+            ]
+            
+            for build_dir in build_dirs:
+                self._remove(build_dir, "构建文件")
+            
+            # 清理 egg-info 文件（使用通配符）
+            egg_info_pattern = str(target_dir / "*.egg-info")
+            import glob
+            for path in glob.glob(egg_info_pattern):
+                path_obj = Path(path)
+                self._remove(path_obj, "egg-info 文件")
+            
+            # 清理 poetry.lock 文件
+            poetry_lock_file = target_dir / "poetry.lock"
+            self._remove(poetry_lock_file, "Poetry 锁文件")
+        
+        print("Python 缓存和构建文件清理完成!")
+    
     def build(self):
         """构建前端并复制到后端"""
         print("开始构建前端...")
@@ -591,36 +642,30 @@ class LeekManager:
     def install(self):
         with open(self.core_dir / "pyproject.toml", "rb") as f:
             local_config = tomllib.load(f)
-        expected_version = local_config.get("project", {}).get("version")
+        # 优先读取 PEP 621 的 [project].version，如不存在则回退到 Poetry 的 [tool.poetry].version
+        expected_version = (
+            local_config.get("project", {}).get("version")
+            or local_config.get("tool", {}).get("poetry", {}).get("version")
+        )
         
-        # 改进版本检测逻辑，考虑虚拟环境隔离问题
+        # 改进版本检测逻辑：优先检测 Poetry 虚拟环境中的版本（服务实际使用的环境）
         installed_version = None
-        
-        # 方法1: 尝试在当前Python环境中检测
         try:
-            installed_version = importlib.metadata.version("leek-core")
-        except importlib.metadata.PackageNotFoundError:
+            result = subprocess.run(
+                ["poetry", "run", "python", "-c", "import importlib.metadata; print(importlib.metadata.version('leek-core'))"],
+                cwd=self.backend_dir,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode == 0:
+                installed_version = result.stdout.strip()
+        except Exception:
             pass
-        
-        # 方法2: 如果方法1失败，尝试在poetry虚拟环境中检测
+
+        # 如果在 Poetry 环境中未检测到，尝试检测是否以开发模式安装
         if installed_version is None:
             try:
-                result = subprocess.run(
-                    ["poetry", "run", "python", "-c", "import importlib.metadata; print(importlib.metadata.version('leek-core'))"],
-                    cwd=self.backend_dir,
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
-                if result.returncode == 0:
-                    installed_version = result.stdout.strip()
-            except Exception:
-                pass
-        
-        # 方法3: 如果前两种方法都失败，检查是否在开发模式下安装
-        if installed_version is None:
-            try:
-                # 检查leek-core是否以开发模式安装
                 result = subprocess.run(
                     ["poetry", "run", "python", "-c", "import leek_core; print('installed')"],
                     cwd=self.backend_dir,
@@ -629,9 +674,15 @@ class LeekManager:
                     timeout=30
                 )
                 if result.returncode == 0:
-                    # 如果能导入，说明已安装，使用期望版本作为已安装版本
                     installed_version = expected_version
             except Exception:
+                pass
+
+        # 最后才回退到当前 Python 环境（仅用于信息，不一定与运行环境一致）
+        if installed_version is None:
+            try:
+                installed_version = importlib.metadata.version("leek-core")
+            except importlib.metadata.PackageNotFoundError:
                 pass
         
         # 如果仍然检测不到版本，或者版本不匹配，则重新安装
@@ -644,7 +695,7 @@ class LeekManager:
             print("leek-core 安装完成！")
         
         print("开始安装依赖（可能需要几分钟）...")
-        if not self.run_command(f"poetry env use {sys.executable} && poetry install --no-interaction --sync", cwd=self.backend_dir):
+        if not self.run_command(f"poetry env use {sys.executable} && poetry sync && poetry install --no-interaction", cwd=self.backend_dir):
             print(f"leek-manager 依赖安装失败, 请检查!")
             return False
         print("leek-manager 依赖安装完成！")
@@ -678,6 +729,7 @@ def _print_help():
     print("用法: python leek.py <command>")
     print("命令:")
     print("  clean    - 清理所有构建输出")
+    print("  cleanpy  - 清理 core 和 manager 目录的 Python 缓存和构建文件")
     print("  build    - 构建前端并复制到后端")
     print("  start    - 启动服务")
     print("  stop     - 停止服务")
@@ -701,6 +753,8 @@ def main():
     
     if command == "clean":
         manager.clean()
+    elif command == "cleanpy":
+        manager.cleanpy()
     elif command == "build":
         manager.build()
     elif command == "start":

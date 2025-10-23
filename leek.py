@@ -28,7 +28,7 @@ installed = False
 installed = ensure_module("psutil") or installed
 installed = ensure_module("alembic") or installed
 installed = ensure_module("poetry") or installed
-if installed and os.geteuid() == 0 and not os.environ.get('LEEK_RESTARTED'):
+if installed and hasattr(os, "geteuid") and os.geteuid() == 0 and not os.environ.get('LEEK_RESTARTED'):
     env = os.environ.copy()
     env['LEEK_RESTARTED'] = '1'
     print(f"重启进程: {sys.executable} {sys.argv}")
@@ -167,9 +167,13 @@ class LeekManager:
             
             # 清理 .pyc 文件
             for file_name in files:
-                if file_name.endswith('.pyc'):
+                if file_name.endswith('.pyc') or file_name.endswith('.pyo'):
                     pyc_file = Path(root) / file_name
                     self._remove(pyc_file, "Python字节码")
+            for file_name in files:
+                if file_name.endswith('.lock'):
+                    lock_file = Path(root) / file_name
+                    self._remove(lock_file, "锁文件")
         
         # 清理其他构建文件
         build_dirs = [
@@ -264,9 +268,17 @@ class LeekManager:
                 
                 # 清理 .pyc 文件
                 for file_name in files:
-                    if file_name.endswith('.pyc'):
+                    if file_name.endswith('.pyc') or file_name.endswith('.pyo'):
                         pyc_file = Path(root) / file_name
                         self._remove(pyc_file, "Python字节码")
+                for file_name in files:
+                    if file_name.endswith('.lock'):
+                        lock_file = Path(root) / file_name
+                        self._remove(lock_file, "锁文件")
+                for file_name in files:
+                    if file_name.endswith('.log'):
+                        log_file = Path(root) / file_name
+                        self._remove(log_file, "日志文件")
             
             # 清理构建文件
             build_dirs = [
@@ -391,7 +403,7 @@ class LeekManager:
         print("启动服务...")
         try:
             # 使用 poetry run 来确保在正确的虚拟环境中运行
-            cmd = f"nohup poetry run uvicorn app.main:app --host 0.0.0.0 --port {port} > ../leek.log 2>&1 & echo $! > {self.pid_file}"
+            cmd = f"nohup {sys.executable} -m poetry run uvicorn app.main:app --host 0.0.0.0 --port {port} > ../leek.log 2>&1 & echo $! > {self.pid_file}"
             ct = 0
             r = self.run_command(cmd, cwd=self.backend_dir, capture_output=False)
             while r:
@@ -503,9 +515,9 @@ class LeekManager:
             return False
         
         # 构建alembic命令
-        cmd = "poetry run alembic revision --autogenerate"
+        cmd = f"{sys.executable} -m poetry run alembic revision --autogenerate"
         if message:
-            cmd += f" -m '{message}'"
+            cmd += f' -m "{message}"'
         
         print(f"执行迁移命令: {cmd}")
         
@@ -524,7 +536,7 @@ class LeekManager:
         if not self.ensure_alembic_dirs():
             return False
         
-        cmd = "poetry run alembic upgrade head"
+        cmd = f"{sys.executable} -m poetry run alembic upgrade head"
         print(f"执行迁移命令: {cmd}")
         
         if self.run_command(cmd, cwd=self.backend_dir):
@@ -541,7 +553,7 @@ class LeekManager:
         if not self.ensure_alembic_dirs():
             return False
         
-        cmd = f"poetry run alembic downgrade {revision}"
+        cmd = f"{sys.executable} -m poetry run alembic downgrade {revision}"
         print(f"执行回滚命令: {cmd}")
         
         if self.run_command(cmd, cwd=self.backend_dir):
@@ -558,7 +570,7 @@ class LeekManager:
         if not self.ensure_alembic_dirs():
             return False
         
-        cmd = "poetry run alembic current"
+        cmd = f"{sys.executable} -m poetry run alembic current"
         print(f"执行状态查询命令: {cmd}")
         
         if self.run_command(cmd, cwd=self.backend_dir):
@@ -576,12 +588,12 @@ class LeekManager:
             return False
         
         # 重置迁移检查状态，强制重新检查
-        cmd = f"poetry run python -c \"from app.db.session import reset_connection; reset_connection()\""
+        cmd = f"{sys.executable} -m poetry run python -c \"from app.db.session import reset_connection; reset_connection()\""
         print("重置连接状态...")
         self.run_command(cmd, cwd=self.backend_dir)
         
         # 执行迁移
-        cmd = "poetry run alembic upgrade head"
+        cmd = f"{sys.executable} -m poetry run alembic upgrade head"
         print(f"执行迁移命令: {cmd}")
         
         if self.run_command(cmd, cwd=self.backend_dir):
@@ -652,7 +664,7 @@ class LeekManager:
         installed_version = None
         try:
             result = subprocess.run(
-                ["poetry", "run", "python", "-c", "import importlib.metadata; print(importlib.metadata.version('leek-core'))"],
+                [sys.executable, "-m", "poetry", "run", "python", "-c", "import importlib.metadata; print(importlib.metadata.version('leek-core'))"],
                 cwd=self.backend_dir,
                 capture_output=True,
                 text=True,
@@ -667,7 +679,7 @@ class LeekManager:
         if installed_version is None:
             try:
                 result = subprocess.run(
-                    ["poetry", "run", "python", "-c", "import leek_core; print('installed')"],
+                    [sys.executable, "-m", "poetry", "run", "python", "-c", "import leek_core; print('installed')"],
                     cwd=self.backend_dir,
                     capture_output=True,
                     text=True,
@@ -689,13 +701,13 @@ class LeekManager:
         if installed_version is None or installed_version != expected_version:
             print(f"更新leek-core:{installed_version or '未安装'} -> {expected_version}")
             # 本地路径依赖，使用 poetry run pip install 确保在虚拟环境中安装
-            if not self.run_command(f"poetry run pip install -e {self.core_dir}", cwd=self.backend_dir):
+            if not self.run_command(f"{sys.executable} -m poetry run pip install -e {self.core_dir}", cwd=self.backend_dir):
                 print("leek-core 本地安装失败！")
                 return False
             print("leek-core 安装完成！")
         
         print("开始安装依赖（可能需要几分钟）...")
-        if not self.run_command(f"poetry env use {sys.executable} && poetry sync && poetry install --no-interaction", cwd=self.backend_dir):
+        if not self.run_command(f"{sys.executable} -m poetry env use {sys.executable} && {sys.executable} -m poetry sync && {sys.executable} -m poetry install --no-interaction", cwd=self.backend_dir):
             print(f"leek-manager 依赖安装失败, 请检查!")
             return False
         print("leek-manager 依赖安装完成！")
@@ -721,9 +733,9 @@ class LeekManager:
         print(f"切换到目录: {self.backend_dir}")
         os.chdir(self.backend_dir)
         # 使用 poetry run 来确保在正确的虚拟环境中运行
-        cmd = ["poetry", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", str(port), "--reload"]
+        cmd = [sys.executable, "-m", "poetry", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", str(port), "--reload"]
         print(f"执行命令: {cmd}")
-        os.execvp("poetry", cmd)
+        os.execv(sys.executable, cmd)
 
 def _print_help():
     print("用法: python leek.py <command>")
